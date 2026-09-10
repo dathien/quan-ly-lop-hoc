@@ -3389,7 +3389,7 @@ document.addEventListener("click",function(e){
     }
   }
 </script>
-<!-- === ĐOẠN CODE ĐỒNG BỘ ONLINE CHẠY ẨN === -->
+<!-- === ĐOẠN CODE ĐỒNG BỘ ONLINE TỐI ƯU TUYỆT ĐỐI === -->
 <script src="https://gstatic.com"></script>
 <script src="https://gstatic.com"></script>
 
@@ -3404,36 +3404,56 @@ document.addEventListener("click",function(e){
     appId: "1:411444758171:web:b2b500166774ef0e67683e"
   };
 
-  // Kích hoạt kết nối Firebase
   firebase.initializeApp(firebaseConfig);
   const dbRef = firebase.database().ref('du_lieu_lop_hoc');
+  let isInitialLoad = true;
 
-  // 1. Tự động tải dữ liệu ONLINE về mỗi khi mở hoặc F5 web
+  // 1. Lắng nghe và đồng bộ dữ liệu từ đám mây về thiết bị (Máy tính & Điện thoại)
   dbRef.on('value', (snapshot) => {
     const data = snapshot.val();
     if (data && typeof state !== 'undefined') {
-      state = data;
-      // Gọi hàm render để cập nhật màn hình tự động nếu có
-      if (typeof render === 'function') render();
-      if (typeof renderReports === 'function') renderReports();
-      if (typeof showSection === 'function' && typeof currentSection !== 'undefined') showSection(currentSection);
+      // Cơ chế hòa trộn dữ liệu thông minh tránh lỗi hằng số (const state)
+      Object.keys(data).forEach(key => {
+        if (state[key] !== undefined) {
+          if (Array.isArray(state[key]) && Array.isArray(data[key])) {
+            state[key].length = 0;
+            state[key].push(...data[key]);
+          } else if (typeof state[key] === 'object' && typeof data[key] === 'object') {
+            Object.assign(state[key], data[key]);
+          } else {
+            state[key] = data[key];
+          }
+        }
+      });
+
+      // Lưu vào bộ nhớ đệm cục bộ của trình duyệt để đồng bộ nhanh hơn
+      localStorage.setItem('gvcnpro_state', JSON.stringify(state));
+
+      // Gọi toàn bộ các hàm vẽ giao diện để cập nhật màn hình lập tức
+      const renderFunctions = ['render', 'renderReports', 'renderStudents', 'initApp', 'loadState', 'updateUI'];
+      renderFunctions.forEach(fn => {
+        if (typeof window[fn] === 'function') {
+          try { window[fn](); } catch(e) { console.log(e); }
+        }
+      });
+      
+      if (typeof showSection === 'function' && typeof currentSection !== 'undefined') {
+        try { showSection(currentSection); } catch(e) {}
+      }
+      
+      isInitialLoad = false;
+      console.log("Đã đồng bộ dữ liệu đám mây về thiết bị!");
     }
   });
 
-  // 2. Tự động lắng nghe mỗi khi bạn bấm Thêm/Sửa/Xóa dữ liệu để đẩy lên mạng
-  function dongBoLenOnline() {
-    if (typeof state !== 'undefined') {
-      dbRef.set(state).catch(err => console.error("Lỗi gửi dữ liệu:", err));
-    }
-  }
-
-  // Mẹo kích hoạt: Tự động lưu lên mạng sau mỗi 3 giây nếu có thay đổi dữ liệu
+  // 2. Lắng nghe thay đổi thao tác (Thêm/Sửa/Xóa) để đẩy ngược lên đám mây
   setInterval(() => {
-    if (typeof state !== 'undefined') {
-      dongBoLenOnline();
+    if (!isInitialLoad && typeof state !== 'undefined' && state !== null) {
+      dbRef.set(state).catch(err => console.error("Lỗi gửi dữ liệu lên đám mây:", err));
     }
-  }, 3000);
+  }, 1500); // Tự động kiểm tra và đồng bộ mỗi 1.5 giây
 </script>
+
 
 </body>
 </html>
