@@ -3352,6 +3352,43 @@ document.addEventListener("click",function(e){
   requestAnimationFrame(()=>refreshCurrentView());
 },true);
 </script>
+<!-- Chèn thư viện chạy ngầm Firebase -->
+<script src="https://gstatic.com"></script>
+<script src="https://gstatic.com"></script>
+
+<script>
+  // Cấu hình chuẩn đã sửa lại link database chính xác của bạn
+  const firebaseConfig = {
+    apiKey: "AIzaSyDxPszviaqmzChOIMYXJakfzVb5WS3MOx4",
+    authDomain: "://firebaseapp.com",
+    databaseURL: "https://firebasedatabase.app",
+    projectId: "quan-ly-lop-hoc-116a9",
+    storageBucket: "://appspot.com",
+    messagingSenderId: "411444758171",
+    appId: "1:411444758171:web:b2b500166774ef0e67683e"
+  };
+
+  // Kích hoạt kết nối ngầm
+  firebase.initializeApp(firebaseConfig);
+  const dbRef = firebase.database().ref('du_lieu_lop_hoc');
+
+  // Tự động đồng bộ dữ liệu về máy khi F5 web
+  dbRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data && typeof state !== 'undefined') {
+      state = data;
+      if (typeof render === 'function') render();
+      if (typeof renderReports === 'function') renderReports();
+    }
+  });
+
+  // Hàm đẩy dữ liệu lên mạng (sẽ gọi trong code của bạn sau này)
+  function dongBoLenOnline() {
+    if (typeof state !== 'undefined') {
+      dbRef.set(state).catch(err => console.error("Lỗi đồng bộ:", err));
+    }
+  }
+</script>
 
 </body>
 </html>
