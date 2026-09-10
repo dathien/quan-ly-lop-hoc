@@ -3389,6 +3389,51 @@ document.addEventListener("click",function(e){
     }
   }
 </script>
+<!-- === ĐOẠN CODE ĐỒNG BỘ ONLINE CHẠY ẨN === -->
+<script src="https://gstatic.com"></script>
+<script src="https://gstatic.com"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDxPszviaqmzChOIMYXJakfzVb5WS3MOx4",
+    authDomain: "://firebaseapp.com",
+    databaseURL: "https://firebasedatabase.app",
+    projectId: "quan-ly-lop-hoc-116a9",
+    storageBucket: "://appspot.com",
+    messagingSenderId: "411444758171",
+    appId: "1:411444758171:web:b2b500166774ef0e67683e"
+  };
+
+  // Kích hoạt kết nối Firebase
+  firebase.initializeApp(firebaseConfig);
+  const dbRef = firebase.database().ref('du_lieu_lop_hoc');
+
+  // 1. Tự động tải dữ liệu ONLINE về mỗi khi mở hoặc F5 web
+  dbRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data && typeof state !== 'undefined') {
+      state = data;
+      // Gọi hàm render để cập nhật màn hình tự động nếu có
+      if (typeof render === 'function') render();
+      if (typeof renderReports === 'function') renderReports();
+      if (typeof showSection === 'function' && typeof currentSection !== 'undefined') showSection(currentSection);
+    }
+  });
+
+  // 2. Tự động lắng nghe mỗi khi bạn bấm Thêm/Sửa/Xóa dữ liệu để đẩy lên mạng
+  function dongBoLenOnline() {
+    if (typeof state !== 'undefined') {
+      dbRef.set(state).catch(err => console.error("Lỗi gửi dữ liệu:", err));
+    }
+  }
+
+  // Mẹo kích hoạt: Tự động lưu lên mạng sau mỗi 3 giây nếu có thay đổi dữ liệu
+  setInterval(() => {
+    if (typeof state !== 'undefined') {
+      dongBoLenOnline();
+    }
+  }, 3000);
+</script>
 
 </body>
 </html>
