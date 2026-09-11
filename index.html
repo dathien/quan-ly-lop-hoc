@@ -3365,6 +3365,7 @@ document.addEventListener("click",function(e){
 @keyframes cloudPulse{from{opacity:.5}to{opacity:1}}
 @media(max-width:780px){.cloud-sync-pill{width:100%;justify-content:center;order:3}}
 </style>
+<!-- Neon Cloud Sync V2: timeout + mobile loop fix -->
 <script id="gvcn-neon-cloud-sync">
 (()=>{
   const API='/api/sync';
@@ -3396,7 +3397,7 @@ document.addEventListener("click",function(e){
   function setStatus(st,label,detail=''){
     status={state:st,label,detail};
     const el=document.getElementById('cloudSyncStatus');
-    if(el){el.dataset.state=st;el.textContent=label;el.title=detail||label}
+    if(el){el.dataset.state=st;el.textContent=label;el.title=(detail||label)+' • Nhấn để kiểm tra Cloud'}
     const box=document.getElementById('cloudDataStatus');
     if(box){box.innerHTML=`<b>${esc(label)}</b><div class="muted" style="margin-top:5px">${esc(detail)}</div>`}
   }
@@ -3405,7 +3406,9 @@ document.addEventListener("click",function(e){
     const actions=document.querySelector('.topbar>.actions');
     if(!actions)return;
     const el=document.createElement('span');
-    el.id='cloudSyncStatus';el.className='cloud-sync-pill';el.dataset.state=status.state;el.textContent=status.label;el.title=status.detail||status.label;
+    el.id='cloudSyncStatus';el.className='cloud-sync-pill';el.dataset.state=status.state;el.textContent=status.label;el.title=(status.detail||status.label)+' • Nhấn để kiểm tra Cloud';
+    el.style.cursor='pointer';
+    el.addEventListener('click',()=>{if(initialized&&!pulling&&!pushing)pullNow(true)});
     actions.insertBefore(el,actions.firstChild);
   }
   function persistLocal(){
@@ -3419,8 +3422,19 @@ document.addEventListener("click",function(e){
   }
   function isValidCloudData(data){return !!(data&&typeof data==='object'&&Array.isArray(data.classes)&&Array.isArray(data.students))}
 
+  async function fetchWithTimeout(url,options={},timeoutMs=10000){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),timeoutMs);
+    try{
+      return await fetch(url,{...options,signal:controller.signal});
+    }catch(e){
+      if(e&&e.name==='AbortError')throw new Error('Cloud phản hồi quá 10 giây');
+      throw e;
+    }finally{clearTimeout(timer)}
+  }
+
   async function getRemote(){
-    const r=await fetch(API,{method:'GET',headers:{'Accept':'application/json'},cache:'no-store'});
+    const r=await fetchWithTimeout(API,{method:'GET',headers:{'Accept':'application/json'},cache:'no-store'},10000);
     if(!r.ok)throw new Error(`Cloud GET ${r.status}`);
     const x=await r.json();
     if(!x.ok)throw new Error(x.error||'Không đọc được Cloud');
@@ -3428,7 +3442,7 @@ document.addEventListener("click",function(e){
   }
 
   async function postRemote(snapshot){
-    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot)});
+    const r=await fetchWithTimeout(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot)},10000);
     if(!r.ok)throw new Error(`Cloud POST ${r.status}`);
     const x=await r.json();
     if(!x.ok)throw new Error(x.error||'Không ghi được Cloud');
@@ -3550,11 +3564,19 @@ document.addEventListener("click",function(e){
     }
   },2200);
 
-  // Khi quay lại tab/mở mạng, kiểm tra Cloud mới nhất.
-  window.addEventListener('online',()=>{setStatus('syncing','● Có mạng trở lại','Đang đồng bộ...');pullNow(false)});
+  // Không tự tải lại mỗi lần focus/đổi tab để tránh vòng lặp trên điện thoại.
+  // Chỉ kiểm tra lại khi mạng vừa khôi phục và định kỳ nhẹ khi app đang mở.
+  let lastAutoPullAt=0;
+  async function autoPullIfDue(){
+    const now=Date.now();
+    if(!initialized||!navigator.onLine||pulling||pushing||document.hidden)return;
+    if(now-lastAutoPullAt<60000)return;
+    lastAutoPullAt=now;
+    await pullNow(false);
+  }
+  window.addEventListener('online',()=>{setStatus('syncing','● Có mạng trở lại','Đang kiểm tra Cloud...');setTimeout(autoPullIfDue,500)});
   window.addEventListener('offline',()=>setStatus('offline','● Ngoại tuyến','Dữ liệu vẫn được lưu trên thiết bị.'));
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&initialized&&navigator.onLine)pullNow(false)});
-  window.addEventListener('focus',()=>{if(initialized&&navigator.onLine)pullNow(false)});
+  setInterval(autoPullIfDue,60000);
 
   window.GVCNCloud={
     pushNow:()=>pushNow(true),
