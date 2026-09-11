@@ -3604,13 +3604,34 @@ document.addEventListener("click",function(e){
 
   // Chỉ lấy metadata nhỏ trước, không tải cả snapshot nếu Cloud chưa đổi.
   async function getRemoteMeta(){
-    const r=await fetchWithTimeout(API+'?meta=1',{
-      method:'GET',headers:{'Accept':'application/json'},cache:'no-store'
-    },6000);
-    if(!r.ok)throw new Error(`Cloud ${r.status}`);
-    const x=await r.json();
-    if(!x.ok)throw new Error(x.error||'Không kiểm tra được Cloud');
-    return x;
+    try{
+      const r=await fetchWithTimeout(API+'?meta=1',{
+        method:'GET',headers:{'Accept':'application/json'},cache:'no-store'
+      },6000);
+      if(!r.ok)throw new Error(`Cloud ${r.status}`);
+      const x=await r.json();
+      if(!x.ok)throw new Error(x.error||'Không kiểm tra được Cloud');
+
+      // Tương thích cả API V3 và API cũ.
+      if(typeof x.hasData==="boolean")return x;
+      if("data" in x){
+        const d=x.data;
+        return {
+          ok:true,
+          hasData:!!(d&&typeof d==="object"&&Object.keys(d).length),
+          updatedAt:x.updatedAt||null
+        };
+      }
+      return {ok:true,hasData:false,updatedAt:x.updatedAt||null};
+    }catch(err){
+      // Fallback: nếu endpoint metadata chưa hỗ trợ, thử GET đầy đủ.
+      const x=await getRemote();
+      return {
+        ok:true,
+        hasData:!!(x.data&&typeof x.data==="object"&&Object.keys(x.data).length),
+        updatedAt:x.updatedAt||null
+      };
+    }
   }
 
   async function getRemote(){
@@ -3771,7 +3792,10 @@ document.addEventListener("click",function(e){
     }catch(e){
       initialized=true;
       console.error('[Neon Sync V3] bootstrap',e);
-      setStatus('error','Lỗi đồng bộ',e.message||'Không kết nối được Cloud');
+      setStatus(navigator.onLine?'error':'offline',
+        navigator.onLine?'Lỗi đồng bộ':'Ngoại tuyến',
+        (e&&e.message)||'Không kết nối được Cloud');
+      if(navigator.onLine)setTimeout(()=>pullNow(false),5000);
     }
   }
 
