@@ -1,9 +1,11 @@
 {
-  "name": "quan-ly-lop-hoc",
+  "name": "gvcn-pro-giai-doan-1",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.0"
+    "@neondatabase/serverless": "^1.0.0",
+    "google-auth-library": "^9.14.2",
+    "jose": "^5.9.6"
   }
 }
