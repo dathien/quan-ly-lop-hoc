@@ -39,7 +39,8 @@ button{cursor:pointer}
 .hero-empty{height:265px;display:flex;align-items:center;justify-content:center;font-size:72px;background:linear-gradient(135deg,#eaf2ff,#f8fbff)}
 .hero-overlay{position:absolute;left:0;right:0;bottom:0;padding:24px;color:#fff;background:linear-gradient(transparent,rgba(8,28,52,.84))}
 .hero-title{font-size:29px;font-weight:900}.hero-sub{opacity:.9;margin-top:4px}
-.hero-actions{position:absolute;right:14px;top:14px;display:flex;gap:8px;flex-wrap:wrap}
+.hero-actions{position:absolute;right:14px;top:14px;display:flex;gap:8px;flex-wrap:wrap;opacity:0;visibility:hidden;pointer-events:none;transform:translateY(-4px);transition:opacity .18s ease,transform .18s ease,visibility .18s ease}
+.hero:hover .hero-actions,.hero:focus-within .hero-actions{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0)}
 .btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;color:var(--text)}
 .btn:hover{background:#f8fafc}.btn.primary{background:var(--pri);border-color:var(--pri);color:#fff}.btn.primary:hover{background:var(--pri2)}
 .btn.good{background:#ecfdf5;border-color:#a7f3d0;color:#047857}.btn.bad{background:#fef2f2;border-color:#fecaca;color:#b91c1c}
@@ -79,6 +80,10 @@ tr:last-child td{border-bottom:0}
   .hero img{height:230px}.hero-title{font-size:22px}.seat-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}
 }
 @media print{.sidebar,.topbar,.no-print,.btn{display:none!important}.app{display:block}.content{padding:0}.card{box-shadow:none}}
+
+@media (hover:none){
+  .hero:active .hero-actions,.hero:focus-within .hero-actions{opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0)}
+}
 </style>
 
 <style id="gvcnpro-v371-ui-refine">
@@ -1285,7 +1290,7 @@ function renderHome(){
  const bal=byClass(state.finance).reduce((a,x)=>a+(x.type==="Thu"?Number(x.amount||0):-Number(x.amount||0)),0);
  $("#content").innerHTML=`
  <section class=hero>${c?.cover?`<img src="${c.cover}">`:`<div class=hero-empty>🏫</div>`}
- <div class=hero-actions><button class=btn onclick=changeCover()>📷 ${c?.cover?"Đổi ảnh lớp":"Thêm ảnh lớp"}</button>${c?.cover?`<button class="btn bad" onclick=removeCover()>Bỏ ảnh</button>`:""}</div>
+ ${(window.GVCNAuth?.isAdmin?.() || window.GVCNAuth?.hasPerm?.("classes")) ? `<div class=hero-actions><button class=btn onclick=changeCover()>📷 ${c?.cover?"Đổi ảnh lớp":"Thêm ảnh lớp"}</button>${c?.cover?`<button class="btn bad" onclick=removeCover()>Bỏ ảnh</button>`:""}</div>` : ""}
  <div class=hero-overlay><div class=hero-title>${esc(c?.name||"Lớp học")}</div><div class=hero-sub>${esc(c?.school||"")} ${c?.year?`• ${esc(c.year)}`:""}</div></div></section>
  <div class="dashboard-summary-head">
    <div>
