@@ -3867,7 +3867,17 @@ document.addEventListener("click",function(e){
   function roleLabel(r){return ({admin:'GVCN / Admin',loptruong:'Lớp trưởng',bithu:'Bí thư',thuquy:'Thủ quỹ'})[r]||r||''}
   function authArea(){const el=document.getElementById('authArea');if(!el)return;if(currentUser){el.innerHTML=`<span class="auth-chip">${esc(roleLabel(currentUser.role))}: ${esc(currentUser.fullName||currentUser.username)}</span><button class="btn" onclick="GVCNAuth.logout()">↪ Đăng xuất</button>`}else{el.innerHTML=`<span class="auth-chip viewer">👁 Khách xem</span><button class="btn primary" onclick="GVCNAuth.openLogin()">🔐 Quản trị</button>`}}
   function applyNav(){document.querySelectorAll('.nav button[data-page]').forEach(b=>{b.style.display=canOpen(b.dataset.page)?'':'none'});document.querySelectorAll('.sidebar-quick button').forEach(b=>{const oc=b.getAttribute('onclick')||'';const m=oc.match(/navigate\('([^']+)'\)/);if(m)b.style.display=canOpen(m[1])?'':'none'});const sel=document.getElementById('classSelect');if(sel)sel.disabled=!isAdmin()}
-  function applyReadOnly(){const writable=canWrite(window.page||page||'home');document.body.classList.toggle('gvcn-readonly',!writable);const c=document.getElementById('content');if(!c)return;c.querySelectorAll('.readonly-banner').forEach(x=>x.remove());if(!writable){const d=document.createElement('div');d.className='readonly-banner';d.textContent=currentUser?'Bạn đang xem khu vực này ở chế độ chỉ đọc.':'Chế độ công khai: chỉ xem. Đăng nhập Quản trị để cập nhật dữ liệu.';c.prepend(d)}}
+  function applyReadOnly(){
+    const writable=canWrite(window.page||page||'home');
+    document.body.classList.toggle('gvcn-readonly',!writable);
+    const c=document.getElementById('content');if(!c)return;
+    const existing=c.querySelector('.readonly-banner');
+    if(!writable){
+      const txt=currentUser?'Bạn đang xem khu vực này ở chế độ chỉ đọc.':'Chế độ công khai: chỉ xem. Đăng nhập Quản trị để cập nhật dữ liệu.';
+      if(existing){if(existing.textContent!==txt)existing.textContent=txt}
+      else{const d=document.createElement('div');d.className='readonly-banner';d.textContent=txt;c.prepend(d)}
+    }else if(existing){existing.remove()}
+  }
   const oldNavigate=window.navigate;window.navigate=function(pg){if(!canOpen(pg)){toast('Tài khoản không có quyền vào khu vực này');return}oldNavigate(pg);setTimeout(()=>{applyNav();applyReadOnly()},0)};
   function loginModal(){modal(`<div class="auth-login-card"><h3>🔐 Đăng nhập quản trị</h3><div class="muted">Khách xem web không cần đăng nhập. Chỉ GVCN và thành viên được cấp quyền mới đăng nhập tại đây.</div><div class="form-grid" style="margin-top:14px"><div class="field"><label>Tên đăng nhập</label><input id="authUser" autocomplete="username" placeholder="Tên đăng nhập"></div><div class="field"><label>Mật khẩu</label><input id="authPass" type="password" autocomplete="current-password" placeholder="Mật khẩu" onkeydown="if(event.key==='Enter')GVCNAuth.loginPassword()"></div></div><div class="actions" style="margin-top:12px"><button class="btn primary" onclick="GVCNAuth.loginPassword()">Đăng nhập</button><button class="btn" onclick="closeModal()">Hủy</button></div><div class="auth-sep">hoặc</div><div id="googleLoginBox"><button class="btn" style="width:100%" onclick="GVCNAuth.googleUnavailable()">G Đăng nhập bằng Google</button></div><div id="authMsg" class="auth-msg"></div></div>`);setTimeout(renderGoogleButton,50)}
   async function loginPassword(){const msg=document.getElementById('authMsg');if(msg)msg.textContent='Đang kiểm tra…';try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:val('authUser'),password:val('authPass')})});const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error||'Không đăng nhập được');currentUser=x.user;closeModal();authArea();applyNav();if(window.GVCNCloud)await window.GVCNCloud.pullNow(true);if(!canOpen(page))navigate('home');else{render();applyReadOnly()}toast('Đăng nhập thành công')}catch(e){if(msg)msg.textContent=e.message||'Đăng nhập không thành công'}}
@@ -3879,8 +3889,52 @@ document.addEventListener("click",function(e){
   async function saveUser(id=''){const permissions=[...document.querySelectorAll('.permBox:checked')].map(x=>x.value);const body={id,fullName:val('auName').trim(),role:val('auRole'),username:val('auUsername').trim(),password:val('auPassword'),googleEmail:val('auGoogle').trim(),permissions};if(!body.fullName||!body.username){toast('Nhập họ tên và tên đăng nhập');return}const r=await fetch('/api/admin/users',{method:id?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const x=await r.json();if(!r.ok||!x.ok){toast(x.error||'Không lưu được');return}closeModal();toast('Đã lưu thành viên');renderMembers()}
   async function toggleUser(id,active){const r=await fetch('/api/admin/users',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,active})});const x=await r.json();if(!r.ok||!x.ok){toast(x.error||'Không cập nhật được');return}renderMembers()}
   async function deleteUser(id){if(!confirm('Xóa thành viên này?'))return;const r=await fetch('/api/admin/users?id='+encodeURIComponent(id),{method:'DELETE'});const x=await r.json();if(!r.ok||!x.ok){toast(x.error||'Không xóa được');return}closeModal();toast('Đã xóa thành viên');renderMembers()}
-  async function init(){try{const [me,cfg]=await Promise.all([fetch('/api/auth/me').then(r=>r.json()),fetch('/api/auth/config').then(r=>r.json()).catch(()=>({}))]);currentUser=me?.authenticated?me.user:null;googleClientId=cfg?.googleClientId||'';authArea();applyNav();if(window.GVCNCloud)await window.GVCNCloud.pullNow(true);if(!canOpen(page))navigate('home');else{render();applyReadOnly()}}catch(e){console.error('[GVCN Auth]',e);authArea();applyNav();if(!canOpen(page))navigate('home')}finally{document.body.classList.remove('auth-pending')}}
-  const observer=new MutationObserver(()=>{applyNav();applyReadOnly()});observer.observe(document.getElementById('content'),{childList:true,subtree:true});
+  async function authJson(url,timeoutMs=5000){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),timeoutMs);
+    try{
+      const r=await fetch(url,{cache:'no-store',signal:controller.signal});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return await r.json();
+    }finally{clearTimeout(timer)}
+  }
+  async function init(){
+    // Không để việc tải Cloud/Google chặn trang công khai.
+    try{
+      const me=await authJson('/api/auth/me',5000).catch(()=>({authenticated:false,user:null}));
+      currentUser=me?.authenticated?me.user:null;
+      // Config Google là tùy chọn; lỗi/timeout không được chặn app.
+      authJson('/api/auth/config',3500).then(cfg=>{googleClientId=cfg?.googleClientId||''}).catch(()=>{});
+      authArea();
+      applyNav();
+      if(!canOpen(page))navigate('home');
+      else{render();applyReadOnly()}
+    }catch(e){
+      console.error('[GVCN Auth]',e);
+      currentUser=null;
+      authArea();
+      applyNav();
+      try{if(!canOpen(page))navigate('home');else{render();applyReadOnly()}}catch(_){}
+    }finally{
+      // Luôn mở giao diện sau bước kiểm tra quyền, kể cả Cloud đang chậm.
+      document.body.classList.remove('auth-pending');
+    }
+    // Cloud chạy nền sau khi giao diện đã hiển thị.
+    setTimeout(async()=>{
+      try{
+        if(window.GVCNCloud)await window.GVCNCloud.pullNow(true);
+        if(!canOpen(page))navigate('home');else{render();applyReadOnly()}
+      }catch(e){console.error('[GVCN Cloud background]',e)}
+    },50);
+  }
+  let roScheduled=false;
+  const observer=new MutationObserver(()=>{
+    if(roScheduled)return;
+    roScheduled=true;
+    requestAnimationFrame(()=>{roScheduled=false;applyNav();applyReadOnly()});
+  });
+  const contentRoot=document.getElementById('content');
+  if(contentRoot)observer.observe(contentRoot,{childList:true,subtree:true});
   window.GVCNAuth={openLogin:loginModal,loginPassword,logout,openUserForm,saveUser,toggleUser,deleteUser,googleUnavailable:()=>toast(googleClientId?'Đang tải Google Login…':'Google Login chưa được cấu hình'),getUser:()=>currentUser,hasPerm,isAdmin};setTimeout(init,10);
 })();
 </script>
