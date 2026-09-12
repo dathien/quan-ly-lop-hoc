@@ -1239,8 +1239,48 @@ const THPT_SUBJECTS=[
 ];
 let scoreView="matrix";
 let scoreSubjectFilter="all";
+// 9 môn GVCN ưu tiên theo dõi ở bảng Tổng hợp toàn lớp.
+// value = tên chuẩn dùng để lưu/đọc dữ liệu; label = tên ngắn hiển thị trên bảng.
+const SCORE_MATRIX_DEFAULT=[
+  {value:"Toán",label:"Toán"},
+  {value:"Vật lí",label:"Lý"},
+  {value:"Hóa học",label:"Hóa"},
+  {value:"Ngữ văn",label:"Văn"},
+  {value:"Sinh học",label:"Sinh"},
+  {value:"Lịch sử",label:"Sử"},
+  {value:"Địa lí",label:"Địa"},
+  {value:"Tiếng Anh (Ngoại ngữ 1)",label:"Anh Văn"},
+  {value:"Tin học",label:"Tin học"}
+];
 function classGrade(){const m=String(curClass()?.name||"").match(/(?:^|\\D)(10|11|12)(?:\\D|$)/);return m?Number(m[1]):11}
 function subjectCatalog(){return THPT_SUBJECTS}
+function scoreMatrixSubjects(){
+ const c=curClass();
+ const saved=Array.isArray(c?.scoreMatrixOrder)?c.scoreMatrixOrder:[];
+ const valid=SCORE_MATRIX_DEFAULT.map(x=>x.value);
+ const order=[...saved.filter(x=>valid.includes(x)),...valid.filter(x=>!saved.includes(x))];
+ return order.map(v=>SCORE_MATRIX_DEFAULT.find(x=>x.value===v)).filter(Boolean);
+}
+function moveScoreMatrixSubject(index,dir){
+ const arr=scoreMatrixSubjects().map(x=>x.value),j=index+dir;
+ if(index<0||j<0||index>=arr.length||j>=arr.length)return;
+ [arr[index],arr[j]]=[arr[j],arr[index]];
+ const c=curClass();if(c)c.scoreMatrixOrder=arr;
+ save('Đã cập nhật thứ tự môn tổng hợp');
+ openScoreMatrixOrder();
+}
+function resetScoreMatrixOrder(){
+ const c=curClass();if(c)delete c.scoreMatrixOrder;
+ save('Đã khôi phục thứ tự 9 môn mặc định');
+ closeModal();renderScores();
+}
+function openScoreMatrixOrder(){
+ const items=scoreMatrixSubjects();
+ modal(`<h3>⚙️ Sắp xếp 9 môn — Tổng hợp toàn lớp</h3>
+ <div class="muted" style="margin-bottom:12px">Thứ tự này được lưu riêng cho lớp <b>${esc(curClass()?.name||'')}</b>. Dùng nút ↑ ↓ để đưa môn lên hoặc xuống.</div>
+ <div style="display:grid;gap:8px">${items.map((x,i)=>`<div style="display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 10px;border:1px solid #dbe5ef;border-radius:12px;background:#fff"><b style="text-align:center">${i+1}</b><span><b>${esc(x.label)}</b><small class="muted" style="display:block">${esc(x.value)}</small></span><span class="actions"><button class="btn sm" ${i===0?'disabled':''} onclick="moveScoreMatrixSubject(${i},-1)" title="Đưa lên">↑</button><button class="btn sm" ${i===items.length-1?'disabled':''} onclick="moveScoreMatrixSubject(${i},1)" title="Đưa xuống">↓</button></span></div>`).join('')}</div>
+ <div class="modal-foot"><button class="btn" onclick="resetScoreMatrixOrder()">↺ Mặc định</button><button class="btn primary" onclick="closeModal();renderScores()">Xong</button></div>`);
+}
 function scoreSubjectInfo(name){return THPT_SUBJECTS.find(x=>x.name===name)||({name:name||"",mode:"score",group:"Khác"})}
 function normalizeSubjectName(name){
   const x=String(name||"").trim();
@@ -2353,8 +2393,9 @@ function scoreCell(studentId,subject){
  return `<button class="score-avg" title="${a.length} lượt điểm — bấm để xem/nhập" onclick="scoreSubjectFilter='${esc(subject)}';scoreView='detail';renderScores()">${avg}</button>`
 }
 function renderScoreMatrix(){
- const sts=classStudents(), subs=subjectCatalog();
- return `<div class="score-matrix-wrap"><table class="score-matrix"><thead><tr><th class="sticky-col">Học sinh</th>${subs.map(x=>`<th title="${esc(x.group)} • ${x.mode==='remark'?'Đánh giá bằng nhận xét':'Đánh giá bằng điểm số'}">${esc(x.name)}${x.mode==='remark'?'<small>Đ/CĐ</small>':''}</th>`).join('')}</tr></thead><tbody>${sts.map(st=>`<tr><td class="sticky-col"><b>${esc(st.name)}</b></td>${subs.map(x=>`<td>${scoreCell(st.id,x.name)}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="18" class="empty">Lớp chưa có học sinh.</td></tr>`}</tbody></table></div>`
+ const sts=classStudents(), subs=scoreMatrixSubjects();
+ return `<div class="section-head" style="margin:2px 0 10px"><div><b>📊 Tổng hợp 9 môn</b><div class="muted">Toán • Lý • Hóa • Văn • Sinh • Sử • Địa • Anh Văn • Tin học</div></div><button class="btn sm" onclick="openScoreMatrixOrder()">↕ Sắp xếp môn</button></div>
+ <div class="score-matrix-wrap"><table class="score-matrix"><thead><tr><th class="sticky-col">Học sinh</th>${subs.map(x=>`<th title="${esc(x.value)}">${esc(x.label)}</th>`).join('')}</tr></thead><tbody>${sts.map(st=>`<tr><td class="sticky-col"><b>${esc(st.name)}</b></td>${subs.map(x=>`<td>${scoreCell(st.id,x.value)}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="10" class="empty">Lớp chưa có học sinh.</td></tr>`}</tbody></table></div>`
 }
 function renderScoreSubjectCards(){
  const subs=subjectCatalog();
@@ -2372,7 +2413,7 @@ function renderScores(){
  const info=scoreSubjectFilter==='all'?null:scoreSubjectInfo(scoreSubjectFilter);
  $("#content").innerHTML=`
  <div class=section-head><div><h3>Bảng điểm lớp ${esc(curClass()?.name||'')} — Khối ${grade}</h3><div class=muted>Đủ danh mục môn học/hoạt động giáo dục THPT lớp 10–12. Môn nhận xét hiển thị Đạt/Chưa đạt; các môn còn lại dùng thang điểm 10.</div></div><button class="btn primary" onclick=openScoreForm()>＋ Nhập điểm / đánh giá</button></div>
- <div class="score-note"><b>📚 Danh mục 2026–2027:</b> 17 môn/hoạt động gồm môn bắt buộc và môn lựa chọn. Với môn lựa chọn, GVCN chỉ cần nhập các môn lớp/học sinh thực tế đang học; app vẫn giữ đủ danh mục để quản lý cho khối 10, 11 và 12.</div>
+ <div class="score-note"><b>📊 Tổng hợp toàn lớp:</b> hiển thị 9 môn: Toán, Lý, Hóa, Văn, Sinh, Sử, Địa, Anh Văn, Tin học. GVCN có thể tự sắp xếp thứ tự các môn theo từng lớp. <b>📚 Danh mục môn</b> và <b>📝 Chi tiết điểm</b> vẫn giữ đầy đủ danh mục để nhập/quản lý các môn khác.</div>
  <div class="tabs score-tabs"><button class="${scoreView==='matrix'?'active':''}" onclick="scoreView='matrix';renderScores()">📊 Tổng hợp toàn lớp</button><button class="${scoreView==='subjects'?'active':''}" onclick="scoreView='subjects';renderScores()">📚 Danh mục môn</button><button class="${scoreView==='detail'?'active':''}" onclick="scoreView='detail';renderScores()">📝 Chi tiết điểm</button></div>
  ${scoreView==='matrix'?renderScoreMatrix():''}
  ${scoreView==='subjects'?renderScoreSubjectCards():''}
