@@ -1126,21 +1126,34 @@ body.gvcn-readonly #content input,body.gvcn-readonly #content select,body.gvcn-r
 </style><style>
 .score-note{margin:10px 0 14px;padding:11px 13px;border:1px solid #cfe1f4;background:#f7fbff;border-radius:12px;line-height:1.5}
 .score-tabs{margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap}
-.score-matrix-wrap{width:100%;overflow:auto;border:1px solid #d9e5f1;border-radius:14px;background:#fff;max-height:68vh}
-.score-matrix{border-collapse:separate;border-spacing:0;min-width:2250px;width:max-content}
-.score-matrix th,.score-matrix td{padding:8px 9px;border-right:1px solid #e4edf5;border-bottom:1px solid #e4edf5;text-align:center;white-space:nowrap;background:#fff}
-.score-matrix th{position:sticky;top:0;z-index:3;background:#eef6ff;max-width:150px;white-space:normal;min-width:108px}
-.score-matrix th small{display:block;font-size:10px;color:#64748b;margin-top:4px}
-.score-matrix .sticky-col{position:sticky;left:0;z-index:4;min-width:185px;text-align:left;background:#fff}
+.score-matrix-wrap,.score-detail-wrap{width:100%;overflow:auto;border:1px solid #d9e5f1;border-radius:14px;background:#fff;max-height:68vh}
+.score-matrix{border-collapse:separate;border-spacing:0;min-width:900px;width:100%;table-layout:fixed}
+.score-matrix th,.score-matrix td{padding:8px 6px;border-right:1px solid #e4edf5;border-bottom:1px solid #e4edf5;text-align:center;white-space:nowrap;background:#fff;box-sizing:border-box}
+.score-matrix th{position:sticky;top:0;z-index:3;background:#eef6ff;white-space:normal;font-size:12px}
+.score-matrix .sticky-col{position:sticky;left:0;z-index:4;width:190px;min-width:190px;max-width:190px;text-align:left;background:#fff;padding-left:10px}
 .score-matrix thead .sticky-col{z-index:6;background:#e8f3ff}
-.score-avg{border:0;border-radius:8px;padding:5px 8px;min-width:42px;background:#eaf4ff;color:#0f5ea8;font-weight:800;cursor:pointer}
+.score-matrix th:not(.sticky-col),.score-matrix td:not(.sticky-col){width:72px;min-width:62px;max-width:82px}
+.score-avg{border:0;border-radius:8px;padding:5px 6px;min-width:40px;background:#eaf4ff;color:#0f5ea8;font-weight:800;cursor:pointer}
 .score-empty{color:#a0aec0}
 .subject-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .subject-card{text-align:left;border:1px solid #d8e5f1;background:#fff;border-radius:12px;padding:12px;cursor:pointer;display:flex;flex-direction:column;gap:5px;min-width:0}
 .subject-card:hover,.subject-card.active{border-color:#3b82f6;box-shadow:0 4px 14px rgba(59,130,246,.12)}
 .subject-card b{white-space:normal;overflow-wrap:anywhere}.subject-card span{font-size:12px;color:#64748b}
-.score-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}.score-filter select{min-width:280px;max-width:100%;padding:9px 10px;border:1px solid #ccd9e6;border-radius:10px;background:#fff}
-@media(max-width:720px){.score-matrix{min-width:2100px}.score-matrix .sticky-col{min-width:150px}.score-filter select{width:100%;min-width:0}}
+.score-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}.score-filter select{min-width:240px;max-width:100%;padding:9px 10px;border:1px solid #ccd9e6;border-radius:10px;background:#fff}
+.score-detail-table{border-collapse:separate;border-spacing:0;min-width:940px;width:100%;table-layout:fixed}
+.score-detail-table th,.score-detail-table td{padding:7px 5px;border-right:1px solid #e4edf5;border-bottom:1px solid #e4edf5;text-align:center;background:#fff;box-sizing:border-box}
+.score-detail-table th{position:sticky;top:0;z-index:3;background:#eef6ff;font-size:12px;white-space:normal}
+.score-detail-table .student-col{position:sticky;left:0;z-index:4;width:190px;min-width:190px;max-width:190px;text-align:left;background:#fff;padding-left:10px}
+.score-detail-table thead .student-col{z-index:6;background:#e8f3ff}
+.score-detail-table .score-col{width:60px;min-width:60px;max-width:60px}
+.score-detail-table .exam-col{width:76px;min-width:76px;max-width:76px}
+.score-detail-table .avg-col{width:76px;min-width:76px;max-width:76px}
+.score-detail-table .status-col{width:92px;min-width:92px;max-width:92px}
+.score-detail-table .action-col{width:88px;min-width:88px;max-width:88px}
+.score-slot{width:52px;min-width:52px;padding:5px 4px;border:1px solid #d6e2ee;border-radius:8px;background:#fff;font-weight:800;color:#1e3a5f;cursor:pointer}
+.score-slot.empty{color:#94a3b8;background:#f8fafc;font-weight:700}.score-slot:hover{border-color:#60a5fa;background:#eff6ff}
+.score-tb{display:inline-flex;min-width:44px;justify-content:center;padding:5px 7px;border-radius:8px;background:#eef6ff;color:#0f5ea8;font-weight:900}
+@media(max-width:720px){.score-matrix{min-width:860px}.score-matrix .sticky-col,.score-detail-table .student-col{width:155px;min-width:155px;max-width:155px}.score-detail-table{min-width:900px}.score-filter select{width:100%;min-width:0}}
 </style></head>
 <body class="auth-pending">
 <div class="app">
@@ -1239,6 +1252,7 @@ const THPT_SUBJECTS=[
 ];
 let scoreView="matrix";
 let scoreSubjectFilter="all";
+let scoreSemester="HK1";
 // 9 môn GVCN ưu tiên theo dõi ở bảng Tổng hợp toàn lớp.
 // value = tên chuẩn dùng để lưu/đọc dữ liệu; label = tên ngắn hiển thị trên bảng.
 const SCORE_MATRIX_DEFAULT=[
@@ -2402,51 +2416,104 @@ function renderScoreSubjectCards(){
  return `<div class="subject-cards">${subs.map(x=>{
    const rows=(state.scores||[]).filter(r=>r.classId===state.currentClassId&&normalizeSubjectName(r.subject)===x.name);
    const learners=new Set(rows.map(r=>r.studentId)).size;
-   return `<button class="subject-card ${scoreSubjectFilter===x.name?'active':''}" onclick="scoreSubjectFilter='${esc(x.name)}';scoreView='detail';renderScores()"><b>${esc(x.name)}</b><span>${x.mode==='remark'?'Nhận xét Đạt/Chưa đạt':`${rows.length} lượt điểm`} • ${learners}/${classStudents().length} HS</span></button>`
+   return `<button class="subject-card ${scoreSubjectFilter===x.name?'active':''}" onclick="scoreSubjectFilter='${esc(x.name)}';scoreView='detail';renderScores()"><b>${esc(x.name)}</b><span>${x.mode==='remark'?'Nhận xét Đạt/Chưa đạt':`${learners}/${classStudents().length} HS đã có dữ liệu`}</span></button>`
  }).join('')}</div>`
 }
+function scoreSemesterOfDate(date){
+ const m=Number(String(date||'').slice(5,7));
+ return m>=1&&m<=5?'HK2':'HK1';
+}
+function scoreTypeKey(type){
+ const t=String(type||'').trim().toLowerCase();
+ if(/tx\s*1|thường xuyên\s*1/.test(t))return 'TX1';
+ if(/tx\s*2|thường xuyên\s*2/.test(t))return 'TX2';
+ if(/tx\s*3|thường xuyên\s*3/.test(t))return 'TX3';
+ if(/tx\s*4|thường xuyên\s*4/.test(t))return 'TX4';
+ if(/giữa|gk|mid/.test(t))return 'GK';
+ if(/cuối|ck|final/.test(t))return 'CK';
+ return '';
+}
+function scoreRowsForSemester(studentId,subject){
+ return scoreRecordsFor(studentId,subject)
+  .filter(x=>scoreSemesterOfDate(x.date)===scoreSemester)
+  .sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+}
+function scoreSlotsForStudent(studentId,subject){
+ const rows=scoreRowsForSemester(studentId,subject), slots={TX1:null,TX2:null,TX3:null,TX4:null,GK:null,CK:null}, extras=[];
+ rows.forEach(r=>{const k=scoreTypeKey(r.type);if(k&&!slots[k])slots[k]=r;else extras.push(r)});
+ ['TX1','TX2','TX3','TX4'].forEach(k=>{if(!slots[k]&&extras.length)slots[k]=extras.shift()});
+ return slots;
+}
+function scoreSemesterAverage(slots){
+ const tx=['TX1','TX2','TX3','TX4'].map(k=>Number(slots[k]?.score)).filter(Number.isFinite);
+ const gk=Number(slots.GK?.score),ck=Number(slots.CK?.score);
+ let sum=tx.reduce((a,b)=>a+b,0),den=tx.length;
+ if(Number.isFinite(gk)){sum+=2*gk;den+=2}
+ if(Number.isFinite(ck)){sum+=3*ck;den+=3}
+ return den?(sum/den).toFixed(1):'—';
+}
+function scoreSlotButton(st,subject,key,slots){
+ const r=slots[key];
+ const val=r&&Number.isFinite(Number(r.score))?Number(r.score).toFixed(1):'＋';
+ const cls=r?'score-slot':'score-slot empty';
+ return `<button class="${cls}" title="${r?'Sửa '+key:'Nhập '+key}" onclick="openScoreForm('${r?.id||''}','${esc(subject)}','${st.id}','${key}')">${val}</button>`;
+}
+function renderScoreDetail(subject){
+ const info=scoreSubjectInfo(subject);
+ if(info.mode==='remark'){
+   const rows=classStudents().map(st=>{const a=scoreRowsForSemester(st.id,subject);const last=a[a.length-1];const r=last?(last.result||last.score||''):'';return `<tr><td class="student-col"><b>${esc(st.name)}</b></td><td>${r?`<span class="badge ${String(r).toLowerCase().includes('chưa')?'bad':'good'}">${esc(r)}</span>`:'—'}</td><td class="action-col"><button class="btn sm" onclick="openScoreForm('${last?.id||''}','${esc(subject)}','${st.id}')">${last?'Sửa':'Nhập'}</button></td></tr>`}).join('');
+   return `<div class="score-detail-wrap"><table class="score-detail-table"><thead><tr><th class="student-col">Học sinh</th><th>Kết quả</th><th class="action-col">Thao tác</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+ }
+ const body=classStudents().map(st=>{const slots=scoreSlotsForStudent(st.id,subject);const has=Object.values(slots).some(Boolean);const allDone=Object.values(slots).filter(Boolean).every(x=>x.done);return `<tr><td class="student-col"><b>${esc(st.name)}</b></td>${['TX1','TX2','TX3','TX4'].map(k=>`<td class="score-col">${scoreSlotButton(st,subject,k,slots)}</td>`).join('')}<td class="exam-col">${scoreSlotButton(st,subject,'GK',slots)}</td><td class="exam-col">${scoreSlotButton(st,subject,'CK',slots)}</td><td class="avg-col"><span class="score-tb">${scoreSemesterAverage(slots)}</span></td><td class="status-col">${has?statusBadge(allDone,'Đã lưu','Đang nhập'):'<span class="score-empty">—</span>'}</td><td class="action-col"><button class="btn sm" onclick="openScoreForm('','${esc(subject)}','${st.id}')">＋ Điểm</button></td></tr>`}).join('');
+ return `<div class="score-detail-wrap"><table class="score-detail-table"><thead><tr><th class="student-col">Học sinh</th><th class="score-col">TX1</th><th class="score-col">TX2</th><th class="score-col">TX3</th><th class="score-col">TX4</th><th class="exam-col">Giữa kỳ</th><th class="exam-col">Cuối kỳ</th><th class="avg-col">TB môn</th><th class="status-col">Trạng thái</th><th class="action-col">Thao tác</th></tr></thead><tbody>${body||`<tr><td colspan="10" class="empty">Lớp chưa có học sinh.</td></tr>`}</tbody></table></div>`;
+}
 function renderScores(){
- // Chuẩn hóa tên môn cũ để dữ liệu Tin học/Tiếng Anh trước đây vẫn dùng được.
  (state.scores||[]).forEach(x=>{x.subject=normalizeSubjectName(x.subject)});
- const grade=classGrade(), allRows=byClass(state.scores);
- const rows=scoreSubjectFilter==='all'?allRows:allRows.filter(x=>normalizeSubjectName(x.subject)===scoreSubjectFilter);
- const info=scoreSubjectFilter==='all'?null:scoreSubjectInfo(scoreSubjectFilter);
+ const grade=classGrade();
+ const selected=(scoreSubjectFilter==='all'?'Tin học':scoreSubjectFilter);
+ const info=scoreSubjectInfo(selected);
  $("#content").innerHTML=`
- <div class=section-head><div><h3>Bảng điểm lớp ${esc(curClass()?.name||'')} — Khối ${grade}</h3><div class=muted>Đủ danh mục môn học/hoạt động giáo dục THPT lớp 10–12. Môn nhận xét hiển thị Đạt/Chưa đạt; các môn còn lại dùng thang điểm 10.</div></div><button class="btn primary" onclick=openScoreForm()>＋ Nhập điểm / đánh giá</button></div>
- <div class="score-note"><b>📊 Tổng hợp toàn lớp:</b> hiển thị 9 môn: Toán, Lý, Hóa, Văn, Sinh, Sử, Địa, Anh Văn, Tin học. GVCN có thể tự sắp xếp thứ tự các môn theo từng lớp. <b>📚 Danh mục môn</b> và <b>📝 Chi tiết điểm</b> vẫn giữ đầy đủ danh mục để nhập/quản lý các môn khác.</div>
+ <div class=section-head><div><h3>Bảng điểm lớp ${esc(curClass()?.name||'')} — Khối ${grade}</h3><div class=muted>Tổng hợp 9 môn trọng tâm; chi tiết điểm hiển thị 1 học sinh trên 1 dòng để dễ theo dõi.</div></div><button class="btn primary" onclick="openScoreForm('','${esc(selected)}')">＋ Nhập điểm / đánh giá</button></div>
+ <div class="score-note"><b>📊 Tổng hợp toàn lớp:</b> 9 môn Toán, Lý, Hóa, Văn, Sinh, Sử, Địa, Anh Văn, Tin học; GVCN có thể tự sắp xếp. <b>📝 Chi tiết điểm:</b> TX1–TX4, Giữa kỳ, Cuối kỳ và TB môn trên cùng một dòng học sinh.</div>
  <div class="tabs score-tabs"><button class="${scoreView==='matrix'?'active':''}" onclick="scoreView='matrix';renderScores()">📊 Tổng hợp toàn lớp</button><button class="${scoreView==='subjects'?'active':''}" onclick="scoreView='subjects';renderScores()">📚 Danh mục môn</button><button class="${scoreView==='detail'?'active':''}" onclick="scoreView='detail';renderScores()">📝 Chi tiết điểm</button></div>
  ${scoreView==='matrix'?renderScoreMatrix():''}
  ${scoreView==='subjects'?renderScoreSubjectCards():''}
- ${scoreView==='detail'?`<div class="score-filter"><label>Môn học</label><select onchange="scoreSubjectFilter=this.value;renderScores()"><option value="all" ${scoreSubjectFilter==='all'?'selected':''}>Tất cả môn</option>${scoreSubjectOptions(scoreSubjectFilter)}</select>${info?`<span class="badge">${info.mode==='remark'?'Đánh giá: Đạt / Chưa đạt':'Thang điểm 10'}</span>`:''}</div>
- <div class=table-wrap><table><thead><tr><th>Học sinh</th><th>Môn</th><th>Loại đánh giá</th><th>Kết quả</th><th>Ngày</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${rows.map(x=>{const si=scoreSubjectInfo(normalizeSubjectName(x.subject));const result=si.mode==='remark'?(x.result||x.score||''):(Number.isFinite(Number(x.score))?Number(x.score).toFixed(1):'');return `<tr><td>${esc(state.students.find(s=>s.id===x.studentId)?.name||"")}</td><td>${esc(normalizeSubjectName(x.subject))}</td><td>${esc(x.type|| (si.mode==='remark'?'Nhận xét':'Thường xuyên'))}</td><td><b>${esc(result)}</b></td><td>${fmtDate(x.date)}</td><td>${statusBadge(!!x.done,"Đã lưu","Chưa lưu")}</td><td><div class=actions><button class="btn sm" onclick="openScoreForm('${x.id}')">Sửa</button><button class="btn sm ${x.done?"warn":"good"}" onclick="toggleRecordFlag('scores','${x.id}','done',renderScores,'Đã cập nhật trạng thái điểm')">${x.done?"Mở chỉnh sửa":"✓ Xác nhận"}</button><button class="btn sm bad" onclick="delItem('scores','${x.id}',renderScores)">Xóa</button></div></td></tr>`}).join("")||`<tr><td colspan=7 class=empty>Chưa có dữ liệu cho môn đã chọn. Bấm “Nhập điểm / đánh giá” để thêm.</td></tr>`}</tbody></table></div>`:''}`;
+ ${scoreView==='detail'?`<div class="score-filter"><label>Môn học</label><select onchange="scoreSubjectFilter=this.value;renderScores()">${scoreSubjectOptions(selected)}</select><label>Học kỳ</label><select onchange="scoreSemester=this.value;renderScores()"><option value="HK1" ${scoreSemester==='HK1'?'selected':''}>Học kỳ I</option><option value="HK2" ${scoreSemester==='HK2'?'selected':''}>Học kỳ II</option></select><span class="badge">${info.mode==='remark'?'Đánh giá: Đạt / Chưa đạt':'Thang điểm 10'}</span></div>${renderScoreDetail(selected)}`:''}`;
 }
 function studentOptions(selected=""){return classStudents().map(s=>`<option value="${s.id}" ${s.id===selected?"selected":""}>${esc(s.name)}</option>`).join("")}
 function scoreUpdateFormMode(){
  const sub=document.getElementById('scSubject')?.value||'';
  const mode=scoreSubjectInfo(sub).mode;
- const sw=document.getElementById('scScoreWrap'),rw=document.getElementById('scResultWrap');
+ const sw=document.getElementById('scScoreWrap'),rw=document.getElementById('scResultWrap'),tw=document.getElementById('scTypeWrap');
  if(sw)sw.style.display=mode==='remark'?'none':'';
  if(rw)rw.style.display=mode==='remark'?'':'none';
- const type=document.getElementById('scType');
- if(type&&!type.value)type.value=mode==='remark'?'Định kì / cuối kì':'Thường xuyên';
+ if(tw)tw.style.display=mode==='remark'?'none':'';
 }
-function openScoreForm(id="",presetSubject="",presetStudent=""){
+function openScoreForm(id="",presetSubject="",presetStudent="",presetType=""){
  const x=state.scores.find(v=>v.id===id)||{};
- const subject=normalizeSubjectName(x.subject||presetSubject||(scoreSubjectFilter==='all'?'':scoreSubjectFilter));
- const chosen=subject&&subject!=='all'?subject:'Ngữ văn';
+ const subject=normalizeSubjectName(x.subject||presetSubject||(scoreSubjectFilter==='all'?'Tin học':scoreSubjectFilter));
+ const chosen=subject&&subject!=='all'?subject:'Tin học';
  const mode=scoreSubjectInfo(chosen).mode;
- modal(`<h3>${id?"Sửa":"Nhập"} điểm / đánh giá</h3><div class="muted" style="margin-bottom:12px">Danh mục môn dùng chung cho khối 10, 11, 12. Môn nhận xét sẽ tự chuyển sang Đạt/Chưa đạt.</div><div class=form-grid><div class=field><label>Học sinh</label><select id=scStudent>${studentOptions(x.studentId||presetStudent||"")}</select></div><div class=field><label>Môn học</label><select id=scSubject onchange="scoreUpdateFormMode()">${scoreSubjectOptions(chosen)}</select></div><div class=field><label>Loại đánh giá</label><input id=scType value="${esc(x.type||"")}" placeholder="Thường xuyên / Giữa kỳ / Cuối kỳ..."></div><div class=field id=scScoreWrap style="${mode==='remark'?'display:none':''}"><label>Điểm (thang 10)</label><input id=scScore type=number step=.1 min=0 max=10 value="${x.score??""}"></div><div class=field id=scResultWrap style="${mode==='remark'?'':'display:none'}"><label>Kết quả nhận xét</label><select id=scResult><option value="Đạt" ${(x.result||x.score)==='Đạt'?'selected':''}>Đạt</option><option value="Chưa đạt" ${(x.result||x.score)==='Chưa đạt'?'selected':''}>Chưa đạt</option></select></div><div class=field><label>Ngày</label><input id=scDate type=date value="${esc(x.date||todayISO())}"></div></div><div class=modal-foot>${id?`<button class="btn bad" onclick="closeModal();delItem('scores','${id}',renderScores)">Xóa</button>`:""}<button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveScore('${id}')">Lưu</button></div>`);
+ const key=scoreTypeKey(x.type||presetType)||presetType||'TX1';
+ const typeMap={TX1:'TX1',TX2:'TX2',TX3:'TX3',TX4:'TX4',GK:'Giữa kỳ',CK:'Cuối kỳ'};
+ const typeValue=typeMap[key]||x.type||'TX1';
+ modal(`<h3>${id?"Sửa":"Nhập"} điểm / đánh giá</h3><div class="muted" style="margin-bottom:12px">Mỗi học sinh hiển thị một dòng; các loại điểm được đặt vào các cột TX1–TX4, Giữa kỳ, Cuối kỳ.</div><div class=form-grid><div class=field><label>Học sinh</label><select id=scStudent>${studentOptions(x.studentId||presetStudent||"")}</select></div><div class=field><label>Môn học</label><select id=scSubject onchange="scoreUpdateFormMode()">${scoreSubjectOptions(chosen)}</select></div><div class=field id=scTypeWrap style="${mode==='remark'?'display:none':''}"><label>Loại điểm</label><select id=scType><option ${typeValue==='TX1'?'selected':''}>TX1</option><option ${typeValue==='TX2'?'selected':''}>TX2</option><option ${typeValue==='TX3'?'selected':''}>TX3</option><option ${typeValue==='TX4'?'selected':''}>TX4</option><option ${typeValue==='Giữa kỳ'?'selected':''}>Giữa kỳ</option><option ${typeValue==='Cuối kỳ'?'selected':''}>Cuối kỳ</option></select></div><div class=field id=scScoreWrap style="${mode==='remark'?'display:none':''}"><label>Điểm (0–10)</label><input id=scScore type=number step=.1 min=0 max=10 value="${x.score??""}"></div><div class=field id=scResultWrap style="${mode==='remark'?'':'display:none'}"><label>Kết quả nhận xét</label><select id=scResult><option value="Đạt" ${(x.result||x.score)==='Đạt'?'selected':''}>Đạt</option><option value="Chưa đạt" ${(x.result||x.score)==='Chưa đạt'?'selected':''}>Chưa đạt</option></select></div><div class=field><label>Ngày</label><input id=scDate type=date value="${esc(x.date||todayISO())}"></div></div><div class=modal-foot>${id?`<button class="btn bad" onclick="closeModal();delItem('scores','${id}',renderScores)">Xóa</button>`:""}<button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveScore('${id}')">Lưu</button></div>`);
  scoreUpdateFormMode();
 }
 function saveScore(id=""){
- const subject=val("scSubject"), info=scoreSubjectInfo(subject), studentId=val("scStudent"), type=val("scType"), date=val("scDate");
+ const subject=val("scSubject"), info=scoreSubjectInfo(subject), studentId=val("scStudent"), date=val("scDate");
  if(!studentId||!subject){toast('Vui lòng chọn học sinh và môn học');return}
+ let type=info.mode==='remark'?'Nhận xét':val('scType');
  let data={studentId,subject,type,date};
  if(info.mode==='remark')data.result=val('scResult')||'Đạt',data.score=null;
  else{
    const raw=document.getElementById('scScore')?.value;
    if(raw===''||!Number.isFinite(Number(raw))||Number(raw)<0||Number(raw)>10){toast('Điểm phải từ 0 đến 10');return}
    data.score=Math.round(Number(raw)*10)/10;data.result='';
+   if(!id){
+     const same=(state.scores||[]).find(r=>r.classId===state.currentClassId&&r.studentId===studentId&&normalizeSubjectName(r.subject)===subject&&scoreSemesterOfDate(r.date)===scoreSemester&&scoreTypeKey(r.type)===scoreTypeKey(type));
+     if(same){Object.assign(same,data);closeModal();save('Đã cập nhật điểm '+type);renderScores();return}
+   }
  }
  if(id){const x=state.scores.find(v=>v.id===id);if(x)Object.assign(x,data)}
  else state.scores.push({id:uid(),classId:state.currentClassId,done:false,...data});
