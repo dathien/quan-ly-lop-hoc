@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title> Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -3441,17 +3441,17 @@ function exportReportWord(){const rows=rankRows().slice(0,10).map((x,i)=>`<tr><t
 
 
 const COMMENT_BANK=[
- ["Học tập","Em có ý thức học tập tốt, chuẩn bị bài đầy đủ và chủ động tham gia các hoạt động trên lớp."],
- ["Học tập","Em nắm kiến thức khá tốt, có khả năng vận dụng; cần duy trì việc tự học đều đặn để phát huy kết quả."],
- ["Học tập","Em có tiến bộ trong học tập; cần tiếp tục hoàn thành nhiệm vụ đúng thời hạn và mạnh dạn hỏi khi chưa hiểu bài."],
- ["Học tập","Em cần tập trung hơn trong giờ học, chủ động ôn bài và xây dựng kế hoạch học tập phù hợp."],
- ["Nề nếp","Em thực hiện tốt nội quy lớp, đi học đúng giờ và có tinh thần trách nhiệm với nhiệm vụ được giao."],
- ["Nề nếp","Em cần cải thiện việc đi học đúng giờ, chuẩn bị đầy đủ đồ dùng và thực hiện nghiêm túc nội quy lớp."],
- ["Thái độ","Em hòa đồng, lễ phép, biết hỗ trợ bạn và có thái độ tích cực trong các hoạt động chung."],
- ["Thái độ","Em cần mạnh dạn hơn khi trao đổi ý kiến, hợp tác với bạn và chủ động tham gia hoạt động tập thể."],
- ["Tiến bộ","Em đã có chuyển biến tích cực trong thời gian gần đây. Thầy/cô ghi nhận sự cố gắng và mong em tiếp tục duy trì."],
- ["Khuyến khích","Thầy/cô ghi nhận nỗ lực của em. Hãy tiếp tục đặt mục tiêu nhỏ, thực hiện đều đặn và tự đánh giá tiến bộ mỗi tuần."]
-]
+ ["Học tập","Tốt","Em có kết quả học tập tốt, chủ động thực hiện nhiệm vụ, nắm vững kiến thức và biết vận dụng vào tình huống phù hợp."],
+ ["Học tập","Khá","Em có kết quả học tập khá, thực hiện tương đối tốt nhiệm vụ; cần tiếp tục củng cố một số nội dung để nâng cao mức độ vận dụng."],
+ ["Học tập","Đạt","Em đáp ứng yêu cầu cơ bản về học tập; cần tăng tính chủ động, duy trì việc ôn tập và hoàn thành nhiệm vụ đúng thời hạn."],
+ ["Học tập","Chưa đạt","Em chưa đáp ứng đầy đủ yêu cầu học tập ở một số nội dung; cần được hỗ trợ theo mục tiêu cụ thể và theo dõi tiến bộ thường xuyên."],
+ ["Rèn luyện","Tốt","Em có ý thức rèn luyện tốt, thực hiện nghiêm túc nội quy, có tinh thần trách nhiệm và tham gia tích cực các hoạt động của lớp."],
+ ["Rèn luyện","Khá","Em có ý thức rèn luyện khá, cơ bản thực hiện tốt nội quy và trách nhiệm cá nhân; cần duy trì ổn định hơn ở một số mặt."],
+ ["Rèn luyện","Đạt","Em cơ bản đáp ứng yêu cầu rèn luyện; cần chủ động hơn trong thực hiện nội quy, nhiệm vụ được giao và hoạt động tập thể."],
+ ["Rèn luyện","Chưa đạt","Em chưa đáp ứng đầy đủ một số yêu cầu rèn luyện; cần xác định mục tiêu cải thiện cụ thể và phối hợp theo dõi thường xuyên."],
+ ["Tiến bộ","Ghi nhận","Em đã có chuyển biến tích cực trong học tập và/hoặc rèn luyện. Cần tiếp tục duy trì sự cố gắng và phát huy những điểm tiến bộ đã đạt được."],
+ ["Khuyến nghị","Hỗ trợ tiếp theo","Em cần tập trung vào một số mục tiêu cụ thể trong giai đoạn tới, chủ động trao đổi khi gặp khó khăn và thực hiện kế hoạch cải thiện đã thống nhất."]
+];
 const PARENT_BANK=[
  ["Học tập","Trao đổi tình hình học tập","Kính gửi Quý Phụ huynh, GVCN xin trao đổi về tình hình học tập của em {HS}. Thời gian gần đây, em có những điểm tích cực cần phát huy và một số nội dung cần cải thiện. Kính mong gia đình phối hợp động viên em duy trì việc học đều đặn. Xin cảm ơn Quý Phụ huynh."],
  ["Học tập","Nhắc hoàn thành nhiệm vụ học tập","Kính gửi Quý Phụ huynh, GVCN xin nhờ gia đình nhắc em {HS} hoàn thành các nhiệm vụ học tập còn thiếu và chuẩn bị bài đầy đủ trước khi đến lớp. Mong gia đình cùng phối hợp để em hình thành thói quen học tập chủ động. Xin cảm ơn."],
@@ -3466,22 +3466,42 @@ const PARENT_BANK=[
 ]
 
 function commentBankOptions(){
- return `<option value="">— Chọn câu nhận xét mẫu —</option>`+COMMENT_BANK.map((x,i)=>`<option value="${i}">${esc(x[0])} • ${esc(x[1])}</option>`).join("");
+ return `<option value="">— Chọn mẫu nhận xét theo TT22/2021 —</option>`+
+ COMMENT_BANK.map((x,i)=>`<option value="${i}">${esc(x[0])} • ${esc(x[1])}</option>`).join("");
 }
 function applyCommentBank(){
- const i=val("cBank");if(i==="")return;const x=COMMENT_BANK[Number(i)];if(x)document.getElementById("cText").value=x[1];
+ const i=val("cBank");if(i==="")return;
+ const x=COMMENT_BANK[Number(i)];if(!x)return;
+ const level=document.getElementById("cLevel");
+ const text=document.getElementById("cText");
+ if(level)level.value=x[1]||"";
+ if(text)text.value=x[2]||"";
 }
 function renderComments(){
- $("#content").innerHTML=`<div class=section-head><div><h3>Nhận xét học sinh</h3><div class=muted>Chọn nhận xét mẫu, chỉnh sửa theo thực tế rồi lưu cho từng học sinh.</div></div><button class="btn primary" onclick=openCommentForm()>＋ Thêm nhận xét</button></div>
- <div class=card style="margin-bottom:14px"><b>📚 Ngân hàng nhận xét</b><div class=muted style="margin-top:4px">Có sẵn 10 mẫu thuộc các nhóm: Học tập, Nề nếp, Thái độ, Tiến bộ và Khuyến khích. Giáo viên chọn mẫu rồi chỉnh lại trước khi lưu.</div></div>
- <div class=grid g2>${byClass(state.comments).map(x=>`<div class=card><div class=section-head><div><b>${esc(state.students.find(s=>s.id===x.studentId)?.name||"")}</b><div class=muted>${fmtDate(x.date)}</div></div>${statusBadge(!!x.done,"Đã hoàn thành","Chưa hoàn tất")}</div><p>${esc(x.text)}</p><div class=actions><button class="btn sm" onclick="openCommentForm('${x.id}')">Sửa</button><button class="btn sm ${x.done?"warn":"good"}" onclick="toggleRecordFlag('comments','${x.id}','done',renderComments,'Đã cập nhật nhận xét')">${x.done?"Mở lại":"✓ Hoàn tất"}</button><button class="btn sm bad" onclick="delItem('comments','${x.id}',renderComments)">Xóa</button></div></div>`).join("")||`<div class=card><div class=empty>Chưa có nhận xét.</div></div>`}</div>`;
+ $("#content").innerHTML=`<div class=section-head><div><h3>Nhận xét học sinh</h3><div class=muted>Nhận xét theo Thông tư 22/2021/TT-BGDĐT áp dụng cho THCS và THPT.</div></div><button class="btn primary" onclick=openCommentForm()>＋ Thêm nhận xét</button></div>
+ <div class=card style="margin-bottom:14px"><b>📚 Ngân hàng nhận xét theo TT22/2021</b><div class=muted style="margin-top:4px">Có sẵn 10 mẫu theo các nhóm Học tập, Rèn luyện, Tiến bộ và Khuyến nghị. Giáo viên chọn mẫu, điều chỉnh theo biểu hiện thực tế của học sinh rồi lưu.</div></div>
+ <div class=grid g2>${byClass(state.comments).map(x=>`<div class=card><div class=section-head><div><b>${esc(state.students.find(s=>s.id===x.studentId)?.name||"")}</b><div class=muted>${fmtDate(x.date)}${x.level?` • ${esc(x.level)}`:""}</div></div>${statusBadge(!!x.done,"Đã hoàn thành","Chưa hoàn tất")}</div><p>${esc(x.text)}</p><div class=actions><button class="btn sm" onclick="openCommentForm('${x.id}')">Sửa</button><button class="btn sm ${x.done?"warn":"good"}" onclick="toggleRecordFlag('comments','${x.id}','done',renderComments,'Đã cập nhật nhận xét')">${x.done?"Mở lại":"✓ Hoàn tất"}</button><button class="btn sm bad" onclick="delItem('comments','${x.id}',renderComments)">Xóa</button></div></div>`).join("")||`<div class=card><div class=empty>Chưa có nhận xét.</div></div>`}</div>`;
 }
-function openCommentForm(id=""){const x=state.comments.find(v=>v.id===id)||{};modal(`<h3>${id?"Sửa":"Thêm"} nhận xét</h3>
- <div class=field><label>Ngân hàng nhận xét</label><select id=cBank onchange=applyCommentBank()>${commentBankOptions()}</select></div>
- <div class=form-grid style="margin-top:12px"><div class=field><label>Học sinh</label><select id=cStudent>${studentOptions(x.studentId||"")}</select></div><div class=field><label>Ngày</label><input id=cDate type=date value="${esc(x.date||todayISO())}"></div></div>
+function openCommentForm(id=""){
+ const x=state.comments.find(v=>v.id===id)||{};
+ modal(`<h3>${id?"Sửa":"Thêm"} nhận xét học sinh</h3>
+ <div class=field><label>Ngân hàng nhận xét TT22/2021</label><select id=cBank onchange=applyCommentBank()>${commentBankOptions()}</select></div>
+ <div class=form-grid style="margin-top:12px">
+   <div class=field><label>Học sinh</label><select id=cStudent>${studentOptions(x.studentId||"")}</select></div>
+   <div class=field><label>Ngày</label><input id=cDate type=date value="${esc(x.date||todayISO())}"></div>
+   <div class=field><label>Mức đánh giá / ghi nhận</label><input id=cLevel value="${esc(x.level||"")}" placeholder="Tốt / Khá / Đạt / Chưa đạt..."></div>
+ </div>
  <div class=field style="margin-top:12px"><label>Nhận xét — có thể sửa trực tiếp</label><textarea id=cText>${esc(x.text||"")}</textarea></div>
- <div class=modal-foot>${id?`<button class="btn bad" onclick="closeModal();delItem('comments','${id}',renderComments)">Xóa</button>`:""}<button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveComment('${id}')">Lưu</button></div>`)}
-function saveComment(id=""){const data={studentId:val("cStudent"),date:val("cDate"),text:val("cText")};if(!data.text.trim())return toast("Nhập nội dung nhận xét");if(id){const x=state.comments.find(v=>v.id===id);if(x)Object.assign(x,data)}else state.comments.push({id:uid(),classId:state.currentClassId,done:false,...data});closeModal();save(id?"Đã sửa nhận xét":"Đã lưu nhận xét");renderComments()}
+ <div class=muted style="margin-top:8px">Nên nhận xét dựa trên biểu hiện và minh chứng thực tế; nêu rõ điểm đã đạt, nội dung cần cải thiện và hướng hỗ trợ khi cần.</div>
+ <div class=modal-foot>${id?`<button class="btn bad" onclick="closeModal();delItem('comments','${id}',renderComments)">Xóa</button>`:""}<button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveComment('${id}')">Lưu</button></div>`);
+}
+function saveComment(id=""){
+ const data={studentId:val("cStudent"),date:val("cDate"),level:val("cLevel"),text:val("cText")};
+ if(!data.text.trim())return toast("Nhập nội dung nhận xét");
+ if(id){const x=state.comments.find(v=>v.id===id);if(x)Object.assign(x,data)}
+ else state.comments.push({id:uid(),classId:state.currentClassId,done:false,...data});
+ closeModal();save(id?"Đã sửa nhận xét":"Đã lưu nhận xét");renderComments();
+}
 
 function parentBankOptions(){
  return `<option value="">— Chọn mẫu giao tiếp —</option>`+PARENT_BANK.map((x,i)=>`<option value="${i}">${esc(x[0])} • ${esc(x[1])}</option>`).join("");
