@@ -3550,6 +3550,18 @@ function applyCompanionBank(){
  const i=val("cpBank");if(i==="")return;const x=COMPANION_BANK[Number(i)];if(!x)return;
  $("#cpTopic").value=x.topic;$("#cpGoal").value=x.goal;$("#cpNote").value=x.note;$("#cpAction").value=x.action;$("#cpProgress").value=x.progress;
 }
+function applyCompanionTopic(){
+ const topic=val("cpTopic");
+ const idx=COMPANION_BANK.findIndex(x=>x.topic===topic);
+ if(idx<0)return;
+ const x=COMPANION_BANK[idx];
+ $("#cpBank").value=String(idx);
+ $("#cpGoal").value=x.goal;
+ $("#cpNote").value=x.note;
+ $("#cpAction").value=x.action;
+ $("#cpProgress").value=x.progress;
+ toast("Đã cập nhật nội dung theo chủ đề");
+}
 function renderCompanion(){
  const rows=byClass(state.companion).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
  $("#content").innerHTML=`<div class=section-head><div><h3>❤️ Đồng hành học sinh</h3><div class=muted>Chọn mẫu đồng hành, cá nhân hóa mục tiêu và theo dõi tiến triển của học sinh.</div></div><button class="btn primary" onclick=openCompanionForm()>＋ Thêm hồ sơ</button></div>
@@ -3557,8 +3569,8 @@ function renderCompanion(){
  <div class=grid g2>${rows.map(x=>`<div class=card><div class=section-head><div><b>${esc(state.students.find(s=>s.id===x.studentId)?.name||"")}</b><div class=muted>${fmtDate(x.date)} • ${esc(x.topic||"")}</div></div>${statusBadge(!!x.done,"Hoàn thành","Đang đồng hành")}</div><p><b>Mục tiêu:</b> ${esc(x.goal||"")}</p><p><b>Nội dung cần hỗ trợ:</b> ${esc(x.note||"")}</p><p><b>Việc đã làm:</b> ${esc(x.action||"")}</p><p><b>Tiến triển:</b> ${esc(x.progress||"")}</p>${x.followDate?`<div class=muted>📅 Theo dõi lại: ${fmtDate(x.followDate)}</div>`:""}<div class=actions style="margin-top:10px"><button class="btn sm" onclick="openCompanionForm('${x.id}')">Sửa</button><button class="btn sm ${x.done?"warn":"good"}" onclick="toggleRecordFlag('companion','${x.id}','done',renderCompanion,'Đã cập nhật hồ sơ đồng hành')">${x.done?"Mở lại":"✓ Hoàn thành"}</button><button class="btn sm bad" onclick="delItem('companion','${x.id}',renderCompanion)">Xóa</button></div></div>`).join("")||`<div class=card><div class=empty>Chưa có hồ sơ đồng hành.</div></div>`}</div>`;
 }
 function openCompanionForm(id=""){const x=state.companion.find(v=>v.id===id)||{};modal(`<h3>${id?"Sửa":"Thêm"} hồ sơ đồng hành</h3>
- <div class=field><label>Chọn mẫu đồng hành</label><select id=cpBank onchange=applyCompanionBank()>${companionBankOptions()}</select><div class=muted style="margin-top:5px">Chọn 1 trong 10 mẫu để tự điền Chủ đề, Mục tiêu, Nội dung cần hỗ trợ, Việc giáo viên đã thực hiện và Tiến triển. Giáo viên có thể sửa lại trước khi lưu.</div></div>
- <div class=form-grid style="margin-top:12px"><div class=field><label>Học sinh</label><select id=cpStudent>${studentOptions(x.studentId||"")}</select></div><div class=field><label>Chủ đề</label><select id=cpTopic>${COMPANION_TOPICS.map(v=>`<option ${x.topic===v?"selected":""}>${v}</option>`).join("")}</select></div><div class=field><label>Ngày ghi nhận</label><input id=cpDate type=date value="${esc(x.date||todayISO())}"></div><div class=field><label>Ngày theo dõi lại</label><input id=cpFollow type=date value="${esc(x.followDate||"")}"></div></div>
+ <div class=field><label>Chọn mẫu đồng hành</label><select id=cpBank onchange=applyCompanionBank()>${companionBankOptions()}</select><div class=muted style="margin-top:5px">Chọn mẫu hoặc đổi Chủ đề. Nội dung phía dưới sẽ tự cập nhật theo lựa chọn; giáo viên có thể chỉnh sửa lại trước khi lưu.</div></div>
+ <div class=form-grid style="margin-top:12px"><div class=field><label>Học sinh</label><select id=cpStudent>${studentOptions(x.studentId||"")}</select></div><div class=field><label>Chủ đề</label><select id=cpTopic onchange=applyCompanionTopic()>${COMPANION_TOPICS.map(v=>`<option ${x.topic===v?"selected":""}>${v}</option>`).join("")}</select></div><div class=field><label>Ngày ghi nhận</label><input id=cpDate type=date value="${esc(x.date||todayISO())}"></div><div class=field><label>Ngày theo dõi lại</label><input id=cpFollow type=date value="${esc(x.followDate||"")}"></div></div>
  <div class=field style="margin-top:12px"><label>Mục tiêu đồng hành</label><input id=cpGoal value="${esc(x.goal||"")}"></div>
  <div class=field style="margin-top:12px"><label>Nội dung cần hỗ trợ</label><textarea id=cpNote>${esc(x.note||"")}</textarea></div>
  <div class=field style="margin-top:12px"><label>Việc giáo viên đã thực hiện</label><textarea id=cpAction>${esc(x.action||"")}</textarea></div>
@@ -3585,6 +3597,17 @@ function applyCareerBank(){
  const i=val("crBank");if(i==="")return;const x=CAREER_BANK[Number(i)];if(!x)return;
  $("#crArea").value=x.area;$("#crStrength").value=x.strength;$("#crInterest").value=x.interest;$("#crNext").value=x.next;
 }
+function applyCareerArea(){
+ const area=val("crArea");
+ const idx=CAREER_BANK.findIndex(x=>x.area===area);
+ if(idx<0)return;
+ const x=CAREER_BANK[idx];
+ $("#crBank").value=String(idx);
+ $("#crStrength").value=x.strength;
+ $("#crInterest").value=x.interest;
+ $("#crNext").value=x.next;
+ toast("Đã cập nhật nội dung theo nhóm lĩnh vực");
+}
 function renderCareer(){
  const rows=byClass(state.career).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
  $("#content").innerHTML=`<div class=section-head><div><h3>🎯 Hướng nghiệp</h3><div class=muted>Chọn mẫu lĩnh vực, cá nhân hóa thế mạnh và xây dựng bước tìm hiểu tiếp theo.</div></div><button class="btn primary" onclick=openCareerForm()>＋ Thêm định hướng</button></div>
@@ -3592,8 +3615,8 @@ function renderCareer(){
  <div class=grid g2>${rows.map(x=>`<div class=card><div class=section-head><div><b>${esc(state.students.find(s=>s.id===x.studentId)?.name||"")}</b><div class=muted>${fmtDate(x.date)} • ${esc(x.area||"")}</div></div>${statusBadge(!!x.done,"Đã cập nhật","Đang tìm hiểu")}</div><p><b>Sở thích / thế mạnh:</b> ${esc(x.strength||"")}</p><p><b>Ngành/nghề quan tâm:</b> ${esc(x.interest||"")}</p><p><b>Bước tiếp theo:</b> ${esc(x.nextStep||"")}</p><div class=actions><button class="btn sm" onclick="openCareerForm('${x.id}')">Sửa</button><button class="btn sm ${x.done?"warn":"good"}" onclick="toggleRecordFlag('career','${x.id}','done',renderCareer,'Đã cập nhật hướng nghiệp')">${x.done?"Mở cập nhật":"✓ Hoàn thành"}</button><button class="btn sm bad" onclick="delItem('career','${x.id}',renderCareer)">Xóa</button></div></div>`).join("")||`<div class=card><div class=empty>Chưa có dữ liệu hướng nghiệp.</div></div>`}</div>`;
 }
 function openCareerForm(id=""){const x=state.career.find(v=>v.id===id)||{};modal(`<h3>${id?"Sửa":"Thêm"} định hướng nghề nghiệp</h3>
- <div class=field><label>Chọn mẫu hướng nghiệp</label><select id=crBank onchange=applyCareerBank()>${careerBankOptions()}</select><div class=muted style="margin-top:5px">Chọn 1 trong 10 mẫu để tự điền Nhóm lĩnh vực, Sở thích/thế mạnh, Ngành nghề quan tâm và Bước tiếp theo. Có thể chỉnh sửa toàn bộ nội dung.</div></div>
- <div class=form-grid style="margin-top:12px"><div class=field><label>Học sinh</label><select id=crStudent>${studentOptions(x.studentId||"")}</select></div><div class=field><label>Nhóm lĩnh vực</label><select id=crArea>${CAREER_AREAS.map(v=>`<option ${x.area===v?"selected":""}>${v}</option>`).join("")}</select></div><div class=field><label>Ngày ghi nhận</label><input id=crDate type=date value="${esc(x.date||todayISO())}"></div></div><div class=field style="margin-top:12px"><label>Sở thích / thế mạnh nổi bật</label><textarea id=crStrength>${esc(x.strength||"")}</textarea></div><div class=field style="margin-top:12px"><label>Ngành/nghề đang quan tâm</label><input id=crInterest value="${esc(x.interest||"")}"></div><div class=field style="margin-top:12px"><label>Bước tiếp theo</label><textarea id=crNext placeholder="Ví dụ: tìm hiểu chương trình đào tạo, trao đổi với phụ huynh, tham gia ngày hội hướng nghiệp...">${esc(x.nextStep||"")}</textarea></div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveCareer('${id}')">Lưu</button></div>`)}
+ <div class=field><label>Chọn mẫu hướng nghiệp</label><select id=crBank onchange=applyCareerBank()>${careerBankOptions()}</select><div class=muted style="margin-top:5px">Chọn mẫu hoặc đổi Nhóm lĩnh vực. Nội dung Sở thích/thế mạnh, Ngành nghề quan tâm và Bước tiếp theo sẽ tự cập nhật; giáo viên có thể chỉnh sửa lại.</div></div>
+ <div class=form-grid style="margin-top:12px"><div class=field><label>Học sinh</label><select id=crStudent>${studentOptions(x.studentId||"")}</select></div><div class=field><label>Nhóm lĩnh vực</label><select id=crArea onchange=applyCareerArea()>${CAREER_AREAS.map(v=>`<option ${x.area===v?"selected":""}>${v}</option>`).join("")}</select></div><div class=field><label>Ngày ghi nhận</label><input id=crDate type=date value="${esc(x.date||todayISO())}"></div></div><div class=field style="margin-top:12px"><label>Sở thích / thế mạnh nổi bật</label><textarea id=crStrength>${esc(x.strength||"")}</textarea></div><div class=field style="margin-top:12px"><label>Ngành/nghề đang quan tâm</label><input id=crInterest value="${esc(x.interest||"")}"></div><div class=field style="margin-top:12px"><label>Bước tiếp theo</label><textarea id=crNext placeholder="Ví dụ: tìm hiểu chương trình đào tạo, trao đổi với phụ huynh, tham gia ngày hội hướng nghiệp...">${esc(x.nextStep||"")}</textarea></div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveCareer('${id}')">Lưu</button></div>`)}
 function saveCareer(id=""){const data={studentId:val("crStudent"),area:val("crArea"),date:val("crDate"),strength:val("crStrength"),interest:val("crInterest"),nextStep:val("crNext")};if(id){const x=state.career.find(v=>v.id===id);if(x)Object.assign(x,data)}else state.career.push({id:uid(),classId:state.currentClassId,done:false,...data});closeModal();save(id?"Đã sửa định hướng nghề nghiệp":"Đã lưu định hướng nghề nghiệp");renderCareer()}
 
 let raceState={
