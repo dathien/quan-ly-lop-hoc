@@ -1116,6 +1116,243 @@ html,body{overflow-x:hidden!important;background:#f4f7fb!important}body{font-siz
 }
 </style>
 
+
+<style id="gvcn-v3829-mobile-final">
+@media(max-width:780px){
+  /* Header mobile: hàng 1 menu + tiêu đề, hàng 2 lớp + thiết lập */
+  .topbar{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:8px!important;
+    padding:10px 12px!important;
+    min-height:auto!important;
+    position:sticky!important;
+    top:0!important;
+    z-index:95!important;
+    background:#fff!important;
+    border-bottom:1px solid #e5eaf0!important;
+  }
+  .topbar-left{
+    display:grid!important;
+    grid-template-columns:42px minmax(0,1fr)!important;
+    gap:10px!important;
+    align-items:center!important;
+    width:100%!important;
+  }
+  #hamb,.hamb{
+    width:42px!important;
+    height:42px!important;
+    min-width:42px!important;
+    padding:0!important;
+    display:grid!important;
+    place-items:center!important;
+    border-radius:11px!important;
+    font-size:20px!important;
+  }
+  .topbar-left h2{
+    margin:0!important;
+    font-size:21px!important;
+    line-height:1.05!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+  .topbar-left .muted{
+    margin-top:3px!important;
+    font-size:10px!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+  .topbar>.actions{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    gap:8px!important;
+    width:100%!important;
+  }
+  .topbar>.actions .class-select,
+  .topbar>.actions select{
+    width:100%!important;
+    max-width:none!important;
+    min-width:0!important;
+    height:42px!important;
+  }
+  .topbar>.actions>.btn{
+    height:42px!important;
+    white-space:nowrap!important;
+    padding:8px 12px!important;
+  }
+
+  /* Banner: trên điện thoại chỉ hiển thị ảnh, không hiện nút đổi/bỏ ảnh */
+  .hero .hero-actions,
+  .hero-actions{
+    display:none!important;
+  }
+  .hero{
+    border-radius:18px!important;
+    overflow:hidden!important;
+  }
+  .hero img{
+    width:100%!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    object-fit:contain!important;
+    object-position:center!important;
+    display:block!important;
+  }
+  .hero-overlay{
+    padding:16px!important;
+  }
+  .hero-title{
+    font-size:24px!important;
+  }
+
+  /* Khối tên GVCN gọn hơn */
+  .dashboard-summary-head{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+    gap:10px!important;
+    margin:12px 0 10px!important;
+  }
+  .dashboard-eyebrow{font-size:9px!important}
+  .dashboard-class-name{font-size:23px!important}
+  .gvcn-badge{
+    width:100%!important;
+    min-height:46px!important;
+    justify-content:center!important;
+    padding:10px 14px!important;
+    border-radius:16px!important;
+  }
+  .gvcn-badge b{
+    font-size:12px!important;
+    white-space:normal!important;
+    text-align:center!important;
+  }
+
+  /* 4 thẻ Tổng quan: luôn 2x2 trên điện thoại */
+  .overview-kpi-grid{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:10px!important;
+    margin-top:10px!important;
+  }
+  .overview-kpi{
+    min-width:0!important;
+    min-height:136px!important;
+    padding:13px!important;
+    border-radius:17px!important;
+  }
+  .overview-icon{
+    width:44px!important;
+    height:44px!important;
+    margin-bottom:11px!important;
+    border-radius:13px!important;
+    font-size:21px!important;
+  }
+  .overview-value{
+    font-size:25px!important;
+  }
+  .overview-label{
+    margin-top:8px!important;
+    font-size:9.5px!important;
+    line-height:1.25!important;
+    word-break:normal!important;
+  }
+  .overview-sub{
+    margin-top:5px!important;
+    font-size:10.5px!important;
+    line-height:1.25!important;
+  }
+
+  /* Sidebar drawer */
+  .sidebar{
+    position:fixed!important;
+    top:0!important;
+    left:0!important;
+    bottom:0!important;
+    width:min(84vw,300px)!important;
+    max-width:300px!important;
+    z-index:140!important;
+    transform:translateX(-104%)!important;
+    transition:transform .22s ease!important;
+    overflow-y:auto!important;
+    box-shadow:18px 0 38px rgba(15,35,65,.28)!important;
+  }
+  .sidebar.mobile-open{
+    transform:translateX(0)!important;
+  }
+  .sidebar-overlay{
+    position:fixed!important;
+    inset:0!important;
+    z-index:130!important;
+    background:rgba(7,23,41,.42)!important;
+    backdrop-filter:blur(2px)!important;
+    display:none!important;
+  }
+  .sidebar-overlay.show{display:block!important}
+
+  .main{
+    margin-left:0!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  .content{
+    padding:12px!important;
+  }
+
+  /* Tránh các card bị cắt ngang */
+  .card,.section-head,.grid,.overview-kpi-grid{
+    min-width:0!important;
+  }
+}
+
+@media(max-width:420px){
+  .overview-kpi-grid{gap:8px!important}
+  .overview-kpi{
+    min-height:128px!important;
+    padding:12px!important;
+  }
+  .overview-value{font-size:23px!important}
+  .overview-label{font-size:9px!important}
+  .overview-sub{font-size:10px!important}
+  .topbar>.actions{
+    grid-template-columns:minmax(0,1fr) auto!important;
+  }
+}
+</style>
+
+
+<style id="gvcn-v3830-banner-hover">
+/* Laptop/desktop: nút chỉnh banner chỉ xuất hiện khi rê chuột vào banner */
+@media (min-width:781px){
+  .hero .hero-actions,
+  .hero-actions{
+    opacity:0!important;
+    visibility:hidden!important;
+    pointer-events:none!important;
+    transform:translateY(-5px)!important;
+    transition:opacity .18s ease,transform .18s ease,visibility .18s ease!important;
+  }
+  .hero:hover .hero-actions,
+  .hero:focus-within .hero-actions{
+    opacity:1!important;
+    visibility:visible!important;
+    pointer-events:auto!important;
+    transform:translateY(0)!important;
+  }
+}
+
+/* Điện thoại/tablet nhỏ: không hiện hai nút chỉnh ảnh */
+@media (max-width:780px){
+  .hero .hero-actions,
+  .hero-actions{
+    display:none!important;
+  }
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -3376,5 +3613,58 @@ document.addEventListener("click",function(e){
 </script>
 
 <script id="gvcn-v3827-mobile-js">(function(){function ov(){let x=document.querySelector('.sidebar-overlay');if(!x){x=document.createElement('div');x.className='sidebar-overlay';document.body.appendChild(x);x.onclick=closeM}return x}function sb(){return document.querySelector('.sidebar')}function openM(){if(innerWidth>780)return;sb()?.classList.add('mobile-open');ov().classList.add('show');document.body.style.overflow='hidden'}function closeM(){sb()?.classList.remove('mobile-open');document.querySelector('.sidebar-overlay')?.classList.remove('show');document.body.style.overflow=''}window.openSidebarMobile=openM;window.closeSidebarMobile=closeM;document.addEventListener('click',e=>{const t=e.target.closest('#menuToggle,.menu-toggle,.hamburger');if(t&&innerWidth<=780){e.preventDefault();e.stopPropagation();sb()?.classList.contains('mobile-open')?closeM():openM();return}if(e.target.closest('.sidebar button[data-page]')&&innerWidth<=780)setTimeout(closeM,60)},true);addEventListener('resize',()=>{if(innerWidth>780)closeM()})})();</script>
+
+<script id="gvcn-v3829-mobile-menu-fix">
+(function(){
+  function sidebar(){return document.getElementById("sidebar")||document.querySelector(".sidebar")}
+  function overlay(){
+    let o=document.querySelector(".sidebar-overlay");
+    if(!o){
+      o=document.createElement("div");
+      o.className="sidebar-overlay";
+      document.body.appendChild(o);
+      o.addEventListener("click",closeMenu);
+    }
+    return o;
+  }
+  function openMenu(){
+    if(window.innerWidth>780)return;
+    sidebar()?.classList.add("mobile-open");
+    overlay().classList.add("show");
+    document.body.style.overflow="hidden";
+  }
+  function closeMenu(){
+    sidebar()?.classList.remove("mobile-open");
+    document.querySelector(".sidebar-overlay")?.classList.remove("show");
+    document.body.style.overflow="";
+  }
+  function toggleMenu(){
+    const sb=sidebar();
+    if(!sb)return;
+    sb.classList.contains("mobile-open")?closeMenu():openMenu();
+  }
+  window.openSidebarMobile=openMenu;
+  window.closeSidebarMobile=closeMenu;
+
+  document.addEventListener("click",function(e){
+    const menuBtn=e.target.closest("#hamb,.hamb,#menuToggle,.menu-toggle,.hamburger");
+    if(menuBtn && window.innerWidth<=780){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      toggleMenu();
+      return;
+    }
+    const nav=e.target.closest(".sidebar button[data-page],.sidebar-quick button");
+    if(nav && window.innerWidth<=780){
+      setTimeout(closeMenu,60);
+    }
+  },true);
+
+  window.addEventListener("resize",()=>{
+    if(window.innerWidth>780)closeMenu();
+  });
+})();
+</script>
+
 </body>
 </html>
