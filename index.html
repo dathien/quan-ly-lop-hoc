@@ -1434,6 +1434,256 @@ html,body{overflow-x:hidden!important;background:#f4f7fb!important}body{font-siz
 }
 </style>
 
+
+<style id="gvcn-v3832-typography-fix">
+/* ===== Nhận diện sidebar: ưu tiên tên đủ trên 1 dòng ở laptop ===== */
+.sidebar .brand{
+  align-items:center!important;
+}
+.sidebar .brand > div:last-child{
+  min-width:0!important;
+  flex:1 1 auto!important;
+}
+.sidebar .brand h1{
+  font-size:13.5px!important;
+  line-height:1.15!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  max-width:none!important;
+  letter-spacing:0!important;
+}
+
+/* ===== KPI: tránh ngắt chữ vô duyên ===== */
+.overview-value,
+.overview-label,
+.overview-sub{
+  min-width:0!important;
+}
+
+.overview-value{
+  white-space:nowrap!important;
+}
+
+.overview-label{
+  white-space:normal!important;
+  word-break:keep-all!important;
+  overflow-wrap:normal!important;
+  hyphens:none!important;
+  line-height:1.2!important;
+  letter-spacing:.025em!important;
+}
+
+.overview-sub{
+  white-space:normal!important;
+  word-break:keep-all!important;
+  overflow-wrap:normal!important;
+  hyphens:none!important;
+}
+
+/* Riêng thẻ việc gấp: giữ cụm "VIỆC GẤP / QUÁ HẠN" đẹp trên laptop */
+.overview-kpi.tasks .overview-label{
+  font-size:10.5px!important;
+  letter-spacing:.015em!important;
+}
+
+/* Tablet/mobile: cho phép ngắt tại khoảng trắng, không tách từ */
+@media(max-width:780px){
+  .sidebar .brand h1{
+    font-size:13px!important;
+    white-space:nowrap!important;
+    max-width:205px!important;
+  }
+  .overview-label{
+    font-size:9px!important;
+    line-height:1.18!important;
+  }
+  .overview-kpi.tasks .overview-label{
+    font-size:8.8px!important;
+  }
+}
+
+/* Máy rất nhỏ: tên thầy vẫn không tách đôi từ */
+@media(max-width:390px){
+  .sidebar .brand h1{
+    font-size:12px!important;
+    max-width:190px!important;
+  }
+}
+</style>
+
+
+<style id="gvcn-v3833-global-text-wrap">
+/* =========================================================
+   QUY TẮC HIỂN THỊ CHỮ TOÀN APP
+   - Không tách chữ giữa từ
+   - Chỉ xuống dòng tại khoảng trắng / dấu phân cách hợp lý
+   - Tiêu đề cân dòng, văn bản dài dễ đọc
+   ========================================================= */
+
+html,body{
+  word-break:normal!important;
+  overflow-wrap:break-word!important;
+  hyphens:none!important;
+}
+
+/* Văn bản thông thường */
+p,.muted,.label,.field label,.hero-sub,.overview-sub,
+.task-desc,.task-assignee,.task-home-meta,.tt-teacher,.tt-room,
+.class-identity-motto,.dashboard-eyebrow,.dashboard-class-name,
+.honor-name,.honor-score,.footer{
+  word-break:normal!important;
+  overflow-wrap:break-word!important;
+  hyphens:none!important;
+  text-wrap:pretty;
+}
+
+/* Tiêu đề: cân dòng để không rơi 1-2 chữ cô độc */
+h1,h2,h3,h4,h5,h6,
+.hero-title,.overview-label,.task-title,.section-head h3,
+.tt-heading h2,.honor-head h3,.class-identity-name,
+.sidebar .brand h1{
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+  hyphens:none!important;
+  text-wrap:balance;
+}
+
+/* Tên ứng dụng: cho phép xuống tối đa tự nhiên, không ellipsis */
+.sidebar .brand h1{
+  white-space:normal!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  max-width:none!important;
+  line-height:1.15!important;
+}
+
+/* Nút: có thể xuống dòng nhưng không cắt giữa từ */
+button,.btn,.nav button,.sidebar button,
+.task-filters button,.honor-toolbar button{
+  white-space:normal!important;
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+  hyphens:none!important;
+  line-height:1.2!important;
+  text-wrap:balance;
+}
+
+/* Badge/chip: ưu tiên 1 dòng, chỉ xuống dòng nếu thật sự cần */
+.badge,.class-identity-year,.gvcn-badge,
+.honor-rank-badge{
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+  hyphens:none!important;
+  text-wrap:balance;
+}
+
+/* KPI: xuống dòng theo cụm từ, không tách chữ */
+.overview-label{
+  white-space:normal!important;
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+  hyphens:none!important;
+  line-height:1.2!important;
+  text-wrap:balance;
+}
+.overview-sub{
+  white-space:normal!important;
+  word-break:normal!important;
+  overflow-wrap:break-word!important;
+  text-wrap:pretty;
+}
+
+/* Bảng: nội dung có thể xuống dòng hợp lý; số liệu ngắn giữ gọn */
+table th,table td{
+  word-break:normal!important;
+  overflow-wrap:break-word!important;
+  hyphens:none!important;
+  line-height:1.3!important;
+}
+table th{
+  white-space:normal!important;
+  text-wrap:balance;
+}
+table td{
+  white-space:normal!important;
+  text-wrap:pretty;
+}
+
+/* Không cho các trường số/ngày/điểm bị tách kỳ */
+input,select,textarea{
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+}
+.tt-period b,.tt-period small,
+.task-deadline,.overview-value{
+  white-space:nowrap!important;
+}
+
+/* Sidebar menu: icon không rớt dòng, chữ menu cân dòng */
+.sidebar .nav button,
+.sidebar button[data-page]{
+  display:flex!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+.sidebar .nav button .ico,
+.sidebar button[data-page] .ico{
+  flex:0 0 auto!important;
+}
+.sidebar .nav button,
+.sidebar button[data-page]{
+  text-align:left!important;
+  word-break:normal!important;
+  overflow-wrap:normal!important;
+  text-wrap:balance;
+}
+
+/* Tên học sinh / tên GVCN: không tách giữa các âm tiết bằng ký tự */
+.gvcn-badge b,.student-name,.task-home-title{
+  word-break:normal!important;
+  overflow-wrap:break-word!important;
+  hyphens:none!important;
+}
+
+/* Mobile: ưu tiên cân dòng, không ép một dòng gây rớt chữ */
+@media(max-width:780px){
+  .sidebar .brand h1{
+    white-space:normal!important;
+    font-size:13px!important;
+    line-height:1.15!important;
+    max-width:200px!important;
+    text-wrap:balance;
+  }
+  .gvcn-badge b{
+    white-space:normal!important;
+    line-height:1.15!important;
+    text-wrap:balance;
+  }
+  .overview-label{
+    font-size:9px!important;
+    line-height:1.18!important;
+  }
+  .btn,button{
+    min-width:0!important;
+  }
+}
+
+/* Màn hình rất nhỏ: cho chữ co nhẹ thay vì vỡ từ */
+@media(max-width:390px){
+  .sidebar .brand h1{
+    font-size:12px!important;
+    max-width:180px!important;
+  }
+  .overview-label{
+    font-size:8.4px!important;
+  }
+  .overview-sub{
+    font-size:9px!important;
+  }
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -1632,7 +1882,7 @@ function renderHome(){
    ${overviewCard("students","👥",ss.length,"SĨ SỐ LỚP","Học sinh")}
    ${overviewCard("present","🗓️",`${present}/${ss.length}`,"CÓ MẶT HÔM NAY",present===ss.length&&ss.length?"Đi học đầy đủ":"Theo dõi chuyên cần")}
    ${overviewCard("concern","! ",concernStudents().length,"HS CẦN LƯU Ý","Theo dõi đặc biệt")}
-   ${overviewCard("tasks","📖",sortedTasks(false).filter(x=>x.priority==="Gấp" || (x.dueDate&&x.dueDate<=todayISO())).length,"VIỆC GẤP/QUÁ HẠN","Cần xử lý sớm")}
+   ${overviewCard("tasks","📖",sortedTasks(false).filter(x=>x.priority==="Gấp" || (x.dueDate&&x.dueDate<=todayISO())).length,"VIỆC GẤP / QUÁ HẠN","Cần xử lý sớm")}
  </div>
  ${concernHomeCard()}
  ${rankBoard()}
