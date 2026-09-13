@@ -1353,6 +1353,87 @@ html,body{overflow-x:hidden!important;background:#f4f7fb!important}body{font-siz
 }
 </style>
 
+
+<style id="gvcn-v3831-kpi-horizontal">
+/* 4 thẻ Tổng quan: icon bên trái, nội dung bên phải */
+.overview-kpi{
+  display:grid!important;
+  grid-template-columns:62px minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto!important;
+  column-gap:15px!important;
+  align-items:center!important;
+  min-height:126px!important;
+  padding:17px!important;
+}
+.overview-icon{
+  grid-column:1!important;
+  grid-row:1 / 4!important;
+  width:58px!important;
+  height:58px!important;
+  margin:0!important;
+  align-self:center!important;
+}
+.overview-value{
+  grid-column:2!important;
+  grid-row:1!important;
+  align-self:end!important;
+  margin:0!important;
+}
+.overview-label{
+  grid-column:2!important;
+  grid-row:2!important;
+  margin:5px 0 0!important;
+}
+.overview-sub{
+  grid-column:2!important;
+  grid-row:3!important;
+  margin:4px 0 0!important;
+  align-self:start!important;
+}
+
+/* Mobile vẫn giữ 2x2, nhưng từng thẻ theo chiều ngang */
+@media(max-width:780px){
+  .overview-kpi{
+    grid-template-columns:48px minmax(0,1fr)!important;
+    column-gap:10px!important;
+    min-height:108px!important;
+    padding:11px!important;
+  }
+  .overview-icon{
+    width:46px!important;
+    height:46px!important;
+    font-size:21px!important;
+  }
+  .overview-value{
+    font-size:22px!important;
+  }
+  .overview-label{
+    font-size:8.8px!important;
+    line-height:1.18!important;
+    letter-spacing:.025em!important;
+  }
+  .overview-sub{
+    font-size:9.7px!important;
+    line-height:1.18!important;
+  }
+}
+@media(max-width:390px){
+  .overview-kpi{
+    grid-template-columns:42px minmax(0,1fr)!important;
+    column-gap:8px!important;
+    padding:9px!important;
+  }
+  .overview-icon{
+    width:40px!important;
+    height:40px!important;
+    font-size:18px!important;
+  }
+  .overview-value{font-size:20px!important}
+  .overview-label{font-size:8.2px!important}
+  .overview-sub{font-size:9px!important}
+}
+</style>
+
 </head>
 <body>
 <div class="app">
