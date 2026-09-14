@@ -1899,6 +1899,97 @@ function seed(){
 {"id":"mb-hs-03","name":"Lê Gia Bảo","role":"Thủ quỹ","phone":"","password":"123456","done":true}
 ],"logs":[{"id":"lg1","at":"2026-09-10T04:55:00.000Z","action":"Đã cập nhật điểm danh lớp 11A1"},{"id":"lg2","at":"2026-09-10T04:40:00.000Z","action":"Đã ghi nhận nề nếp và điểm tích cực"},{"id":"lg3","at":"2026-09-10T04:20:00.000Z","action":"Đã cập nhật kế hoạch tuần"},{"id":"lg4","at":"2026-09-10T03:50:00.000Z","action":"Đã cập nhật thu – chi lớp"}],"disciplineRules":{"base":0,"late":-2,"excused":-1,"unexcused":-5,"early":-2,"incidentReminder":-1,"incidentAttention":-3,"incidentSerious":-5},"sync":{"url":"","apiKey":"","lastSync":""}};
 }
+
+function ensureDemoClassData(s){
+  ["students","timetable","scores","attendance","incidents","positive","duty","weekly","finance","comments","messages","tasks"].forEach(k=>{if(!Array.isArray(s[k]))s[k]=[]});
+  const demoNames10=[
+    ["Nguyễn Gia An","Nữ"],["Trần Minh Anh","Nữ"],["Lê Quốc Bảo","Nam"],["Phạm Đức Bình","Nam"],["Võ Ngọc Châu","Nữ"],["Đặng Thành Công","Nam"],
+    ["Bùi Khánh Duy","Nam"],["Hoàng Ngọc Diệp","Nữ"],["Nguyễn Tiến Dũng","Nam"],["Trần Anh Đức","Nam"],["Lê Hà Giang","Nữ"],["Phạm Thu Hà","Nữ"],
+    ["Võ Gia Hân","Nữ"],["Đặng Minh Hiếu","Nam"],["Bùi Quang Huy","Nam"],["Hoàng Ngọc Khánh","Nữ"],["Nguyễn Tuấn Kiệt","Nam"],["Trần Hoàng Long","Nam"],
+    ["Lê Nhật Minh","Nam"],["Phạm Thảo My","Nữ"],["Võ Hải Nam","Nam"],["Đặng Bảo Ngọc","Nữ"],["Bùi Minh Phúc","Nam"],["Hoàng Quỳnh Anh","Nữ"],
+    ["Nguyễn Minh Quân","Nam"],["Trần Phương Thảo","Nữ"],["Lê Anh Thư","Nữ"],["Phạm Quốc Trung","Nam"],["Võ Minh Tú","Nam"],["Đặng Thanh Tùng","Nam"],
+    ["Bùi Hải Yến","Nữ"],["Hoàng Thùy Linh","Nữ"],["Nguyễn Đức Mạnh","Nam"],["Trần Gia Huy","Nam"],["Lê Khánh Vy","Nữ"],["Phạm Minh Khoa","Nam"]
+  ];
+  const demoNames12=[
+    ["Nguyễn Hoài An","Nữ"],["Trần Quốc Anh","Nam"],["Lê Ngọc Bảo","Nữ"],["Phạm Gia Bình","Nam"],["Võ Minh Châu","Nữ"],["Đặng Quốc Cường","Nam"],
+    ["Bùi Anh Dũng","Nam"],["Hoàng Mỹ Duyên","Nữ"],["Nguyễn Thành Đạt","Nam"],["Trần Minh Đức","Nam"],["Lê Thu Giang","Nữ"],["Phạm Ngọc Hà","Nữ"],
+    ["Võ Khánh Hân","Nữ"],["Đặng Trung Hiếu","Nam"],["Bùi Đức Huy","Nam"],["Hoàng Minh Khang","Nam"],["Nguyễn Ngọc Khánh","Nữ"],["Trần Tuấn Kiệt","Nam"],
+    ["Lê Hoàng Long","Nam"],["Phạm Nhật Minh","Nam"],["Võ Thảo My","Nữ"],["Đặng Hải Nam","Nam"],["Bùi Bảo Ngọc","Nữ"],["Hoàng Minh Phúc","Nam"],
+    ["Nguyễn Quỳnh Anh","Nữ"],["Trần Minh Quân","Nam"],["Lê Phương Thảo","Nữ"],["Phạm Anh Thư","Nữ"],["Võ Quốc Trung","Nam"],["Đặng Minh Tú","Nam"],
+    ["Bùi Thanh Tùng","Nam"],["Hoàng Hải Yến","Nữ"],["Nguyễn Thùy Linh","Nữ"],["Trần Đức Mạnh","Nam"],["Lê Gia Huy","Nam"],["Phạm Khánh Vy","Nữ"]
+  ];
+  const subjects=["Toán","Vật lí","Hóa học","Ngữ văn","Sinh học","Lịch sử","Địa lí","Tiếng Anh (Ngoại ngữ 1)","Tin học"];
+  const timetableSubjects=["Ngữ văn","Toán","Tiếng Anh","Vật lí","Hóa học","Sinh học","Lịch sử","Địa lí","Tin học","GDTC","GDQPAN","HĐTN-HN"];
+  function addClass(classId,names,birthYear,prefix){
+    const c=(s.classes||[]).find(x=>x.id===classId); if(!c)return;
+    if(!c.teacherName)c.teacherName="HỒ NGUYỄN ĐA THIỆN";
+    if(!c.seatConfig)c.seatConfig={groups:4,tablesPerGroup:5,seatsPerTable:2,teacherDesk:true};
+    if(!s.students.some(x=>x.classId===classId)){
+      names.forEach((it,i)=>{
+        const mm=String((i%12)+1).padStart(2,"0"),dd=String(((i*3)%27)+1).padStart(2,"0");
+        s.students.push({id:`${prefix}s${i+1}`,classId,name:it[0],gender:it[1],dob:`${birthYear}-${mm}-${dd}`,
+          phoneFather:`09${classId==="c2"?"31":"32"}${String(100000+i*137).slice(-6)}`,
+          phoneMother:`09${classId==="c2"?"41":"42"}${String(200000+i*149).slice(-6)}`,
+          group:`Tổ ${(i%4)+1}`,seat:String(i+1)});
+      });
+    }
+    const sts=s.students.filter(x=>x.classId===classId);
+    if(!s.timetable.some(x=>x.classId===classId)){
+      let n=1;["Thứ 2","Thứ 3","Thứ 4","Thứ 5","Thứ 6"].forEach((day,di)=>{
+        for(let p=1;p<=5;p++){s.timetable.push({id:`${prefix}tt${n++}`,classId,day,period:p,subject:timetableSubjects[(di*5+p-1)%timetableSubjects.length],room:`Phòng ${c.name}`,done:true})}
+      });
+    }
+    if(!s.scores.some(x=>x.classId===classId)){
+      let n=1;sts.forEach((st,si)=>subjects.forEach((sub,mi)=>{
+        const base=6+((si*3+mi*2)%35)/10;
+        const tx=Math.min(10,Math.round(base*10)/10),gk=Math.min(10,Math.round((base+.4)*10)/10);
+        s.scores.push({id:`${prefix}sc${n++}`,classId,studentId:st.id,subject:sub,type:"TX1",score:tx,date:"2026-09-08",done:true});
+        s.scores.push({id:`${prefix}sc${n++}`,classId,studentId:st.id,subject:sub,type:"Giữa kỳ",score:gk,date:"2026-10-20",done:true});
+      }));
+    }
+    if(!s.attendance.some(x=>x.classId===classId)){
+      let n=1;["2026-09-08","2026-09-09","2026-09-10","2026-09-11","2026-09-12"].forEach((date,di)=>sts.forEach((st,si)=>{
+        let status="Có mặt",reason="";
+        if((si+di*3)%29===0){status="Đi trễ";reason="Đến lớp sau giờ quy định";}
+        else if((si+di*5)%41===0){status="Vắng phép";reason="Gia đình đã xin phép";}
+        s.attendance.push({id:`${prefix}at${n++}`,classId,studentId:st.id,date,status,reason});
+      }));
+    }
+    if(!s.positive.some(x=>x.classId===classId)){
+      [2,7,12,19,27].forEach((idx,k)=>{if(sts[idx])s.positive.push({id:`${prefix}po${k+1}`,classId,studentId:sts[idx].id,date:"2026-09-11",note:["Tích cực phát biểu xây dựng bài.","Hỗ trợ bạn trong hoạt động nhóm.","Hoàn thành tốt nhiệm vụ được giao.","Có tiến bộ rõ trong học tập.","Tích cực tham gia hoạt động lớp."][k],points:[3,2,3,2,3][k]})});
+    }
+    if(!s.incidents.some(x=>x.classId===classId)){
+      [5,16,25].forEach((idx,k)=>{if(sts[idx])s.incidents.push({id:`${prefix}in${k+1}`,classId,studentId:sts[idx].id,date:"2026-09-11",note:["Đi học muộn, đã nhắc nhở.","Chưa hoàn thành nhiệm vụ học tập đúng hạn.","Cần tập trung hơn trong giờ học."][k],level:k===1?"Cần quan tâm":"Nhắc nhở",resolved:k===0})});
+    }
+    if(!s.duty.some(x=>x.classId===classId)){
+      for(let i=0;i<4;i++)s.duty.push({id:`${prefix}du${i+1}`,classId,date:`2026-09-${String(8+i).padStart(2,"0")}`,assignee:`Tổ ${i+1}`,task:"Vệ sinh lớp học, lau bảng và sắp xếp bàn ghế",done:i<3});
+    }
+    if(!s.weekly.some(x=>x.classId===classId)){
+      s.weekly.push({id:`${prefix}wk1`,classId,date:"2026-09-07",title:"Kế hoạch tuần 2",content:"Ổn định nề nếp; duy trì sĩ số; theo dõi học tập; thực hiện trực nhật và hoạt động lớp.",done:true});
+      s.weekly.push({id:`${prefix}wk2`,classId,date:"2026-09-14",title:"Kế hoạch tuần 3",content:classId==="c3"?"Tăng cường ôn tập lớp 12; rà soát tiến độ học tập; tư vấn định hướng sau THPT.":"Củng cố phương pháp học tập lớp 10; theo dõi khả năng thích nghi và nề nếp đầu cấp.",done:false});
+    }
+    if(!s.finance.some(x=>x.classId===classId)){
+      s.finance.push({id:`${prefix}fi1`,classId,date:"2026-09-05",type:"Thu",amount:1800000,note:"Thu quỹ lớp đợt 1",done:true});
+      s.finance.push({id:`${prefix}fi2`,classId,date:"2026-09-09",type:"Chi",amount:280000,note:"Mua dụng cụ vệ sinh và đồ dùng chung",done:true});
+    }
+    if(!s.comments.some(x=>x.classId===classId) && sts.length>=3){
+      s.comments.push({id:`${prefix}co1`,classId,studentId:sts[0].id,date:"2026-09-11",level:"Tốt",text:"Em có kết quả học tập tốt, chủ động thực hiện nhiệm vụ và tham gia tích cực các hoạt động của lớp.",done:true});
+      s.comments.push({id:`${prefix}co2`,classId,studentId:sts[1].id,date:"2026-09-11",level:"Khá",text:"Em có kết quả học tập khá, có ý thức rèn luyện; cần tiếp tục duy trì sự chủ động và ổn định trong học tập.",done:true});
+      s.comments.push({id:`${prefix}co3`,classId,studentId:sts[2].id,date:"2026-09-11",level:"Đạt",text:"Em đáp ứng yêu cầu cơ bản; cần tăng tính chủ động, hoàn thành nhiệm vụ đúng thời hạn và phát huy điểm mạnh.",done:false});
+    }
+    if(!s.messages.some(x=>x.classId===classId) && sts.length){
+      s.messages.push({id:`${prefix}me1`,classId,studentId:sts[5]?.id||sts[0].id,title:"Trao đổi tình hình học tập",date:"2026-09-11",text:`Kính gửi Quý Phụ huynh, GVCN xin trao đổi về tình hình học tập và rèn luyện của em ${sts[5]?.name||sts[0].name}. Kính mong gia đình tiếp tục phối hợp động viên em duy trì nền nếp học tập.`,done:false});
+    }
+    if(!s.tasks.some(x=>x.classId===classId)){
+      s.tasks.push({id:`${prefix}task1`,classId,title:"Rà soát chuyên cần và học sinh cần quan tâm",dueDate:"2026-09-15",priority:"Gấp",assignee:"GVCN",description:"Kiểm tra chuyên cần và cập nhật các trường hợp cần phối hợp hỗ trợ.",done:false});
+      s.tasks.push({id:`${prefix}task2`,classId,title:classId==="c3"?"Cập nhật kế hoạch ôn tập và hướng nghiệp":"Theo dõi khả năng thích nghi đầu cấp",dueDate:"2026-09-18",priority:"Quan trọng",assignee:"GVCN",description:classId==="c3"?"Theo dõi tiến độ học tập, định hướng thi và lựa chọn sau THPT.":"Ghi nhận học sinh còn khó khăn về phương pháp học tập, nề nếp và hòa nhập.",done:false});
+    }
+  }
+  addClass("c2",demoNames10,2011,"d10");
+  addClass("c3",demoNames12,2008,"d12");
+  return s;
+}
+
 function loadState(){try{
   const s=JSON.parse(localStorage.getItem(KEY))||seed();
   if(!Array.isArray(s.tasks))s.tasks=[];
@@ -1928,8 +2019,9 @@ function loadState(){try{
   });
   ["scores","duty","weekly","finance","comments","messages","members","counseling","situations","companion","career"].forEach(k=>(s[k]||[]).forEach(x=>{if(typeof x.done==="undefined")x.done=false}));
   (s.incidents||[]).forEach(x=>{if(typeof x.resolved==="undefined")x.resolved=false});
+  ensureDemoClassData(s);
   return s
-}catch(e){return seed()}}
+}catch(e){return ensureDemoClassData(seed())}}
 function save(msg="Đã lưu"){localStorage.setItem(KEY,JSON.stringify(state));log(msg);renderClassSelect(); if(msg) toast(msg)}
 function log(action){state.logs=state.logs||[];state.logs.unshift({id:uid(),at:new Date().toISOString(),action});state.logs=state.logs.slice(0,500)}
 function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
