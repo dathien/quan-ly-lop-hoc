@@ -1805,6 +1805,61 @@ input,select,textarea{
 .class-cover-full:hover .class-cover-tools,.class-cover-full:focus-within .class-cover-tools{opacity:1;pointer-events:auto}
 @media(max-width:900px){.class-cover-tools{display:none!important}.class-cover-full{border-radius:14px}.class-cover-full .class-cover-photo{border-radius:13px}}
 </style>
+
+<style id="v3850-seating-fullview">
+/* Chỗ ngồi: hiển thị trọn 4 tổ x 5 bàn, không cắt hàng cuối */
+.seat-room,.seat-layout,.seat-stage,.seating-area,.seat-map,.groups-wrap{
+  max-height:none!important;
+  height:auto!important;
+  min-height:0!important;
+  overflow:visible!important;
+}
+.seat-groups,.group-grid,.seat-groups-grid{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:18px!important;
+  align-items:start!important;
+  height:auto!important;
+  max-height:none!important;
+  overflow:visible!important;
+  padding-bottom:24px!important;
+}
+.seat-group,.group-card{
+  min-width:0!important;
+  height:auto!important;
+  max-height:none!important;
+  overflow:visible!important;
+}
+.seat-table,.desk{
+  min-height:96px!important;
+  height:auto!important;
+  overflow:visible!important;
+}
+.seat-pair,.desk-seats{
+  min-height:58px!important;
+  height:auto!important;
+}
+.seat,.seat-slot{
+  min-height:58px!important;
+  height:auto!important;
+  padding:8px 6px!important;
+  white-space:normal!important;
+  overflow-wrap:break-word!important;
+  word-break:normal!important;
+}
+#content:has(.seat-group),#content:has(.group-card){
+  overflow:visible!important;
+  padding-bottom:36px!important;
+}
+@media(max-width:1180px){
+ .seat-groups,.group-grid,.seat-groups-grid{grid-template-columns:repeat(2,minmax(280px,1fr))!important}
+}
+@media(max-width:720px){
+ .seat-groups,.group-grid,.seat-groups-grid{grid-template-columns:1fr!important;gap:14px!important}
+ .seat-group,.group-card{width:100%!important}
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -2769,6 +2824,18 @@ function seatNo(groupIndex,tableIndex,seatIndex){
 function seatStudentByNo(no){
   return classStudents().find(s=>Number(s.seat||0)===Number(no));
 }
+
+function fitSeatLayoutFull(){
+ const content=document.getElementById("content");if(!content)return;
+ const candidates=content.querySelectorAll(".seat-room,.seat-layout,.seat-stage,.seating-area,.seat-map,.groups-wrap,.seat-groups,.group-grid,.seat-groups-grid,.seat-group,.group-card");
+ candidates.forEach(el=>{
+   el.style.setProperty("max-height","none","important");
+   el.style.setProperty("height","auto","important");
+   el.style.setProperty("overflow","visible","important");
+ });
+ content.style.setProperty("overflow-y","visible","important");
+ content.style.setProperty("padding-bottom","40px","important");
+}
 function renderSeats(){
   const cfg=seatConfig(), cap=seatCapacity(), students=classStudents();
   const unassigned=students.filter(s=>!s.seat||Number(s.seat)>cap);
@@ -2850,6 +2917,8 @@ function renderSeats(){
       </div>
     </div>
   </div>`;
+
+ requestAnimationFrame(()=>fitSeatLayoutFull());
 }
 let seatDragData=null;
 function seatDragStart(e){
