@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Hồ Nguyễn Đa Thiện - Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -1913,6 +1913,74 @@ input,select,textarea{
 }
 </style>
 
+
+<style id="v3852-seating-real-fix">
+/* Sửa đúng nguyên nhân: .seat-groups cũ có min-width ~1000px làm Tổ 4 tràn khỏi khung */
+.classroom-wrap{
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  overflow-x:hidden!important;
+  padding:14px!important;
+}
+.classroom-wrap .teacher-row,
+.classroom-wrap .seat-groups{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  margin-left:auto!important;
+  margin-right:auto!important;
+}
+.classroom-wrap .seat-groups{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:12px!important;
+  padding-left:0!important;
+  padding-right:0!important;
+  justify-content:stretch!important;
+}
+.classroom-wrap .seat-group{
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  padding:10px!important;
+  box-sizing:border-box!important;
+}
+.classroom-wrap .desk{
+  width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  padding:7px!important;
+}
+.classroom-wrap .desk-seats{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  min-width:0!important;
+}
+.classroom-wrap .seat-slot{
+  min-width:0!important;
+  width:100%!important;
+  padding:6px 4px!important;
+  font-size:11.5px!important;
+  line-height:1.25!important;
+  overflow:hidden!important;
+}
+@media(max-width:1050px){
+ .classroom-wrap{padding:10px!important}
+ .classroom-wrap .seat-groups{gap:8px!important}
+ .classroom-wrap .seat-group{padding:8px!important}
+ .classroom-wrap .desk{padding:6px!important}
+ .classroom-wrap .seat-slot{font-size:11px!important;padding:5px 3px!important}
+}
+@media(max-width:760px){
+ .classroom-wrap{overflow-x:visible!important}
+ .classroom-wrap .seat-groups{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+}
+@media(max-width:520px){
+ .classroom-wrap .seat-groups{grid-template-columns:1fr!important}
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -2890,10 +2958,13 @@ function fitSeatLayoutFull(){
  content.style.setProperty("padding-bottom","40px","important");
  const grids=content.querySelectorAll(".seat-groups,.group-grid,.seat-groups-grid");
  grids.forEach(g=>{
+   g.style.setProperty("width","100%","important");
+   g.style.setProperty("max-width","100%","important");
+   g.style.setProperty("min-width","0","important");
    g.style.setProperty("margin-left","auto","important");
    g.style.setProperty("margin-right","auto","important");
    g.style.setProperty("box-sizing","border-box","important");
-   g.style.setProperty("justify-content","center","important");
+   g.style.setProperty("justify-content","stretch","important");
  });
 }
 function renderSeats(){
