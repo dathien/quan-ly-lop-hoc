@@ -1860,6 +1860,59 @@ input,select,textarea{
 }
 </style>
 
+
+<style id="v3851-seating-centered">
+/* Căn toàn bộ sơ đồ chỗ ngồi vào giữa vùng nội dung */
+.seat-room,.seat-layout,.seat-stage,.seating-area,.seat-map,.groups-wrap{
+  width:100%!important;
+  max-width:100%!important;
+  margin-left:auto!important;
+  margin-right:auto!important;
+  box-sizing:border-box!important;
+}
+.seat-groups,.group-grid,.seat-groups-grid{
+  width:min(100%,1180px)!important;
+  max-width:1180px!important;
+  margin-left:auto!important;
+  margin-right:auto!important;
+  padding-left:10px!important;
+  padding-right:10px!important;
+  box-sizing:border-box!important;
+  justify-content:center!important;
+}
+.seat-group,.group-card{
+  width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+}
+.seat-table,.desk,.seat-pair,.desk-seats,.seat,.seat-slot{
+  box-sizing:border-box!important;
+}
+.seat,.seat-slot{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+}
+@media(min-width:1181px){
+ .seat-groups,.group-grid,.seat-groups-grid{
+   grid-template-columns:repeat(4,minmax(220px,1fr))!important;
+ }
+}
+@media(max-width:1180px){
+ .seat-groups,.group-grid,.seat-groups-grid{
+   width:min(100%,760px)!important;
+   grid-template-columns:repeat(2,minmax(280px,1fr))!important;
+ }
+}
+@media(max-width:720px){
+ .seat-groups,.group-grid,.seat-groups-grid{
+   width:min(100%,390px)!important;
+   grid-template-columns:1fr!important;
+ }
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -2835,6 +2888,13 @@ function fitSeatLayoutFull(){
  });
  content.style.setProperty("overflow-y","visible","important");
  content.style.setProperty("padding-bottom","40px","important");
+ const grids=content.querySelectorAll(".seat-groups,.group-grid,.seat-groups-grid");
+ grids.forEach(g=>{
+   g.style.setProperty("margin-left","auto","important");
+   g.style.setProperty("margin-right","auto","important");
+   g.style.setProperty("box-sizing","border-box","important");
+   g.style.setProperty("justify-content","center","important");
+ });
 }
 function renderSeats(){
   const cfg=seatConfig(), cap=seatCapacity(), students=classStudents();
