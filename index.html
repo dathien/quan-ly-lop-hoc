@@ -1751,6 +1751,11 @@ input,select,textarea{
 }
 </style>
 
+<style id="v3846-banner-autofit">
+.class-banner,.home-banner,.hero-banner,.cover-wrap,[data-banner-wrap]{height:auto!important;min-height:0!important;max-height:none!important;aspect-ratio:auto!important;overflow:hidden!important;background-size:contain!important;background-position:center!important;background-repeat:no-repeat!important}
+.class-banner img,.home-banner img,.hero-banner img,.cover-wrap img,.cover-img,.banner-img,[data-banner-img]{display:block!important;width:100%!important;height:auto!important;max-height:none!important;object-fit:contain!important;object-position:center center!important}
+@media(max-width:900px){.class-banner img,.home-banner img,.hero-banner img,.cover-wrap img,.cover-img,.banner-img,[data-banner-img]{width:100%!important;height:auto!important;object-fit:contain!important}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -2148,6 +2153,8 @@ function renderHome(){
   <div class=card><div class=section-head><div><h3>📅 Kế hoạch gần nhất</h3></div><button class=btn onclick="navigate('weekly')">Mở</button></div>${latestWeekly()}</div>
   <div class=card><div class=section-head><div><h3>☑️ Công việc sắp tới</h3><div class=muted>Nhắc việc cần xử lý trong thời gian tới.</div></div><button class=btn onclick="navigate('tasks')">Xem tất cả</button></div>${upcomingTasksHome()}</div>
  </div>`;
+
+ requestAnimationFrame(()=>fitCurrentBanner());
 }
 function statCard(icon,label,value){return `<div class=card><div class=stat><div><div class=label>${esc(label)}</div><strong>${esc(value)}</strong></div><div style="font-size:29px">${icon}</div></div></div>`}
 function overviewCard(type,icon,value,label,sub){
@@ -2159,27 +2166,20 @@ function overviewCard(type,icon,value,label,sub){
   </div>`;
 }
 function money(x){return new Intl.NumberFormat("vi-VN").format(Number(x||0))+" đ"}
+function fitCurrentBanner(){
+ document.querySelectorAll(".class-banner img,.home-banner img,.hero-banner img,.cover-wrap img,.cover-img,.banner-img,[data-banner-img]").forEach(img=>{
+  img.style.setProperty("width","100%","important");img.style.setProperty("height","auto","important");img.style.setProperty("max-height","none","important");img.style.setProperty("object-fit","contain","important");img.style.setProperty("object-position","center center","important");img.style.setProperty("display","block","important");
+  const w=img.parentElement;if(w){w.style.setProperty("height","auto","important");w.style.setProperty("min-height","0","important");w.style.setProperty("max-height","none","important");w.style.setProperty("aspect-ratio","auto","important")}
+ });
+}
+function refreshBannerAfterUpload(){if(typeof renderHome==="function")renderHome();requestAnimationFrame(()=>{fitCurrentBanner();setTimeout(fitCurrentBanner,80)})}
 function changeCover(){
-  const i=document.createElement("input");
-  i.type="file";
-  i.accept="image/*";
-  i.onchange=()=>{
-    const f=i.files?.[0];
-    if(!f)return;
-    if(f.size>5*1024*1024)return toast("Chọn ảnh dưới 5 MB");
-    const r=new FileReader();
-    r.onload=e=>{
-      curClass().cover=e.target.result;
-      localStorage.setItem(KEY,JSON.stringify(state));
-      log("Đã cập nhật ảnh lớp");
-      localStorage.setItem(KEY,JSON.stringify(state));
-      renderHome();
-      requestAnimationFrame(()=>{try{renderHome()}catch(err){console.error(err)}});
-      toast("Đã cập nhật ảnh lớp");
-    };
-    r.readAsDataURL(f);
-  };
-  i.click();
+ const c=curClass();if(!c)return toast("Chưa chọn lớp");
+ const inp=document.createElement("input");inp.type="file";inp.accept="image/png,image/jpeg,image/webp";
+ inp.onchange=()=>{const file=inp.files&&inp.files[0];if(!file)return;if(!/^image\/(png|jpeg|webp)$/.test(file.type))return toast("Chọn ảnh PNG, JPG hoặc WEBP");
+  const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const maxW=1920,scale=Math.min(1,maxW/img.naturalWidth),w=Math.max(1,Math.round(img.naturalWidth*scale)),hh=Math.max(1,Math.round(img.naturalHeight*scale)),canvas=document.createElement("canvas");canvas.width=w;canvas.height=hh;canvas.getContext("2d").drawImage(img,0,0,w,hh);
+    let data;try{data=canvas.toDataURL("image/jpeg",.90)}catch(e){data=reader.result}c.cover=data;c.coverRatio=img.naturalWidth/img.naturalHeight;save("Đã cập nhật ảnh lớp");refreshBannerAfterUpload();toast("Ảnh lớp đã cập nhật và hiển thị ngay")};img.onerror=()=>toast("Không đọc được ảnh");img.src=reader.result};reader.readAsDataURL(file)};
+ inp.click()
 }
 function removeCover(){
   if(!curClass()?.cover)return;
