@@ -1797,6 +1797,14 @@ input,select,textarea{
 }
 </style>
 
+<style id="v3848-new-cover">
+.class-cover-full{position:relative;width:100%;height:auto;overflow:visible;border:1px solid var(--line);border-radius:18px;background:#eef6ff;box-shadow:var(--shadow);margin:0 0 10px}
+.class-cover-full .class-cover-photo{display:block;width:100%;height:auto;max-width:100%;max-height:none;object-fit:contain;object-position:center;border-radius:17px}
+.class-cover-full .class-cover-empty{min-height:230px;display:flex;align-items:center;justify-content:center;font-size:72px;border-radius:17px;background:linear-gradient(135deg,#eaf2ff,#f8fbff)}
+.class-cover-tools{position:absolute;right:12px;top:12px;display:flex;gap:7px;opacity:0;pointer-events:none;transition:.18s}
+.class-cover-full:hover .class-cover-tools,.class-cover-full:focus-within .class-cover-tools{opacity:1;pointer-events:auto}
+@media(max-width:900px){.class-cover-tools{display:none!important}.class-cover-full{border-radius:14px}.class-cover-full .class-cover-photo{border-radius:13px}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1905,8 +1913,54 @@ const SCORE_MATRIX_DEFAULT=[
   {value:"Tin học",label:"Tin học"}
 ];
 function classGrade(){const m=String(curClass()?.name||"").match(/(?:^|\D)(10|11|12)(?:\D|$)/);return m?Number(m[1]):11}
-function subjectCatalog(){return THPT_SUBJECTS}
-function scoreSubjectInfo(name){return THPT_SUBJECTS.find(x=>x.name===name)||({name:name||"",mode:"score",group:"Khác"})}
+function subjectCatalog(){
+ const c=curClass();
+ if(!c)return THPT_SUBJECTS;
+ if(!Array.isArray(c.subjectCatalog)||!c.subjectCatalog.length){
+   c.subjectCatalog=THPT_SUBJECTS.map(x=>({...x}));
+ }
+ return c.subjectCatalog;
+}
+function subjectUsed(name){
+ return (state.scores||[]).some(x=>x.classId===state.currentClassId&&normalizeSubjectName(x.subject)===name);
+}
+function openSubjectForm(index=-1){
+ const list=subjectCatalog(),x=index>=0?list[index]:{name:"",mode:"score",group:"Lựa chọn"};
+ modal(`<h3>${index>=0?"Sửa":"Thêm"} môn học</h3>
+ <div class=form-grid>
+  <div class=field><label>Tên môn học</label><input id=subName value="${esc(x.name||"")}" placeholder="Nhập tên môn"></div>
+  <div class=field><label>Hình thức đánh giá</label><select id=subMode><option value="score" ${x.mode!=="remark"?"selected":""}>Điểm số</option><option value="remark" ${x.mode==="remark"?"selected":""}>Đạt / Chưa đạt</option></select></div>
+  <div class=field><label>Nhóm môn</label><select id=subGroup><option ${x.group==="Bắt buộc"?"selected":""}>Bắt buộc</option><option ${x.group==="Lựa chọn"?"selected":""}>Lựa chọn</option><option ${x.group==="Khác"?"selected":""}>Khác</option></select></div>
+ </div>
+ <div class=modal-foot>${index>=0?`<button class="btn bad" onclick="deleteSubject(${index})">Xóa môn</button>`:""}<button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveSubject(${index})">Lưu</button></div>`);
+}
+function saveSubject(index){
+ const name=val("subName").trim(),mode=val("subMode"),group=val("subGroup");
+ if(!name)return toast("Nhập tên môn học");
+ const list=subjectCatalog();
+ if(list.some((x,i)=>i!==index&&x.name.toLowerCase()===name.toLowerCase()))return toast("Môn học đã tồn tại");
+ const oldName=index>=0?list[index].name:"";
+ if(index>=0){
+   list[index]={name,mode,group};
+   if(oldName!==name)(state.scores||[]).forEach(r=>{if(r.classId===state.currentClassId&&normalizeSubjectName(r.subject)===oldName)r.subject=name});
+   if(scoreSubjectFilter===oldName)scoreSubjectFilter=name;
+ }else list.push({name,mode,group});
+ closeModal();save(index>=0?"Đã sửa môn học":"Đã thêm môn học");scoreView="subjects";renderScores();
+}
+function deleteSubject(index){
+ const list=subjectCatalog(),x=list[index];if(!x)return;
+ if(subjectUsed(x.name))return toast("Môn này đang có dữ liệu điểm. Hãy xóa dữ liệu điểm của môn trước.");
+ if(!confirm(`Xóa môn "${x.name}" khỏi lớp ${curClass()?.name||""}?`))return;
+ list.splice(index,1);
+ if(scoreSubjectFilter===x.name)scoreSubjectFilter=list[0]?.name||"";
+ closeModal();save("Đã xóa môn học");scoreView="subjects";renderScores();
+}
+function resetSubjectCatalog(){
+ if(!confirm("Khôi phục danh mục môn mặc định cho lớp này?"))return;
+ const c=curClass();if(c)c.subjectCatalog=THPT_SUBJECTS.map(x=>({...x}));
+ scoreSubjectFilter="Tin học";save("Đã khôi phục danh mục môn mặc định");scoreView="subjects";renderScores();
+}
+function scoreSubjectInfo(name){return subjectCatalog().find(x=>x.name===name)||THPT_SUBJECTS.find(x=>x.name===name)||({name:name||"",mode:"score",group:"Khác"})}
 function normalizeSubjectName(name){
  const x=String(name||"").trim();
  const map={"Tiếng Anh":"Tiếng Anh (Ngoại ngữ 1)","Ngoại ngữ 1":"Tiếng Anh (Ngoại ngữ 1)","Anh Văn":"Tiếng Anh (Ngoại ngữ 1)","Văn":"Ngữ văn","Lý":"Vật lí","Hóa":"Hóa học","Sinh":"Sinh học","Sử":"Lịch sử","Địa":"Địa lí","GDQPAN":"Giáo dục quốc phòng và an ninh","GDQP&AN":"Giáo dục quốc phòng và an ninh","GDTC":"Giáo dục thể chất","GDKT&PL":"Giáo dục kinh tế và pháp luật","HĐTN-HN":"Hoạt động trải nghiệm, hướng nghiệp","HĐTNHN":"Hoạt động trải nghiệm, hướng nghiệp"};
@@ -2168,9 +2222,8 @@ function renderHome(){
  const present=att.filter(x=>x.status==="Có mặt").length, absent=att.filter(x=>String(x.status).startsWith("Vắng")).length;
  const bal=byClass(state.finance).reduce((a,x)=>a+(x.type==="Thu"?Number(x.amount||0):-Number(x.amount||0)),0);
  $("#content").innerHTML=`
- <section class=hero>${c?.cover?`<img src="${c.cover}">`:`<div class=hero-empty>🏫</div>`}
- <div class=hero-actions><button class=btn onclick=changeCover()>📷 ${c?.cover?"Đổi ảnh lớp":"Thêm ảnh lớp"}</button>${c?.cover?`<button class="btn bad" onclick=removeCover()>Bỏ ảnh</button>`:""}</div>
- <div class=hero-overlay><div class=hero-title>${esc(c?.name||"Lớp học")}</div><div class=hero-sub>${esc(c?.school||"")} ${c?.year?`• ${esc(c.year)}`:""}</div></div></section>
+ <section class="class-cover-full">${c?.cover?`<img class="class-cover-photo" src="${c.cover}" alt="Banner lớp ${esc(c?.name||"")}">`:`<div class="class-cover-empty">🏫</div>`}
+ <div class="class-cover-tools"><button class=btn onclick=changeCover()>📷 ${c?.cover?"Đổi ảnh lớp":"Thêm ảnh lớp"}</button>${c?.cover?`<button class="btn bad" onclick=removeCover()>Bỏ ảnh</button>`:""}</div></section>
  <div class="dashboard-summary-head">
    <div>
      <div class="dashboard-eyebrow">TỔNG QUAN LỚP</div>
@@ -2225,12 +2278,19 @@ function syncHeroToImage(){
  if(img.complete)apply(); else img.addEventListener("load",apply,{once:true});
 }
 function fitCurrentBanner(){
- document.querySelectorAll(".hero > img,.class-banner img,.home-banner img,.hero-banner img,.cover-wrap img,.cover-img,.banner-img,[data-banner-img]").forEach(img=>{
+ document.querySelectorAll(".class-cover-photo,.hero > img,.class-banner img,.home-banner img,.hero-banner img,.cover-wrap img,.cover-img,.banner-img,[data-banner-img]").forEach(img=>{
   img.style.setProperty("width","100%","important");img.style.setProperty("height","auto","important");img.style.setProperty("max-height","none","important");img.style.setProperty("object-fit","contain","important");img.style.setProperty("object-position","center center","important");img.style.setProperty("display","block","important");
   const w=img.parentElement;if(w){w.style.setProperty("height","auto","important");w.style.setProperty("min-height","0","important");w.style.setProperty("max-height","none","important");w.style.setProperty("aspect-ratio","auto","important")}
  });
 }
-function refreshBannerAfterUpload(){if(typeof renderHome==="function")renderHome();requestAnimationFrame(()=>{fitCurrentBanner();syncHeroToImage();setTimeout(()=>{fitCurrentBanner();syncHeroToImage()},80)})}
+function refreshBannerAfterUpload(){
+ if(typeof renderHome==="function")renderHome();
+ requestAnimationFrame(()=>{
+   const img=document.querySelector(".class-cover-photo");
+   if(img){const done=()=>{img.style.width="100%";img.style.height="auto";img.parentElement.style.height="auto"};if(img.complete)done();else img.addEventListener("load",done,{once:true})}
+   fitCurrentBanner();setTimeout(fitCurrentBanner,80);
+ });
+}
 function changeCover(){
  const c=curClass();if(!c)return toast("Chưa chọn lớp");
  const inp=document.createElement("input");inp.type="file";inp.accept="image/png,image/jpeg,image/webp";
@@ -3184,11 +3244,12 @@ function renderScoreMatrix(){
 }
 function renderScoreSubjectCards(){
  const subs=subjectCatalog();
- return `<div class="subject-cards">${subs.map(x=>{
+ return `<div class="section-head" style="margin:2px 0 12px"><div><b>📚 Danh mục môn của lớp ${esc(curClass()?.name||"")}</b><div class=muted>Thêm, sửa hoặc xóa môn học. Danh mục được lưu riêng cho từng lớp.</div></div><div class=actions><button class="btn sm" onclick="resetSubjectCatalog()">↺ Mặc định</button><button class="btn primary sm" onclick="openSubjectForm()">＋ Thêm môn</button></div></div>
+ <div class="subject-cards">${subs.map((x,i)=>{
    const rows=(state.scores||[]).filter(r=>r.classId===state.currentClassId&&normalizeSubjectName(r.subject)===x.name);
    const learners=new Set(rows.map(r=>r.studentId)).size;
-   return `<button class="subject-card ${scoreSubjectFilter===x.name?"active":""}" onclick="scoreSubjectFilter='${esc(x.name)}';scoreView='detail';renderScores()"><b>${esc(x.name)}</b><span>${x.mode==="remark"?"Nhận xét Đạt/Chưa đạt":`${learners}/${classStudents().length} HS đã có dữ liệu`}</span></button>`;
- }).join("")}</div>`;
+   return `<div class="subject-card ${scoreSubjectFilter===x.name?"active":""}" style="cursor:default"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div style="min-width:0"><b>${esc(x.name)}</b><span style="display:block">${x.mode==="remark"?"Đánh giá Đạt / Chưa đạt":`${learners}/${classStudents().length} HS đã có dữ liệu`} • ${esc(x.group||"")}</span></div><div class=actions><button class="btn sm" onclick="scoreSubjectFilter='${esc(x.name)}';scoreView='detail';renderScores()">Xem</button><button class="btn sm" onclick="openSubjectForm(${i})">Sửa</button><button class="btn sm bad" onclick="deleteSubject(${i})" ${rows.length?"title='Môn đang có dữ liệu điểm'":""}>Xóa</button></div></div></div>`;
+ }).join("")||`<div class=card><div class=empty>Chưa có môn học. Nhấn “Thêm môn” để tạo.</div></div>`}</div>`;
 }
 function scoreSemesterOfDate(date){
  const m=Number(String(date||"").slice(5,7));
