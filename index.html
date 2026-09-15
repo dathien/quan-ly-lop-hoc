@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Hồ Nguyễn Đa Thiện - Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -1756,6 +1756,47 @@ input,select,textarea{
 .class-banner img,.home-banner img,.hero-banner img,.cover-wrap img,.cover-img,.banner-img,[data-banner-img]{display:block!important;width:100%!important;height:auto!important;max-height:none!important;object-fit:contain!important;object-position:center center!important}
 @media(max-width:900px){.class-banner img,.home-banner img,.hero-banner img,.cover-wrap img,.cover-img,.banner-img,[data-banner-img]{width:100%!important;height:auto!important;object-fit:contain!important}}
 </style>
+
+<style id="v3847-hero-banner-definitive-fix">
+/* FIX cuối: selector thực tế của banner Tổng quan là .hero */
+.hero{
+  position:relative!important;
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  aspect-ratio:auto!important;
+  overflow:hidden!important;
+  background:#eef6ff!important;
+}
+.hero > img{
+  position:relative!important;
+  inset:auto!important;
+  display:block!important;
+  width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  aspect-ratio:auto!important;
+  object-fit:contain!important;
+  object-position:center center!important;
+  transform:none!important;
+  margin:0!important;
+}
+@media (max-width:1400px){
+ .hero{height:auto!important;min-height:0!important;max-height:none!important}
+ .hero > img{width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;object-fit:contain!important}
+}
+@media (max-width:900px){
+ .hero{height:auto!important;min-height:0!important;max-height:none!important}
+ .hero > img{width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;object-fit:contain!important}
+}
+@media (max-width:520px){
+ .hero{height:auto!important;min-height:0!important;max-height:none!important}
+ .hero > img{width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;object-fit:contain!important}
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -2154,7 +2195,7 @@ function renderHome(){
   <div class=card><div class=section-head><div><h3>☑️ Công việc sắp tới</h3><div class=muted>Nhắc việc cần xử lý trong thời gian tới.</div></div><button class=btn onclick="navigate('tasks')">Xem tất cả</button></div>${upcomingTasksHome()}</div>
  </div>`;
 
- requestAnimationFrame(()=>fitCurrentBanner());
+ requestAnimationFrame(()=>{fitCurrentBanner();syncHeroToImage()});
 }
 function statCard(icon,label,value){return `<div class=card><div class=stat><div><div class=label>${esc(label)}</div><strong>${esc(value)}</strong></div><div style="font-size:29px">${icon}</div></div></div>`}
 function overviewCard(type,icon,value,label,sub){
@@ -2166,13 +2207,30 @@ function overviewCard(type,icon,value,label,sub){
   </div>`;
 }
 function money(x){return new Intl.NumberFormat("vi-VN").format(Number(x||0))+" đ"}
+function syncHeroToImage(){
+ const hero=document.querySelector(".hero"),img=hero?.querySelector(":scope > img");
+ if(!hero||!img)return;
+ const apply=()=>{
+   hero.style.setProperty("height","auto","important");
+   hero.style.setProperty("min-height","0","important");
+   hero.style.setProperty("max-height","none","important");
+   hero.style.setProperty("aspect-ratio","auto","important");
+   img.style.setProperty("width","100%","important");
+   img.style.setProperty("height","auto","important");
+   img.style.setProperty("min-height","0","important");
+   img.style.setProperty("max-height","none","important");
+   img.style.setProperty("object-fit","contain","important");
+   img.style.setProperty("object-position","center center","important");
+ };
+ if(img.complete)apply(); else img.addEventListener("load",apply,{once:true});
+}
 function fitCurrentBanner(){
- document.querySelectorAll(".class-banner img,.home-banner img,.hero-banner img,.cover-wrap img,.cover-img,.banner-img,[data-banner-img]").forEach(img=>{
+ document.querySelectorAll(".hero > img,.class-banner img,.home-banner img,.hero-banner img,.cover-wrap img,.cover-img,.banner-img,[data-banner-img]").forEach(img=>{
   img.style.setProperty("width","100%","important");img.style.setProperty("height","auto","important");img.style.setProperty("max-height","none","important");img.style.setProperty("object-fit","contain","important");img.style.setProperty("object-position","center center","important");img.style.setProperty("display","block","important");
   const w=img.parentElement;if(w){w.style.setProperty("height","auto","important");w.style.setProperty("min-height","0","important");w.style.setProperty("max-height","none","important");w.style.setProperty("aspect-ratio","auto","important")}
  });
 }
-function refreshBannerAfterUpload(){if(typeof renderHome==="function")renderHome();requestAnimationFrame(()=>{fitCurrentBanner();setTimeout(fitCurrentBanner,80)})}
+function refreshBannerAfterUpload(){if(typeof renderHome==="function")renderHome();requestAnimationFrame(()=>{fitCurrentBanner();syncHeroToImage();setTimeout(()=>{fitCurrentBanner();syncHeroToImage()},80)})}
 function changeCover(){
  const c=curClass();if(!c)return toast("Chưa chọn lớp");
  const inp=document.createElement("input");inp.type="file";inp.accept="image/png,image/jpeg,image/webp";
