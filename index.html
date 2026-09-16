@@ -1981,6 +1981,29 @@ input,select,textarea{
 }
 </style>
 
+
+<style id="v3853-learning-analysis">
+.analysis-controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:14px}
+.analysis-controls .field{min-width:160px;flex:1}.analysis-controls select{width:100%}
+.analysis-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:12px 0}
+.analysis-kpi{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px;cursor:pointer;text-align:left}
+.analysis-kpi.active{outline:2px solid #3b82f6}.analysis-kpi .num{font-size:28px;font-weight:900;margin-top:5px}.analysis-kpi small{color:var(--muted)}
+.analysis-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:14px;margin-bottom:14px}
+.analysis-chart{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px;min-height:300px}
+.analysis-bars{height:220px;display:flex;align-items:end;justify-content:space-around;gap:14px;padding:18px 8px 0}
+.analysis-bar-wrap{height:100%;flex:1;display:flex;flex-direction:column;justify-content:end;align-items:center;gap:7px;cursor:pointer}
+.analysis-bar{width:min(70px,75%);min-height:4px;border-radius:10px 10px 3px 3px;background:linear-gradient(180deg,#60a5fa,#2563eb)}
+.analysis-bar-wrap:nth-child(2) .analysis-bar{background:linear-gradient(180deg,#fbbf24,#f59e0b)}
+.analysis-bar-wrap:nth-child(3) .analysis-bar{background:linear-gradient(180deg,#34d399,#10b981)}
+.analysis-bar-wrap:nth-child(4) .analysis-bar{background:linear-gradient(180deg,#a78bfa,#7c3aed)}
+.analysis-donut{width:190px;height:190px;border-radius:50%;margin:14px auto;position:relative}
+.analysis-donut:after{content:"";position:absolute;inset:35px;background:#fff;border-radius:50%}
+.analysis-legend{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px}
+.analysis-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff}
+.analysis-table{width:100%;min-width:850px;border-collapse:collapse}.analysis-table th,.analysis-table td{padding:9px;border-bottom:1px solid var(--line);text-align:left}
+.analysis-table th{background:#eef6ff;position:sticky;top:0}
+@media(max-width:900px){.analysis-kpis{grid-template-columns:repeat(2,1fr)}.analysis-grid{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -2077,6 +2100,9 @@ const THPT_SUBJECTS=[
 let scoreView="matrix";
 let scoreSubjectFilter="Tin học";
 let scoreSemester="HK1";
+let analysisSubject="all";
+let analysisLevel="all";
+
 const SCORE_MATRIX_DEFAULT=[
   {value:"Toán",label:"Toán"},
   {value:"Vật lí",label:"Lý"},
@@ -3498,6 +3524,77 @@ function renderScoreDetail(subject){
  }).join("");
  return `<div class="score-detail-wrap"><table class="score-detail-table"><thead><tr><th class="student-col">Học sinh</th><th class="score-col">TX1</th><th class="score-col">TX2</th><th class="score-col">TX3</th><th class="score-col">TX4</th><th class="exam-col">Giữa kỳ</th><th class="exam-col">Cuối kỳ</th><th class="avg-col">TB môn</th><th class="status-col">Trạng thái</th><th class="action-col">Thao tác</th></tr></thead><tbody>${body||`<tr><td colspan="10" class="empty">Lớp chưa có học sinh.</td></tr>`}</tbody></table></div>`;
 }
+
+function learningThresholds(){
+ const c=curClass();if(!c)return {weak:5,average:6.5,good:8};
+ if(!c.learningThresholds)c.learningThresholds={weak:5,average:6.5,good:8};
+ return c.learningThresholds;
+}
+function learningLevel(avg){
+ if(avg===null||!Number.isFinite(Number(avg)))return "Chưa đủ dữ liệu";
+ const a=Number(avg),t=learningThresholds();
+ if(a<t.weak)return "Yếu";
+ if(a<t.average)return "Trung bình";
+ if(a<t.good)return "Khá";
+ return "Giỏi";
+}
+function studentSubjectAverage(studentId,subject){
+ const slots=scoreSlotsForStudent(studentId,subject),v=scoreSemesterAverage(slots);
+ return v==="—"?null:Number(v);
+}
+function studentOverallAverage(studentId){
+ const vals=subjectCatalog().filter(x=>x.mode==="score").map(x=>studentSubjectAverage(studentId,x.name)).filter(Number.isFinite);
+ return vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*10)/10:null;
+}
+function learningAnalysisRows(){
+ return classStudents().map(st=>{
+   const avg=analysisSubject==="all"?studentOverallAverage(st.id):studentSubjectAverage(st.id,analysisSubject);
+   const subjects=subjectCatalog().filter(x=>x.mode==="score").map(x=>({name:x.name,avg:studentSubjectAverage(st.id,x.name)})).filter(x=>Number.isFinite(x.avg)).sort((a,b)=>a.avg-b.avg);
+   const concern=subjects[0];
+   return {st,avg,level:learningLevel(avg),concern:concern?`${concern.name} (${concern.avg.toFixed(1)})`:"—"};
+ });
+}
+function analysisCounts(rows){
+ const o={"Yếu":0,"Trung bình":0,"Khá":0,"Giỏi":0};
+ rows.forEach(x=>{if(o[x.level]!==undefined)o[x.level]++});return o;
+}
+function setAnalysisLevel(level){analysisLevel=analysisLevel===level?"all":level;renderScores()}
+function analysisDonutStyle(c,total){
+ if(!total)return "background:#eef2f7";
+ const a=c["Yếu"]/total*360,b=a+c["Trung bình"]/total*360,d=b+c["Khá"]/total*360;
+ return `background:conic-gradient(#3b82f6 0 ${a}deg,#f59e0b ${a}deg ${b}deg,#10b981 ${b}deg ${d}deg,#7c3aed ${d}deg 360deg)`;
+}
+function openLearningThresholds(){
+ const t=learningThresholds();
+ modal(`<h3>⚙️ Thiết lập ngưỡng phân nhóm</h3><div class=muted style="margin-bottom:12px">Đây là ngưỡng theo dõi nội bộ của GVCN, có thể điều chỉnh theo cách nhà trường sử dụng. Không thay thế kết quả đánh giá chính thức.</div>
+ <div class=form-grid><div class=field><label>Yếu: dưới</label><input id=thWeak type=number step=.1 min=0 max=10 value="${t.weak}"></div><div class=field><label>Trung bình: dưới</label><input id=thAvg type=number step=.1 min=0 max=10 value="${t.average}"></div><div class=field><label>Khá: dưới</label><input id=thGood type=number step=.1 min=0 max=10 value="${t.good}"></div></div>
+ <div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick=saveLearningThresholds()>Lưu</button></div>`);
+}
+function saveLearningThresholds(){
+ const a=Number(val("thWeak")),b=Number(val("thAvg")),c=Number(val("thGood"));
+ if(!(a>=0&&a<b&&b<c&&c<=10))return toast("Ngưỡng phải tăng dần và nằm trong 0–10");
+ curClass().learningThresholds={weak:a,average:b,good:c};closeModal();save("Đã cập nhật ngưỡng phân nhóm");renderScores();
+}
+function renderLearningAnalysis(){
+ const rows=learningAnalysisRows(),valid=rows.filter(x=>x.level!=="Chưa đủ dữ liệu"),counts=analysisCounts(valid),total=valid.length,max=Math.max(1,...Object.values(counts));
+ const levels=["Yếu","Trung bình","Khá","Giỏi"];
+ const filtered=rows.filter(x=>(analysisLevel==="all"||x.level===analysisLevel));
+ const subjectOpts=`<option value="all" ${analysisSubject==="all"?"selected":""}>Tất cả môn</option>`+subjectCatalog().filter(x=>x.mode==="score").map(x=>`<option value="${esc(x.name)}" ${analysisSubject===x.name?"selected":""}>${esc(x.name)}</option>`).join("");
+ return `<div class="analysis-controls">
+  <div class=field><label>Môn học</label><select onchange="analysisSubject=this.value;analysisLevel='all';renderScores()">${subjectOpts}</select></div>
+  <div class=field><label>Học kỳ</label><select onchange="scoreSemester=this.value;analysisLevel='all';renderScores()"><option value=HK1 ${scoreSemester==="HK1"?"selected":""}>Học kỳ I</option><option value=HK2 ${scoreSemester==="HK2"?"selected":""}>Học kỳ II</option></select></div>
+  <div class=field><label>Nhóm học sinh</label><select onchange="analysisLevel=this.value;renderScores()"><option value=all ${analysisLevel==="all"?"selected":""}>Tất cả</option>${levels.map(x=>`<option ${analysisLevel===x?"selected":""}>${x}</option>`).join("")}<option ${analysisLevel==="Chưa đủ dữ liệu"?"selected":""}>Chưa đủ dữ liệu</option></select></div>
+  <button class=btn onclick=openLearningThresholds()>⚙️ Ngưỡng phân nhóm</button>
+ </div>
+ <div class=score-note><b>Phân tích tự động:</b> dùng điểm đang có trong Bảng điểm của lớp, không nhập lại. Khi chọn “Tất cả môn”, app lấy trung bình các môn có dữ liệu của học sinh trong học kỳ đang chọn.</div>
+ <div class=analysis-kpis>${levels.map(x=>`<button class="analysis-kpi ${analysisLevel===x?"active":""}" onclick="setAnalysisLevel('${x}')"><b>${x}</b><div class=num>${counts[x]}</div><small>${total?Math.round(counts[x]/total*100):0}% trong ${total} HS đủ dữ liệu</small></button>`).join("")}</div>
+ <div class=analysis-grid>
+  <div class=analysis-chart><b>📊 Số học sinh theo nhóm</b><div class=analysis-bars>${levels.map(x=>`<div class=analysis-bar-wrap onclick="setAnalysisLevel('${x}')"><b>${counts[x]}</b><div class=analysis-bar style="height:${Math.max(4,counts[x]/max*160)}px"></div><span>${x}</span></div>`).join("")}</div></div>
+  <div class=analysis-chart><b>◉ Cơ cấu học tập</b><div class=analysis-donut style="${analysisDonutStyle(counts,total)}"></div><div class=analysis-legend>${levels.map((x,i)=>`<div><b>${x}</b>: ${counts[x]} HS (${total?Math.round(counts[x]/total*100):0}%)</div>`).join("")}</div></div>
+ </div>
+ <div class="section-head"><div><b>Danh sách học sinh</b><div class=muted>${analysisLevel==="all"?"Tất cả nhóm":`Đang lọc: ${analysisLevel}`} • ${filtered.length} học sinh</div></div></div>
+ <div class=analysis-table-wrap><table class=analysis-table><thead><tr><th>Học sinh</th><th>Điểm TB</th><th>Nhóm hiện tại</th><th>Môn cần chú ý</th><th>Thao tác</th></tr></thead><tbody>${filtered.map(x=>`<tr><td><b>${esc(x.st.name)}</b></td><td>${x.avg===null?"—":x.avg.toFixed(1)}</td><td>${x.level}</td><td>${esc(x.concern)}</td><td><button class="btn sm" onclick="scoreSubjectFilter='${esc(analysisSubject==="all"?"Tin học":analysisSubject)}';scoreView='detail';renderScores()">Xem điểm</button></td></tr>`).join("")||`<tr><td colspan=5 class=empty>Không có học sinh phù hợp bộ lọc.</td></tr>`}</tbody></table></div>`;
+}
 function renderScores(){
  (state.scores||[]).forEach(x=>{x.subject=normalizeSubjectName(x.subject)});
  const grade=classGrade();
@@ -3506,9 +3603,10 @@ function renderScores(){
  $("#content").innerHTML=`
  <div class=section-head><div><h3>Bảng điểm lớp ${esc(curClass()?.name||"")} — Khối ${grade}</h3><div class=muted>Tổng hợp 9 môn trọng tâm; chi tiết điểm hiển thị mỗi học sinh trên một dòng.</div></div><button class="btn primary" onclick="openScoreForm('','${esc(selected)}')">＋ Nhập điểm / đánh giá</button></div>
  <div class="score-note"><b>📊 Tổng hợp toàn lớp:</b> 9 môn Toán, Lý, Hóa, Văn, Sinh, Sử, Địa, Anh Văn, Tin học; GVCN có thể tự sắp xếp. <b>📝 Chi tiết điểm:</b> TX1–TX4, Giữa kỳ, Cuối kỳ và TB môn trên cùng một dòng học sinh.</div>
- <div class="tabs score-tabs"><button class="${scoreView==="matrix"?"active":""}" onclick="scoreView='matrix';renderScores()">📊 Tổng hợp toàn lớp</button><button class="${scoreView==="subjects"?"active":""}" onclick="scoreView='subjects';renderScores()">📚 Danh mục môn</button><button class="${scoreView==="detail"?"active":""}" onclick="scoreView='detail';renderScores()">📝 Chi tiết điểm</button></div>
+ <div class="tabs score-tabs"><button class="${scoreView==="matrix"?"active":""}" onclick="scoreView='matrix';renderScores()">📊 Tổng hợp toàn lớp</button><button class="${scoreView==="subjects"?"active":""}" onclick="scoreView='subjects';renderScores()">📚 Danh mục môn</button><button class="${scoreView==="detail"?"active":""}" onclick="scoreView='detail';renderScores()">📝 Chi tiết điểm</button><button class="${scoreView==="analysis"?"active":""}" onclick="scoreView='analysis';renderScores()">📈 Phân tích học tập</button></div>
  ${scoreView==="matrix"?renderScoreMatrix():""}
  ${scoreView==="subjects"?renderScoreSubjectCards():""}
+ ${scoreView==="analysis"?renderLearningAnalysis():""}
  ${scoreView==="detail"?`<div class="score-filter"><label>Môn học</label><select onchange="scoreSubjectFilter=this.value;renderScores()">${scoreSubjectOptions(selected)}</select><label>Học kỳ</label><select onchange="scoreSemester=this.value;renderScores()"><option value="HK1" ${scoreSemester==="HK1"?"selected":""}>Học kỳ I</option><option value="HK2" ${scoreSemester==="HK2"?"selected":""}>Học kỳ II</option></select><span class="badge">${info.mode==="remark"?"Đánh giá: Đạt / Chưa đạt":"Thang điểm 10"}</span></div>${renderScoreDetail(selected)}`:""}`;
 }
 function studentOptions(selected=""){return classStudents().map(s=>`<option value="${s.id}" ${s.id===selected?"selected":""}>${esc(s.name)}</option>`).join("")}
