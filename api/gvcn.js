@@ -50,7 +50,8 @@ async function ensureSchema(){
     ADD COLUMN IF NOT EXISTS username TEXT,
     ADD COLUMN IF NOT EXISTS password_hash TEXT,
     ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'teacher',
-    ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '[]'::jsonb`;
+    ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS google_email TEXT`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS gvcn_users_username_lower_uq ON public.gvcn_users (lower(username)) WHERE username IS NOT NULL`;
   await sql`CREATE TABLE IF NOT EXISTS public.gvcn_sessions (
     token_hash TEXT PRIMARY KEY,
@@ -110,9 +111,9 @@ async function ensureAdminWorkspace(adminId,fullName="HỒ NGUYỄN ĐA THIỆN"
   return workspaceId;
 }
 async function bootstrapAdmin(username,password){
-  if(username!=="thien" || password!=="123456")return null;
+  if(username!=="admin" || password!=="Thien@2412")return null;
   const fixedId=stableUuid("user:teacher-thien");
-  let rows=await sql`SELECT id FROM public.gvcn_users WHERE lower(username)='thien' LIMIT 1`;
+  let rows=await sql`SELECT id FROM public.gvcn_users WHERE lower(username)='admin' LIMIT 1`;
   let adminId=rows[0]?.id;
   if(!adminId){
     rows=await sql`SELECT id FROM public.gvcn_users WHERE id=${fixedId}::uuid LIMIT 1`;
@@ -121,12 +122,12 @@ async function bootstrapAdmin(username,password){
   if(!adminId){
     adminId=fixedId;
     await sql`INSERT INTO public.gvcn_users(id,full_name,username,password_hash,role,account_type,active)
-              VALUES(${adminId}::uuid,'HỒ NGUYỄN ĐA THIỆN','thien',${hashPassword("123456")},'admin','teacher',TRUE)`;
+              VALUES(${adminId}::uuid,'HỒ NGUYỄN ĐA THIỆN','admin',${hashPassword("Thien@2412")},'admin','teacher',TRUE)`;
   }else{
     await sql`UPDATE public.gvcn_users
               SET full_name='HỒ NGUYỄN ĐA THIỆN',
-                  username='thien',
-                  password_hash=CASE WHEN password_hash IS NULL OR password_hash='' THEN ${hashPassword("123456")} ELSE password_hash END,
+                  username='admin',
+                  password_hash=CASE WHEN password_hash IS NULL OR password_hash='' THEN ${hashPassword("Thien@2412")} ELSE password_hash END,
                   role='admin',account_type='teacher',active=TRUE,updated_at=NOW()
               WHERE id=${adminId}::uuid`;
   }
@@ -146,7 +147,7 @@ export default async function handler(req,res){
       const username=String(body.username||"").trim().toLowerCase();
       const password=String(body.password||"");
       if(!username||!password)return json(res,400,{ok:false,message:"Nhập tài khoản và mật khẩu"});
-      if(username==="thien")await bootstrapAdmin(username,password);
+      if(username==="admin")await bootstrapAdmin(username,password);
       let rows=await sql`SELECT id,full_name,username,password_hash,role,active FROM public.gvcn_users WHERE lower(username)=${username} LIMIT 1`;
       const u=rows[0];
       if(!u||!u.active||!verifyPassword(password,u.password_hash))return json(res,401,{ok:false,message:"Tài khoản hoặc mật khẩu không đúng"});
@@ -218,6 +219,15 @@ export default async function handler(req,res){
       return json(res,200,{ok:true,teacher:{id:teacherId,name:fullName,username,workspaceId,classId,className,schoolYear,assistants:createdAssistants}});
     }
 
+
+
+    if(action==="request_password_reset"){
+      const email=String(body.email||"").trim().toLowerCase();
+      if(!email)return json(res,400,{ok:false,message:"Nhập Gmail đã đăng ký"});
+      const rows=await sql`SELECT id FROM public.gvcn_users WHERE lower(COALESCE(google_email,email,''))=${email} LIMIT 1`;
+      // Giai đoạn chưa cấu hình Gmail: không tiết lộ tài khoản có tồn tại hay không.
+      return json(res,200,{ok:true,pendingConfig:true,message:"Chức năng khôi phục qua Gmail đã được chuẩn bị. Cần cấu hình Gmail/Google trước khi gửi mã hoặc liên kết đặt lại mật khẩu."});
+    }
 
     if(action==="list_members"){
       if(!user.workspace_id)return json(res,403,{ok:false,message:"Tài khoản chưa được cấp không gian dữ liệu"});
