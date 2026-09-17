@@ -2111,6 +2111,7 @@ input,select,textarea{
     </div></div>
 
     <div class="group"><div class="group-title" role="button" tabindex="0">⚙️ Quản trị</div><div class="nav">
+      <button data-page="teachers" id="teacherAdminNav" style="display:none"><span class="ico">👨‍🏫</span>Giáo viên</button>
       <button data-page="members"><span class="ico">🧑‍🤝‍🧑</span>Thành viên</button>
       <button data-page="activity"><span class="ico">🕘</span>Lịch sử</button>
       <button data-page="data"><span class="ico">💾</span>Dữ liệu & Sao lưu</button>
@@ -2495,6 +2496,7 @@ function updateAccountUI(){
  const p=activeTeacher();
  const brand=document.querySelector(".brand h1");if(brand)brand.textContent=p?.name||"GVCN";
  const btn=document.getElementById("accountBtn");if(btn)btn.textContent=`👤 ${session.name||p?.name||"Tài khoản"}`;
+ const teacherNav=document.getElementById("teacherAdminNav");if(teacherNav)teacherNav.style.display=session?.isAdmin?"":"none";
  document.querySelectorAll(".class-teacher-name").forEach(x=>x.textContent=p?.name||"");
 }
 function persistRegistry(arr){localStorage.setItem(TEACHERS_KEY,JSON.stringify(arr))}
@@ -2524,39 +2526,37 @@ function loginWorkspace(teacherId){
  closeModal();updateAccountUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${u.name}`);
 }
 function openNewTeacherForm(){
- if(!session.isAdmin)return toast("Chỉ quản trị được thêm giáo viên mới");
- modal(`<h3>＋ Thêm giáo viên mới</h3><div class=muted style="margin-bottom:12px">Mỗi giáo viên có không gian dữ liệu riêng và có thể tạo 2–3 tài khoản hỗ trợ.</div>
- <div class=form-grid><div class=field><label>Họ tên giáo viên</label><input id=newTeacherName placeholder="Nguyễn Văn B" oninput="suggestNewTeacherUsername()"></div><div class=field><label>Tài khoản đăng nhập</label><input id=newTeacherUser placeholder="nguyenvanb"></div><div class=field><label>Mật khẩu giáo viên</label><input id=newTeacherPass value="123456"></div><div class=field><label>Lớp ban đầu</label><input id=newTeacherClass placeholder="10A2"></div><div class=field><label>Năm học</label><input id=newTeacherYear value="2026–2027"></div></div>
- <h4 style="margin:16px 0 8px">Bạn hỗ trợ</h4>
- <div class=login-grid>
-  <div class=field><label>Hỗ trợ 1</label><input id=as1Name placeholder="Họ tên"><input id=as1User placeholder="Tài khoản đăng nhập"><select id=as1Role><option>Lớp trưởng</option><option>Bí thư</option><option>Thủ quỹ</option><option>Lớp phó</option><option>Thư ký</option></select><input id=as1Pass value="123456" placeholder="Mật khẩu"></div>
-  <div class=field><label>Hỗ trợ 2</label><input id=as2Name placeholder="Họ tên"><input id=as2User placeholder="Tài khoản đăng nhập"><select id=as2Role><option>Bí thư</option><option>Lớp trưởng</option><option>Thủ quỹ</option><option>Lớp phó</option><option>Thư ký</option></select><input id=as2Pass value="123456" placeholder="Mật khẩu"></div>
-  <div class=field><label>Hỗ trợ 3 (không bắt buộc)</label><input id=as3Name placeholder="Họ tên"><input id=as3User placeholder="Tài khoản đăng nhập"><select id=as3Role><option>Thủ quỹ</option><option>Lớp trưởng</option><option>Bí thư</option><option>Lớp phó</option><option>Thư ký</option></select><input id=as3Pass value="123456" placeholder="Mật khẩu"></div>
- </div><div class=modal-foot><button class=btn onclick=openAccountSwitcher()>Hủy</button><button class="btn primary" onclick=saveNewTeacher()>Tạo tài khoản & lớp</button></div>`);
+ if(!session.isAdmin)return toast("Chỉ quản trị hệ thống được thêm giáo viên");
+ modal(`<h3>👨‍🏫 Thêm giáo viên</h3><div class=muted style="margin-bottom:12px">Tạo tài khoản giáo viên và lớp ban đầu. Thành viên hỗ trợ có thể tạo sau.</div>
+ <div class=form-grid>
+  <div class=field><label>Họ tên giáo viên *</label><input id=newTeacherName placeholder="Nguyễn Văn An" oninput="suggestNewTeacherUsername()"></div>
+  <div class=field><label>Tài khoản đăng nhập *</label><input id=newTeacherUser placeholder="nguyenvanan"></div>
+  <div class=field><label>Mật khẩu *</label><input id=newTeacherPass type=password value="123456"></div>
+  <div class=field><label>Lớp ban đầu *</label><input id=newTeacherClass placeholder="10A2"></div>
+  <div class=field><label>Năm học</label><input id=newTeacherYear value="2026–2027"></div>
+ </div>
+ <div class=notice style="margin-top:12px">Giáo viên được tạo sẽ luôn có quyền sử dụng toàn bộ chức năng trong không gian của mình.</div>
+ <div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button id=createTeacherBtn class="btn primary" onclick=saveNewTeacher()>Tạo tài khoản & lớp</button></div>`);
 }
 function suggestNewTeacherUsername(){const el=document.getElementById("newTeacherUser");if(el&&!el.dataset.edited)el.value=slugUser(val("newTeacherName"))}
 async function saveNewTeacher(){
- if(!session.isAdmin)return toast("Chỉ quản trị được tạo giáo viên");
+ if(!session.isAdmin)return toast("Chỉ quản trị hệ thống được tạo giáo viên");
  const name=val("newTeacherName").trim(),username=val("newTeacherUser").trim().toLowerCase(),password=val("newTeacherPass").trim();
  const className=val("newTeacherClass").trim(),schoolYear=val("newTeacherYear").trim();
  if(!name||!username||!password||!className)return toast("Nhập đủ họ tên, tài khoản, mật khẩu và lớp");
- const assistants=[1,2,3].map(i=>({name:val(`as${i}Name`).trim(),username:(val(`as${i}User`).trim().toLowerCase()||slugUser(val(`as${i}Name`))),role:val(`as${i}Role`),password:val(`as${i}Pass`).trim()})).filter(x=>x.name);
- if(assistants.length<2)return toast("Mỗi giáo viên cần ít nhất 2 tài khoản hỗ trợ");
- const temp={id:"pending",name,username,password,assistants:assistants.map((a,i)=>({id:`pending-${i+1}`,...a,done:true}))};
+ const assistants=[];
+ const temp={id:"pending",name,username,password,assistants:[]};
  let initialData=blankTeacherState(temp);
  if(initialData.classes?.[0]){initialData.classes[0].name=className;initialData.classes[0].year=schoolYear;initialData.classes[0].teacherName=name}
- initialData.members=[
-   {id:"mb-gv-01",name,role:"Giáo viên",phone:"",password:"",done:true},
-   ...assistants.map((a,i)=>({id:`mb-hs-0${i+1}`,name:a.name,role:a.role,phone:"",password:"",done:true}))
- ];
- const btn=[...document.querySelectorAll(".modal-foot .btn.primary")].find(b=>(b.textContent||"").includes("Tạo"));
+ initialData.members=[{id:"mb-gv-01",name,role:"Giáo viên",phone:"",password:"",done:true}];
+ const btn=document.getElementById("createTeacherBtn");
  if(btn){btn.disabled=true;btn.textContent="Đang tạo..."}
  try{
    const x=await onlineAPI({action:"create_teacher",teacher:{name,username,password,className,schoolYear,assistants},initialData});
    if(!x.ok)throw new Error(x.message||"Không tạo được giáo viên");
-   const t={id:x.teacher.id,name:x.teacher.name,username:x.teacher.username,password:"",assistants:(x.teacher.assistants||[]).map(a=>({...a,password:"",done:true}))};
-   const reg=teacherRegistry();reg.push(t);persistRegistry(reg);
-   closeModal();toast("Đã tạo tài khoản, lớp và không gian dữ liệu");
+   closeModal();
+   toast("Đã tạo giáo viên và lớp");
+   if(page==="teachers")await loadTeachersOnline();
  }catch(e){toast(e.message||"Không tạo được giáo viên")}
  finally{if(btn){btn.disabled=false;btn.textContent="Tạo tài khoản & lớp"}}
 }
@@ -2632,7 +2632,7 @@ const titles={
  seats:["Chỗ ngồi","Sơ đồ chỗ ngồi theo lớp"],timetable:["Thời khóa biểu","Lịch học trong tuần"],scores:["Bảng điểm","Theo dõi điểm theo môn"],
  discipline:["Nề nếp","Điểm danh, vi phạm và điểm nề nếp"],duty:["Trực nhật","Phân công và theo dõi trực nhật"],weekly:["Kế hoạch tuần","Lập kế hoạch và theo dõi công việc"],tasks:["Công việc","Theo dõi nhiệm vụ và hạn cần nhớ"],
  finance:["Thu – chi","Quản lý các khoản thu và chi"],reports:["Báo cáo","Tổng hợp dữ liệu lớp"],comments:["Nhận xét học sinh","Ghi nhận xét theo từng học sinh"],
- parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],members:["Thành viên","Thiết lập sau khi vào app"],activity:["Lịch sử","Nhật ký hoạt động"],
+ parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],teachers:["Giáo viên","Quản trị tài khoản giáo viên và không gian lớp"],members:["Thành viên","Thiết lập sau khi vào app"],activity:["Lịch sử","Nhật ký hoạt động"],
  data:["Dữ liệu & Sao lưu","Sao lưu và đồng bộ dữ liệu"]
 };
 
@@ -2668,7 +2668,7 @@ function refreshCurrentView(){
 function render(){({
  classes:renderClasses,home:renderHome,students:renderStudents,seats:renderSeats,timetable:renderTimetable,scores:renderScores,
  discipline:renderDiscipline,duty:renderDuty,weekly:renderWeekly,tasks:renderTasks,finance:renderFinance,reports:renderReports,comments:renderComments,
- parentcomms:renderParentComms,situations:renderSituations,companion:renderCompanion,career:renderCareer,race:renderRace,members:renderMembers,activity:renderActivity,data:renderData
+ parentcomms:renderParentComms,situations:renderSituations,companion:renderCompanion,career:renderCareer,race:renderRace,teachers:renderTeachers,members:renderMembers,activity:renderActivity,data:renderData
 }[page]||renderHome)()}
 
 function renderClassSelect(){
@@ -5094,11 +5094,33 @@ function closeWinnerOverlay(){
 
 
 
+let onlineTeachersCache=[];
+async function loadTeachersOnline(){
+ if(!session?.isAdmin)return;
+ const body=document.getElementById("teacherRows");
+ try{
+  const x=await onlineAPI({action:"list_teachers"});
+  if(!x.ok)throw new Error(x.message||"Không tải được danh sách giáo viên");
+  onlineTeachersCache=x.teachers||[];
+  if(page!=="teachers")return;
+  const count=document.getElementById("teacherCount");if(count)count.textContent=`👨‍🏫 ${onlineTeachersCache.length} giáo viên`;
+  const rows=document.getElementById("teacherRows");
+  if(rows)rows.innerHTML=onlineTeachersCache.map(v=>`<tr><td><b>${esc(v.name)}</b></td><td><code>${esc(v.username)}</code></td><td>${esc(v.className||"—")}</td><td>${esc(v.schoolYear||"—")}</td><td>${statusBadge(v.active,"Đang hoạt động","Đã khóa")}</td><td><span class=badge>Toàn quyền workspace</span></td></tr>`).join("")||`<tr><td colspan=6 class=empty>Chưa có giáo viên.</td></tr>`;
+ }catch(e){if(body)body.innerHTML=`<tr><td colspan=6 class=empty>${esc(e.message)}</td></tr>`;else toast(e.message)}
+}
+function renderTeachers(){
+ if(!session?.isAdmin){$("#content").innerHTML=`<div class=empty>Chỉ quản trị hệ thống được quản lý giáo viên.</div>`;return}
+ $("#content").innerHTML=`<div class=section-head><div><h3>👨‍🏫 Giáo viên</h3><div class=muted>Admin tạo tài khoản giáo viên và không gian lớp độc lập.</div></div><button class="btn primary" onclick=openNewTeacherForm()>＋ Thêm giáo viên</button></div>
+ <div class=card style="margin-bottom:14px"><b id=teacherCount>👨‍🏫 … giáo viên</b><div class=muted style="margin-top:4px">Giáo viên luôn có quyền sử dụng toàn bộ chức năng trong workspace của mình.</div></div>
+ <div class=table-wrap><table><thead><tr><th>Giáo viên</th><th>Tài khoản</th><th>Lớp ban đầu</th><th>Năm học</th><th>Trạng thái</th><th>Quyền</th></tr></thead><tbody id=teacherRows><tr><td colspan=6 class=empty>Đang tải danh sách giáo viên...</td></tr></tbody></table></div>`;
+ loadTeachersOnline();
+}
+
 const MEMBER_AREAS=[
  {id:"class",label:"🏫 Lớp học",pages:["classes","home","students","seats","timetable"]},
  {id:"tracking",label:"📘 Theo dõi",pages:["grades","conduct","duty","weekly","tasks","finance","reports"]},
  {id:"support",label:"💬 Hỗ trợ GVCN",pages:["comments","parents","situations","companion","career","race"]},
- {id:"admin",label:"⚙️ Quản trị",pages:["members","activity","backup"]}
+ {id:"admin",label:"⚙️ Quản trị",pages:["teachers","members","activity","data","backup"]}
 ];
 function isFullAccessAccount(){
  return !!session?.isAdmin || isTeacherAccount();
