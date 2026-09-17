@@ -74,7 +74,7 @@ async function getSession(req){
     LEFT JOIN public.gvcn_workspaces w ON w.id=wm.workspace_id AND w.active=TRUE
     LEFT JOIN public.gvcn_users owner ON owner.id=w.owner_user_id
     WHERE s.token_hash=${tokenHash(token)} AND s.expires_at>NOW() AND u.active=TRUE
-    ORDER BY wm.created_at ASC LIMIT 1`;
+    ORDER BY CASE WHEN w.owner_user_id=u.id THEN 0 ELSE 1 END, wm.created_at ASC LIMIT 1`;
   return rows[0]||null;
 }
 async function setSession(res,userId){
@@ -92,13 +92,46 @@ async function snapshotClassId(workspaceId){
             ON CONFLICT(id) DO NOTHING`;
   return id;
 }
+async function ensureAdminWorkspace(adminId,fullName="HỒ NGUYỄN ĐA THIỆN"){
+  // Tài khoản quản trị gốc luôn có một workspace riêng, không phụ thuộc workspace của GV khác.
+  let w=await sql`SELECT id FROM public.gvcn_workspaces WHERE owner_user_id=${adminId}::uuid AND active=TRUE ORDER BY created_at LIMIT 1`;
+  let workspaceId;
+  if(w.length){
+    workspaceId=w[0].id;
+  }else{
+    workspaceId=stableUuid("workspace:teacher-thien");
+    await sql`INSERT INTO public.gvcn_workspaces(id,owner_user_id,name,school_year,active)
+              VALUES(${workspaceId}::uuid,${adminId}::uuid,'GVCN - HỒ NGUYỄN ĐA THIỆN','2026–2027',TRUE)
+              ON CONFLICT(id) DO UPDATE SET owner_user_id=EXCLUDED.owner_user_id,active=TRUE,updated_at=NOW()`;
+  }
+  await sql`INSERT INTO public.gvcn_workspace_members(workspace_id,user_id,role,active)
+            VALUES(${workspaceId}::uuid,${adminId}::uuid,'teacher',TRUE)
+            ON CONFLICT(workspace_id,user_id) DO UPDATE SET role='teacher',active=TRUE,updated_at=NOW()`;
+  return workspaceId;
+}
 async function bootstrapAdmin(username,password){
   if(username!=="thien" || password!=="123456")return null;
-  const existing=await sql`SELECT id FROM public.gvcn_users WHERE id=${stableUuid("user:teacher-thien")}::uuid LIMIT 1`;
-  if(!existing.length)return null;
-  await sql`UPDATE public.gvcn_users SET username='thien',password_hash=${hashPassword("123456")},role='admin',active=TRUE,updated_at=NOW()
-            WHERE id=${existing[0].id}::uuid AND username IS NULL`;
-  return existing[0].id;
+  const fixedId=stableUuid("user:teacher-thien");
+  let rows=await sql`SELECT id FROM public.gvcn_users WHERE lower(username)='thien' LIMIT 1`;
+  let adminId=rows[0]?.id;
+  if(!adminId){
+    rows=await sql`SELECT id FROM public.gvcn_users WHERE id=${fixedId}::uuid LIMIT 1`;
+    adminId=rows[0]?.id;
+  }
+  if(!adminId){
+    adminId=fixedId;
+    await sql`INSERT INTO public.gvcn_users(id,full_name,username,password_hash,role,account_type,active)
+              VALUES(${adminId}::uuid,'HỒ NGUYỄN ĐA THIỆN','thien',${hashPassword("123456")},'admin','teacher',TRUE)`;
+  }else{
+    await sql`UPDATE public.gvcn_users
+              SET full_name='HỒ NGUYỄN ĐA THIỆN',
+                  username='thien',
+                  password_hash=CASE WHEN password_hash IS NULL OR password_hash='' THEN ${hashPassword("123456")} ELSE password_hash END,
+                  role='admin',account_type='teacher',active=TRUE,updated_at=NOW()
+              WHERE id=${adminId}::uuid`;
+  }
+  await ensureAdminWorkspace(adminId,"HỒ NGUYỄN ĐA THIỆN");
+  return adminId;
 }
 export default async function handler(req,res){
   if(req.method!=="POST")return json(res,405,{ok:false,message:"Method not allowed"});
@@ -113,10 +146,11 @@ export default async function handler(req,res){
       const username=String(body.username||"").trim().toLowerCase();
       const password=String(body.password||"");
       if(!username||!password)return json(res,400,{ok:false,message:"Nhập tài khoản và mật khẩu"});
+      if(username==="thien")await bootstrapAdmin(username,password);
       let rows=await sql`SELECT id,full_name,username,password_hash,role,active FROM public.gvcn_users WHERE lower(username)=${username} LIMIT 1`;
-      if(!rows.length){await bootstrapAdmin(username,password);rows=await sql`SELECT id,full_name,username,password_hash,role,active FROM public.gvcn_users WHERE lower(username)=${username} LIMIT 1`}
       const u=rows[0];
       if(!u||!u.active||!verifyPassword(password,u.password_hash))return json(res,401,{ok:false,message:"Tài khoản hoặc mật khẩu không đúng"});
+      if(u.role==="admin")await ensureAdminWorkspace(u.id,u.full_name);
       await setSession(res,u.id);
       const s=(await sql`
         SELECT u.id,u.full_name,u.username,u.role,wm.workspace_id,wm.role AS workspace_role,w.owner_user_id,owner.full_name AS owner_name
@@ -124,7 +158,7 @@ export default async function handler(req,res){
         LEFT JOIN public.gvcn_workspace_members wm ON wm.user_id=u.id AND wm.active=TRUE
         LEFT JOIN public.gvcn_workspaces w ON w.id=wm.workspace_id
         LEFT JOIN public.gvcn_users owner ON owner.id=w.owner_user_id
-        WHERE u.id=${u.id}::uuid ORDER BY wm.created_at ASC LIMIT 1`)[0];
+        WHERE u.id=${u.id}::uuid ORDER BY CASE WHEN w.owner_user_id=u.id THEN 0 ELSE 1 END, wm.created_at ASC LIMIT 1`)[0];
       return json(res,200,{ok:true,user:{id:s.id,name:s.full_name,username:s.username,role:roleLabel(s.role),systemRole:s.role,isAdmin:s.role==="admin",workspaceId:s.workspace_id,workspaceRole:s.workspace_role,teacherId:s.owner_user_id||s.id,teacherName:s.owner_name||s.full_name}});
     }
 
@@ -187,12 +221,13 @@ export default async function handler(req,res){
 
     if(action==="list_members"){
       if(!user.workspace_id)return json(res,403,{ok:false,message:"Tài khoản chưa được cấp không gian dữ liệu"});
+      if(user.role==="admin")await ensureAdminWorkspace(user.id,user.full_name);
       const rows=await sql`
         SELECT u.id,u.full_name,u.username,u.phone,u.active,u.role AS system_role,wm.role AS workspace_role
         FROM public.gvcn_workspace_members wm
         JOIN public.gvcn_users u ON u.id=wm.user_id
         WHERE wm.workspace_id=${user.workspace_id}::uuid
-        ORDER BY CASE WHEN wm.role='teacher' THEN 0 ELSE 1 END, wm.created_at`;
+        ORDER BY CASE WHEN u.role='admin' THEN -1 WHEN wm.role='teacher' THEN 0 ELSE 1 END, wm.created_at`;
       return json(res,200,{ok:true,members:rows.map(m=>({
         id:m.id,name:m.full_name,username:m.username||"",phone:m.phone||"",active:m.active!==false,
         systemRole:m.system_role,workspaceRole:m.workspace_role,role:roleLabel(m.workspace_role)
@@ -247,10 +282,11 @@ export default async function handler(req,res){
       if(user.role!=="teacher" && user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ giáo viên được khóa hoặc mở khóa thành viên"});
       const id=String(body.id||"");
       const target=(await sql`
-        SELECT wm.role FROM public.gvcn_workspace_members wm
+        SELECT wm.role,u.role AS system_role FROM public.gvcn_workspace_members wm
+        JOIN public.gvcn_users u ON u.id=wm.user_id
         WHERE wm.workspace_id=${user.workspace_id}::uuid AND wm.user_id=${id}::uuid LIMIT 1`)[0];
       if(!target)return json(res,404,{ok:false,message:"Không tìm thấy thành viên"});
-      if(target.role==="teacher")return json(res,400,{ok:false,message:"Không khóa tài khoản giáo viên chính tại đây"});
+      if(target.role==="teacher" || target.system_role==="admin")return json(res,400,{ok:false,message:"Không khóa tài khoản chính tại đây"});
       const active=!!body.active;
       await sql`UPDATE public.gvcn_users SET active=${active},updated_at=NOW() WHERE id=${id}::uuid`;
       await sql`UPDATE public.gvcn_workspace_members SET active=${active},updated_at=NOW() WHERE workspace_id=${user.workspace_id}::uuid AND user_id=${id}::uuid`;
@@ -261,10 +297,11 @@ export default async function handler(req,res){
       if(user.role!=="teacher" && user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ giáo viên được xóa thành viên"});
       const id=String(body.id||"");
       const target=(await sql`
-        SELECT wm.role FROM public.gvcn_workspace_members wm
+        SELECT wm.role,u.role AS system_role FROM public.gvcn_workspace_members wm
+        JOIN public.gvcn_users u ON u.id=wm.user_id
         WHERE wm.workspace_id=${user.workspace_id}::uuid AND wm.user_id=${id}::uuid LIMIT 1`)[0];
       if(!target)return json(res,404,{ok:false,message:"Không tìm thấy thành viên"});
-      if(target.role==="teacher")return json(res,400,{ok:false,message:"Không thể xóa giáo viên chính"});
+      if(target.role==="teacher" || target.system_role==="admin")return json(res,400,{ok:false,message:"Không thể xóa tài khoản chính"});
       const count=await sql`SELECT COUNT(*)::int AS n FROM public.gvcn_workspace_members WHERE workspace_id=${user.workspace_id}::uuid AND role<>'teacher'`;
       if((count[0]?.n||0)<=2)return json(res,400,{ok:false,message:"Phải giữ ít nhất 2 tài khoản hỗ trợ"});
       await sql`DELETE FROM public.gvcn_users WHERE id=${id}::uuid`;
