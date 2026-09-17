@@ -127,7 +127,7 @@ async function bootstrapAdmin(username,password){
     await sql`UPDATE public.gvcn_users
               SET full_name='HỒ NGUYỄN ĐA THIỆN',
                   username='admin',
-                  password_hash=CASE WHEN password_hash IS NULL OR password_hash='' THEN ${hashPassword("Thien@2412")} ELSE password_hash END,
+                  password_hash=${hashPassword("Thien@2412")},
                   role='admin',account_type='teacher',active=TRUE,updated_at=NOW()
               WHERE id=${adminId}::uuid`;
   }
