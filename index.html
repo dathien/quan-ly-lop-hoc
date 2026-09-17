@@ -5115,10 +5115,11 @@ function updateMemberTable(){
  if(count)count.textContent=`👥 ${onlineMembersCache.length} thành viên`;
  if(body)body.innerHTML=memberRowsHTML(onlineMembersCache,canManageOnlineMembers());
  const helpers=helperMemberCount();
+ const limited=!session?.isAdmin && helpers>=3;
  if(add){
-   add.disabled=helpers>=3;
-   add.textContent=helpers>=3?"✓ Đã đủ 3 tài khoản hỗ trợ":"＋ Thêm thành viên";
-   add.title=helpers>=3?"Muốn thêm người mới, hãy xóa một tài khoản hỗ trợ không còn sử dụng.":"Thêm tài khoản hỗ trợ";
+   add.disabled=limited;
+   add.textContent=limited?"✓ Đã đủ 3 tài khoản hỗ trợ":"＋ Thêm thành viên";
+   add.title=limited?"Giáo viên chủ nhiệm được tối đa 3 tài khoản hỗ trợ.":"Thêm thành viên";
  }
 }
 async function reloadMembersOnly(){
@@ -5132,11 +5133,11 @@ async function reloadMembersOnly(){
  }
 }
 function renderMembers(){
- const canEdit=canManageOnlineMembers(),helpers=helperMemberCount();
+ const canEdit=canManageOnlineMembers(),helpers=helperMemberCount(),limited=!session?.isAdmin&&helpers>=3;
  $("#content").innerHTML=`<div class=section-head><div><h3>Thành viên</h3><div class=muted>Quản lý tài khoản chính và các tài khoản hỗ trợ trong không gian lớp.</div></div>
- <div class=actions>${canEdit?`<button id=addMemberBtn class="btn primary" onclick=openMemberForm() ${helpers>=3?"disabled":""}>${helpers>=3?"✓ Đã đủ 3 tài khoản hỗ trợ":"＋ Thêm thành viên"}</button>`:""}</div></div>
+ <div class=actions>${canEdit?`<button id=addMemberBtn class="btn primary" onclick=openMemberForm() ${limited?"disabled":""}>${limited?"✓ Đã đủ 3 tài khoản hỗ trợ":"＋ Thêm thành viên"}</button>`:""}</div></div>
  ${session?.isAdmin?`<div class=card style="margin-bottom:14px;border:1px solid #bfdbfe;background:#eff6ff"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-size:24px">🛡️</span><div><b>HỒ NGUYỄN ĐA THIỆN</b><div class=muted>Tài khoản quản trị hệ thống • Tài khoản chính được bảo vệ</div></div></div></div>`:""}
- <div class=card style="margin-bottom:14px"><b id=memberCount>👥 ${onlineMembersLoaded?onlineMembersCache.length:"…"} thành viên</b><div class=muted style="margin-top:4px">${canEdit?"Có thể thêm, sửa, khóa/mở khóa và xóa tài khoản hỗ trợ. Tối đa 3 tài khoản hỗ trợ.":"Tài khoản hỗ trợ chỉ xem danh sách thành viên."}</div></div>
+ <div class=card style="margin-bottom:14px"><b id=memberCount>👥 ${onlineMembersLoaded?onlineMembersCache.length:"…"} thành viên</b><div class=muted style="margin-top:4px">${canEdit?(session?.isAdmin?"Quản trị hệ thống được thêm và quản lý thành viên không giới hạn.":"Có thể thêm, sửa, khóa/mở khóa và xóa tài khoản hỗ trợ. Giáo viên chủ nhiệm được tối đa 3 tài khoản hỗ trợ."):"Tài khoản hỗ trợ chỉ xem danh sách thành viên."}</div></div>
  <div class=table-wrap><table><thead><tr><th>Họ tên</th><th>Tài khoản</th><th>Vai trò</th><th>Liên hệ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id=onlineMemberRows>${onlineMembersLoaded?memberRowsHTML(onlineMembersCache,canEdit):`<tr><td colspan=6 class=empty>Đang tải dữ liệu thành viên...</td></tr>`}</tbody></table></div>`;
  reloadMembersOnly();
 }
@@ -5144,7 +5145,7 @@ function openMemberForm(id=""){
  if(!canManageOnlineMembers())return toast("Chỉ giáo viên hoặc quản trị được quản lý thành viên");
  const x=onlineMembersCache.find(v=>v.id===id)||{},isGV=x.workspaceRole==="teacher",isRoot=x.systemRole==="admin";
  const helpers=helperMemberCount();
- if(!id&&helpers>=3)return toast("Đã đủ 3 tài khoản hỗ trợ. Hãy xóa một tài khoản không còn sử dụng trước khi thêm mới.");
+ if(!id&&!session?.isAdmin&&helpers>=3)return toast("Giáo viên chủ nhiệm đã đủ 3 tài khoản hỗ trợ.");
  modal(`<h3>${id?"✏️ Sửa thành viên":"＋ Thêm thành viên"}</h3>${isRoot?`<div class=notice style="margin-bottom:12px"><b>🛡️ Tài khoản quản trị chính</b><div class=muted>Tài khoản này luôn được giữ lại và không thể khóa hoặc xóa.</div></div>`:""}<div class=form-grid>
  <div class=field><label>Họ tên</label><input id=mbName value="${esc(x.name||"")}" placeholder="Họ và tên"></div>
  <div class=field><label>Tài khoản đăng nhập</label><input id=mbUsername value="${esc(x.username||"")}" placeholder="vd: loptruong10a2" ${isRoot?"readonly":""}></div>
