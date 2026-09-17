@@ -2032,6 +2032,7 @@ input,select,textarea{
 @media(max-width:520px){.gvcn-login-screen{padding:14px}.gvcn-login-card{padding:24px 18px;border-radius:20px}}
 </style>
 
+<!-- GVCN V38.57: Thành viên online CRUD -->
 </head>
 <body>
 
@@ -5055,39 +5056,69 @@ function closeWinnerOverlay(){
 }
 
 
+let onlineMembersCache=[];
+async function fetchOnlineMembers(){
+ const x=await onlineAPI({action:"list_members"});
+ if(!x.ok)throw new Error(x.message||"Không tải được thành viên");
+ onlineMembersCache=x.members||[];
+ return onlineMembersCache;
+}
 function renderMembers(){
- const rows=state.members||[],canEdit=isTeacherAccount(),helpers=rows.filter(x=>x.role!=="Giáo viên");
- $("#content").innerHTML=`<div class=section-head><div><h3>Thành viên</h3><div class=muted>Không gian của <b>${esc(activeTeacher()?.name||"")}</b> • 1 giáo viên và tối đa 3 bạn hỗ trợ.</div></div><div class=actions><button class=btn onclick=openAccountSwitcher()>⇄ Đổi tài khoản</button>${canEdit&&helpers.length<3?`<button class="btn primary" onclick=openMemberForm()>＋ Thêm hỗ trợ</button>`:""}</div></div>
- <div class=card style="margin-bottom:14px"><b>👥 ${rows.length} thành viên</b><div class=muted style="margin-top:4px">${canEdit?"Giáo viên có thể sửa tài khoản và quản lý 2–3 bạn hỗ trợ.":"Bạn đang đăng nhập bằng tài khoản hỗ trợ; dữ liệu làm việc chung với giáo viên phụ trách."}</div></div>
- <div class=table-wrap><table><thead><tr><th>Họ tên</th><th>Vai trò</th><th>Liên hệ</th><th>Mật khẩu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.role)}</td><td>${esc(x.phone||"")}</td><td>${canEdit?`<code>${esc(x.password||"")}</code>`:"••••••"}</td><td>${statusBadge(!!x.done,"Đang hoạt động","Tạm ngưng")}</td><td>${canEdit?`<div class=actions><button class="btn sm" onclick="openMemberForm('${x.id}')">Sửa</button>${x.role!=="Giáo viên"?`<button class="btn sm ${x.done?"warn":"good"}" onclick="toggleRecordFlag('members','${x.id}','done',()=>{syncRegistryFromMembers();renderMembers()},'Đã cập nhật thành viên')">${x.done?"Tạm ngưng":"✓ Kích hoạt"}</button><button class="btn sm bad" onclick="deleteHelper('${x.id}')">Xóa</button>`:""}</div>`:"—"}</td></tr>`).join("")}</tbody></table></div>`;
+ const canEdit=isTeacherAccount();
+ $("#content").innerHTML=`<div class=section-head><div><h3>Thành viên</h3><div class=muted>Quản lý tài khoản giáo viên và các tài khoản hỗ trợ trong cùng không gian lớp.</div></div>
+ <div class=actions>${canEdit?`<button class="btn primary" onclick=openMemberForm()>＋ Thêm thành viên</button>`:""}</div></div>
+ <div class=card style="margin-bottom:14px"><b id=memberCount>👥 Đang tải thành viên...</b><div class=muted style="margin-top:4px">${canEdit?"Có thể thêm, sửa, khóa/mở khóa và xóa tài khoản hỗ trợ. Tối đa 3 tài khoản hỗ trợ.":"Tài khoản hỗ trợ chỉ xem danh sách thành viên."}</div></div>
+ <div class=table-wrap><table><thead><tr><th>Họ tên</th><th>Tài khoản</th><th>Vai trò</th><th>Liên hệ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id=onlineMemberRows><tr><td colspan=6 class=empty>Đang tải...</td></tr></tbody></table></div>`;
+ fetchOnlineMembers().then(rows=>{
+   const c=document.getElementById("memberCount");if(c)c.textContent=`👥 ${rows.length} thành viên`;
+   const body=document.getElementById("onlineMemberRows");if(!body)return;
+   body.innerHTML=rows.map(x=>`<tr>
+    <td><b>${esc(x.name)}</b>${x.workspaceRole==="teacher"?`<div class=muted>Giáo viên chính</div>`:""}</td>
+    <td><code>${esc(x.username||"")}</code></td>
+    <td>${esc(x.role)}</td><td>${esc(x.phone||"")}</td>
+    <td>${statusBadge(x.active,"Đang hoạt động","Đã khóa")}</td>
+    <td>${canEdit?`<div class=actions><button class="btn sm" onclick="openMemberForm('${x.id}')">✏️ Sửa</button>${x.workspaceRole!=="teacher"?`<button class="btn sm ${x.active?"warn":"good"}" onclick="toggleOnlineMember('${x.id}',${!x.active})">${x.active?"🔒 Khóa":"🔓 Mở khóa"}</button><button class="btn sm bad" onclick="deleteOnlineMember('${x.id}')">🗑️ Xóa</button>`:""}</div>`:"—"}</td>
+   </tr>`).join("")||`<tr><td colspan=6 class=empty>Chưa có thành viên.</td></tr>`;
+ }).catch(e=>{const body=document.getElementById("onlineMemberRows");if(body)body.innerHTML=`<tr><td colspan=6 class=empty>${esc(e.message)}</td></tr>`});
 }
 function openMemberForm(id=""){
  if(!isTeacherAccount())return toast("Chỉ giáo viên được quản lý thành viên");
- const x=(state.members||[]).find(v=>v.id===id)||{},isGV=x.role==="Giáo viên";
- modal(`<h3>${id?"Sửa":"Thêm"} ${isGV?"giáo viên":"bạn hỗ trợ"}</h3><div class=form-grid>
- <div class=field><label>Họ tên</label><input id=mbName value="${esc(x.name||"")}"></div>
+ const x=onlineMembersCache.find(v=>v.id===id)||{},isGV=x.workspaceRole==="teacher";
+ const helpers=onlineMembersCache.filter(v=>v.workspaceRole!=="teacher");
+ if(!id&&helpers.length>=3)return toast("Mỗi giáo viên tối đa 3 tài khoản hỗ trợ");
+ modal(`<h3>${id?"✏️ Sửa thành viên":"＋ Thêm thành viên"}</h3><div class=form-grid>
+ <div class=field><label>Họ tên</label><input id=mbName value="${esc(x.name||"")}" placeholder="Họ và tên"></div>
+ <div class=field><label>Tài khoản đăng nhập</label><input id=mbUsername value="${esc(x.username||"")}" placeholder="vd: loptruong10a2"></div>
  <div class=field><label>Vai trò</label><select id=mbRole ${isGV?"disabled":""}>${(isGV?["Giáo viên"]:["Lớp trưởng","Bí thư","Thủ quỹ","Lớp phó","Thư ký"]).map(v=>`<option ${x.role===v?"selected":""}>${v}</option>`).join("")}</select></div>
- <div class=field><label>Liên hệ</label><input id=mbPhone value="${esc(x.phone||"")}"></div>
- <div class=field><label>Mật khẩu</label><input id=mbPassword value="${esc(x.password||"123456")}"></div>
- </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveMember('${id}')">Lưu</button></div>`)
+ <div class=field><label>Liên hệ</label><input id=mbPhone value="${esc(x.phone||"")}" placeholder="Số điện thoại hoặc ghi chú"></div>
+ <div class=field style="grid-column:1/-1"><label>${id?"Mật khẩu mới (để trống nếu giữ nguyên)":"Mật khẩu"}</label><input id=mbPassword type=password value="${id?"":"123456"}"></div>
+ </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" id=saveMemberBtn onclick="saveOnlineMember('${id}')">💾 ${id?"Lưu thay đổi":"Thêm thành viên"}</button></div>`);
 }
-function saveMember(id=""){
- if(!isTeacherAccount())return toast("Chỉ giáo viên được quản lý thành viên");
- state.members=state.members||[];
- const old=state.members.find(v=>v.id===id),role=old?.role==="Giáo viên"?"Giáo viên":val("mbRole");
- const data={name:val("mbName").trim(),role,phone:val("mbPhone").trim(),password:val("mbPassword").trim()};
- if(!data.name||!data.password)return toast("Nhập họ tên và mật khẩu");
- if(!id&&state.members.filter(x=>x.role!=="Giáo viên").length>=3)return toast("Mỗi giáo viên tối đa 3 bạn hỗ trợ");
- if(id){if(old)Object.assign(old,data)}else state.members.push({id:uid(),done:true,...data});
- syncRegistryFromMembers();closeModal();save(id?"Đã sửa thành viên":"Đã thêm bạn hỗ trợ");updateAccountUI();renderMembers();
-}
-function deleteHelper(id){
+async function saveOnlineMember(id=""){
  if(!isTeacherAccount())return;
- const x=(state.members||[]).find(v=>v.id===id);if(!x||x.role==="Giáo viên")return;
- const helpers=state.members.filter(v=>v.role!=="Giáo viên");
- if(helpers.length<=2)return toast("Mỗi giáo viên cần ít nhất 2 bạn hỗ trợ");
- if(!confirm(`Xóa tài khoản hỗ trợ "${x.name}"?`))return;
- state.members=state.members.filter(v=>v.id!==id);syncRegistryFromMembers();save("Đã xóa bạn hỗ trợ");renderMembers();
+ const member={name:val("mbName").trim(),username:val("mbUsername").trim().toLowerCase(),role:val("mbRole"),phone:val("mbPhone").trim(),password:val("mbPassword")};
+ if(!member.name||!member.username||(!id&&!member.password))return toast("Nhập đủ họ tên, tài khoản và mật khẩu");
+ const btn=document.getElementById("saveMemberBtn");if(btn){btn.disabled=true;btn.textContent="Đang lưu..."}
+ try{
+  const x=await onlineAPI({action:id?"update_member":"create_member",id,member});
+  if(!x.ok)throw new Error(x.message||"Không lưu được thành viên");
+  closeModal();toast(x.message||"Đã lưu thành viên");renderMembers();
+ }catch(e){toast(e.message)}
+ finally{if(btn){btn.disabled=false}}
+}
+async function toggleOnlineMember(id,active){
+ try{
+  const x=await onlineAPI({action:"toggle_member",id,active});if(!x.ok)throw new Error(x.message||"Không cập nhật được");
+  toast(x.message);renderMembers();
+ }catch(e){toast(e.message)}
+}
+async function deleteOnlineMember(id){
+ const x=onlineMembersCache.find(v=>v.id===id);if(!x)return;
+ if(!confirm(`Xóa tài khoản hỗ trợ "${x.name}"? Thao tác này không thể hoàn tác.`))return;
+ try{
+  const r=await onlineAPI({action:"delete_member",id});if(!r.ok)throw new Error(r.message||"Không xóa được");
+  toast(r.message);renderMembers();
+ }catch(e){toast(e.message)}
 }
 
 function renderActivity(){
