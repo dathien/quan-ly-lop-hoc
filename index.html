@@ -2004,6 +2004,15 @@ input,select,textarea{
 .analysis-table th{background:#eef6ff;position:sticky;top:0}
 @media(max-width:900px){.analysis-kpis{grid-template-columns:repeat(2,1fr)}.analysis-grid{grid-template-columns:1fr}}
 </style>
+
+<style id="v3854-multiteacher">
+.account-current{padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:#f7fbff;margin-bottom:12px}
+.teacher-list{display:grid;gap:9px;margin-top:10px}
+.teacher-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.teacher-row small{display:block;color:var(--muted);margin-top:3px}
+.login-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:720px){.login-grid{grid-template-columns:1fr}.teacher-row{grid-template-columns:1fr}.topbar #accountBtn{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -2063,7 +2072,7 @@ input,select,textarea{
   <main class="main">
     <header class="topbar">
       <div class="topbar-left"><button class="btn hamb" id="hamb">☰</button><div><h2 id="pageTitle">Tổng quan</h2><div class="muted" id="pageSub" style="font-size:12px"></div></div></div>
-      <div class="actions"><select id="classSelect" class="class-select"></select><button class="btn" onclick="navigate('members')">⚙️ Thiết lập</button></div>
+      <div class="actions"><select id="classSelect" class="class-select"></select><button class="btn" id="accountBtn" onclick="openAccountSwitcher()">👤 Tài khoản</button><button class="btn" onclick="navigate('members')">⚙️ Thiết lập</button></div>
     </header>
     <div class="content" id="content"></div>
     <div class="footer">Copyright@GVCN 2026</div>
@@ -2071,7 +2080,29 @@ input,select,textarea{
 </div>
 <div id="modalRoot"></div>
 <script>
-const KEY="GVCN_V38_13_DEMO_11A1";
+const LEGACY_KEY="GVCN_V38_13_DEMO_11A1";
+const TEACHERS_KEY="GVCN_MULTI_TEACHERS_V1";
+const SESSION_KEY="GVCN_MULTI_SESSION_V1";
+function defaultTeacherRegistry(){
+ return [{id:"teacher-thien",name:"HỒ NGUYỄN ĐA THIỆN",password:"123456",assistants:[
+  {id:"mb-hs-01",name:"Nguyễn Minh Anh",role:"Lớp trưởng",password:"123456",done:true},
+  {id:"mb-hs-02",name:"Trần Quốc Bảo",role:"Bí thư",password:"123456",done:true},
+  {id:"mb-hs-03",name:"Lê Gia Bảo",role:"Thủ quỹ",password:"123456",done:true}
+ ]}];
+}
+function teacherRegistry(){
+ try{const a=JSON.parse(localStorage.getItem(TEACHERS_KEY));if(Array.isArray(a)&&a.length)return a}catch(e){}
+ const a=defaultTeacherRegistry();localStorage.setItem(TEACHERS_KEY,JSON.stringify(a));return a;
+}
+function currentSession(){
+ try{const s=JSON.parse(localStorage.getItem(SESSION_KEY));if(s&&s.teacherId)return s}catch(e){}
+ const s={teacherId:"teacher-thien",userId:"teacher-thien",role:"Giáo viên",name:"HỒ NGUYỄN ĐA THIỆN"};
+ localStorage.setItem(SESSION_KEY,JSON.stringify(s));return s;
+}
+let session=currentSession();
+function activeTeacher(){return teacherRegistry().find(x=>x.id===session.teacherId)||teacherRegistry()[0]}
+function teacherDataKey(id=session.teacherId){return id==="teacher-thien"?LEGACY_KEY:`GVCN_TEACHER_${id}`}
+let KEY=teacherDataKey();
 const DEFAULT_RULES={base:0,late:-2,excused:-1,unexcused:-5,early:-2,incidentReminder:-1,incidentAttention:-3,incidentSerious:-5};
 let state=loadState();
 let page="home";
@@ -2224,7 +2255,7 @@ function ensureDemoClassData(s){
   const timetableSubjects=["Ngữ văn","Toán","Tiếng Anh","Vật lí","Hóa học","Sinh học","Lịch sử","Địa lí","Tin học","GDTC","GDQPAN","HĐTN-HN"];
   function addClass(classId,names,birthYear,prefix){
     const c=(s.classes||[]).find(x=>x.id===classId); if(!c)return;
-    if(!c.teacherName)c.teacherName="HỒ NGUYỄN ĐA THIỆN";
+    if(!c.teacherName)c.teacherName=activeTeacher()?.name||"HỒ NGUYỄN ĐA THIỆN";
     if(!c.seatConfig)c.seatConfig={groups:4,tablesPerGroup:5,seatsPerTable:2,teacherDesk:true};
     if(!s.students.some(x=>x.classId===classId)){
       names.forEach((it,i)=>{
@@ -2292,8 +2323,87 @@ function ensureDemoClassData(s){
   return s;
 }
 
+
+function blankTeacherState(profile){
+ const b=seed();
+ b.appName=profile.name;
+ b.currentClassId="c1";
+ b.classes=[{id:"c1",name:"10A1",school:"",year:"2026–2027",motto:"Đoàn kết • Chủ động • Tiến bộ",teacherName:profile.name,cover:"",seatConfig:{groups:4,tablesPerGroup:5,seatsPerTable:2,teacherDesk:true}}];
+ ["students","timetable","scores","attendance","incidents","positive","duty","weekly","finance","comments","messages","tasks","counseling","situations","companion","career","logs"].forEach(k=>b[k]=[]);
+ b.members=[{id:`gv-${profile.id}`,name:profile.name,role:"Giáo viên",phone:"",password:profile.password||"123456",done:true},
+  ...(profile.assistants||[]).map(a=>({id:a.id||uid(),name:a.name,role:a.role||"Hỗ trợ",phone:a.phone||"",password:a.password||"123456",done:a.done!==false}))];
+ return b;
+}
+function isTeacherAccount(){return session.role==="Giáo viên"}
+function updateAccountUI(){
+ const p=activeTeacher();
+ const brand=document.querySelector(".brand h1");if(brand)brand.textContent=p?.name||"GVCN";
+ const btn=document.getElementById("accountBtn");if(btn)btn.textContent=`👤 ${session.name||p?.name||"Tài khoản"}`;
+ document.querySelectorAll(".class-teacher-name").forEach(x=>x.textContent=p?.name||"");
+}
+function persistRegistry(arr){localStorage.setItem(TEACHERS_KEY,JSON.stringify(arr))}
+function openAccountSwitcher(){
+ const reg=teacherRegistry(),p=activeTeacher();
+ modal(`<h3>👥 Không gian đa giáo viên</h3>
+ <div class=account-current><b>Đang sử dụng:</b> ${esc(session.name||"")} <span class=badge>${esc(session.role||"")}</span><div class=muted style="margin-top:4px">Không gian dữ liệu: ${esc(p?.name||"")}. Dữ liệu của từng giáo viên được tách riêng trên trình duyệt này.</div></div>
+ <div class=teacher-list>${reg.map(t=>`<div class=teacher-row><div><b>${esc(t.name)}</b><small>1 giáo viên + ${(t.assistants||[]).length} bạn hỗ trợ</small></div><div class=actions><button class="btn sm" onclick="openWorkspaceLogin('${t.id}')">${t.id===session.teacherId?"Đổi người dùng":"Đăng nhập"}</button>${isTeacherAccount()&&t.id!=="teacher-thien"?`<button class="btn sm bad" onclick="deleteTeacherWorkspace('${t.id}')">Xóa GV</button>`:""}</div></div>`).join("")}</div>
+ <div class=modal-foot>${isTeacherAccount()?`<button class="btn primary" onclick=openNewTeacherForm()>＋ Thêm giáo viên</button>`:""}<button class=btn onclick=closeModal()>Đóng</button></div>`);
+}
+function openWorkspaceLogin(teacherId){
+ const t=teacherRegistry().find(x=>x.id===teacherId);if(!t)return;
+ const users=[{id:t.id,name:t.name,role:"Giáo viên",password:t.password},...(t.assistants||[]).filter(a=>a.done!==false)];
+ modal(`<h3>🔐 Đăng nhập — ${esc(t.name)}</h3><div class=form-grid>
+ <div class=field><label>Người dùng</label><select id=loginUser>${users.map(u=>`<option value="${u.id}">${esc(u.name)} — ${esc(u.role)}</option>`).join("")}</select></div>
+ <div class=field><label>Mật khẩu</label><input id=loginPass type=password placeholder="Nhập mật khẩu"></div></div>
+ <div class=modal-foot><button class=btn onclick=openAccountSwitcher()>Quay lại</button><button class="btn primary" onclick="loginWorkspace('${teacherId}')">Đăng nhập</button></div>`);
+}
+function loginWorkspace(teacherId){
+ const t=teacherRegistry().find(x=>x.id===teacherId);if(!t)return;
+ const userId=val("loginUser"),users=[{id:t.id,name:t.name,role:"Giáo viên",password:t.password},...(t.assistants||[])],u=users.find(x=>x.id===userId);
+ if(!u||val("loginPass")!==(u.password||""))return toast("Mật khẩu chưa đúng");
+ localStorage.setItem(KEY,JSON.stringify(state));
+ session={teacherId:t.id,userId:u.id,role:u.role,name:u.name};localStorage.setItem(SESSION_KEY,JSON.stringify(session));
+ KEY=teacherDataKey(t.id);
+ state=loadState();
+ closeModal();updateAccountUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${u.name}`);
+}
+function openNewTeacherForm(){
+ if(!isTeacherAccount())return toast("Chỉ giáo viên được thêm giáo viên mới");
+ modal(`<h3>＋ Thêm giáo viên mới</h3><div class=muted style="margin-bottom:12px">Mỗi giáo viên có không gian dữ liệu riêng và có thể tạo 2–3 tài khoản hỗ trợ.</div>
+ <div class=form-grid><div class=field><label>Họ tên giáo viên</label><input id=newTeacherName placeholder="Nguyễn Văn B"></div><div class=field><label>Mật khẩu giáo viên</label><input id=newTeacherPass value="123456"></div></div>
+ <h4 style="margin:16px 0 8px">Bạn hỗ trợ</h4>
+ <div class=login-grid>
+  <div class=field><label>Hỗ trợ 1</label><input id=as1Name placeholder="Họ tên"><select id=as1Role><option>Lớp trưởng</option><option>Bí thư</option><option>Thủ quỹ</option><option>Lớp phó</option><option>Thư ký</option></select><input id=as1Pass value="123456" placeholder="Mật khẩu"></div>
+  <div class=field><label>Hỗ trợ 2</label><input id=as2Name placeholder="Họ tên"><select id=as2Role><option>Bí thư</option><option>Lớp trưởng</option><option>Thủ quỹ</option><option>Lớp phó</option><option>Thư ký</option></select><input id=as2Pass value="123456" placeholder="Mật khẩu"></div>
+  <div class=field><label>Hỗ trợ 3 (không bắt buộc)</label><input id=as3Name placeholder="Họ tên"><select id=as3Role><option>Thủ quỹ</option><option>Lớp trưởng</option><option>Bí thư</option><option>Lớp phó</option><option>Thư ký</option></select><input id=as3Pass value="123456" placeholder="Mật khẩu"></div>
+ </div><div class=modal-foot><button class=btn onclick=openAccountSwitcher()>Hủy</button><button class="btn primary" onclick=saveNewTeacher()>Tạo không gian giáo viên</button></div>`);
+}
+function saveNewTeacher(){
+ const name=val("newTeacherName").trim(),password=val("newTeacherPass").trim();
+ if(!name||!password)return toast("Nhập họ tên và mật khẩu giáo viên");
+ const reg=teacherRegistry();if(reg.some(x=>x.name.toLowerCase()===name.toLowerCase()))return toast("Giáo viên này đã tồn tại");
+ const assistants=[1,2,3].map(i=>({name:val(`as${i}Name`).trim(),role:val(`as${i}Role`),password:val(`as${i}Pass`).trim()})).filter(x=>x.name);
+ if(assistants.length<2)return toast("Mỗi giáo viên cần ít nhất 2 bạn hỗ trợ");
+ const id="teacher-"+uid(),t={id,name,password,assistants:assistants.map((a,i)=>({id:`as-${id}-${i+1}`,...a,done:true}))};
+ reg.push(t);persistRegistry(reg);
+ localStorage.setItem(teacherDataKey(id),JSON.stringify(blankTeacherState(t)));
+ openAccountSwitcher();toast("Đã tạo giáo viên và tài khoản hỗ trợ");
+}
+function deleteTeacherWorkspace(id){
+ if(!isTeacherAccount())return;
+ const t=teacherRegistry().find(x=>x.id===id);if(!t||id==="teacher-thien")return;
+ if(!confirm(`Xóa không gian của giáo viên "${t.name}" trên trình duyệt này?`))return;
+ const reg=teacherRegistry().filter(x=>x.id!==id);persistRegistry(reg);localStorage.removeItem(teacherDataKey(id));openAccountSwitcher();toast("Đã xóa không gian giáo viên");
+}
+function syncRegistryFromMembers(){
+ const t=activeTeacher();if(!t||!isTeacherAccount())return;
+ const teacher=(state.members||[]).find(x=>x.role==="Giáo viên");
+ if(teacher){t.name=teacher.name;t.password=teacher.password||t.password}
+ t.assistants=(state.members||[]).filter(x=>x.role!=="Giáo viên").slice(0,3).map(x=>({id:x.id,name:x.name,role:x.role,password:x.password,phone:x.phone,done:x.done!==false}));
+ const reg=teacherRegistry(),i=reg.findIndex(x=>x.id===t.id);if(i>=0){reg[i]=t;persistRegistry(reg)}
+}
 function loadState(){try{
-  const s=JSON.parse(localStorage.getItem(KEY))||seed();
+  const stored=JSON.parse(localStorage.getItem(KEY));const s=stored||(session.teacherId==="teacher-thien"?seed():blankTeacherState(activeTeacher()));
   if(!Array.isArray(s.tasks))s.tasks=[];
   if(!Array.isArray(s.counseling))s.counseling=[];
   if(!Array.isArray(s.situations))s.situations=[];
@@ -2321,7 +2431,7 @@ function loadState(){try{
   });
   ["scores","duty","weekly","finance","comments","messages","members","counseling","situations","companion","career"].forEach(k=>(s[k]||[]).forEach(x=>{if(typeof x.done==="undefined")x.done=false}));
   (s.incidents||[]).forEach(x=>{if(typeof x.resolved==="undefined")x.resolved=false});
-  ensureDemoClassData(s);
+  if(session.teacherId==="teacher-thien")ensureDemoClassData(s);
   return s
 }catch(e){return ensureDemoClassData(seed())}}
 function save(msg="Đã lưu"){localStorage.setItem(KEY,JSON.stringify(state));log(msg);renderClassSelect(); if(msg) toast(msg)}
@@ -4802,28 +4912,38 @@ function closeWinnerOverlay(){
 
 
 function renderMembers(){
- const rows=state.members||[];
- $("#content").innerHTML=`<div class=section-head><div><h3>Thành viên</h3><div class=muted>Quản lý giáo viên và học sinh được phân quyền sử dụng app.</div></div><button class="btn primary" onclick=openMemberForm()>＋ Thêm thành viên</button></div>
- <div class=card style="margin-bottom:14px"><b>👥 Thành viên hiện có: ${rows.length}</b><div class=muted style="margin-top:4px">Danh sách mẫu gồm GVCN và 3 học sinh cán sự lớp. Có thể sửa họ tên, vai trò, liên hệ và mật khẩu trực tiếp.</div></div>
- <div class=table-wrap><table><thead><tr><th>Họ tên</th><th>Vai trò</th><th>Liên hệ</th><th>Mật khẩu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.role)}</td><td>${esc(x.phone||"")}</td><td><code>${esc(x.password||"")}</code></td><td>${statusBadge(!!x.done,"Đang hoạt động","Tạm ngưng")}</td><td><div class=actions><button class="btn sm" onclick="openMemberForm('${x.id}')">Sửa</button><button class="btn sm ${x.done?"warn":"good"}" onclick="toggleRecordFlag('members','${x.id}','done',renderMembers,'Đã cập nhật thành viên')">${x.done?"Tạm ngưng":"✓ Kích hoạt"}</button><button class="btn sm bad" onclick="delItem('members','${x.id}',renderMembers)">Xóa</button></div></td></tr>`).join("")||`<tr><td colspan=6 class=empty>Chưa có thành viên.</td></tr>`}</tbody></table></div>`;
+ const rows=state.members||[],canEdit=isTeacherAccount(),helpers=rows.filter(x=>x.role!=="Giáo viên");
+ $("#content").innerHTML=`<div class=section-head><div><h3>Thành viên</h3><div class=muted>Không gian của <b>${esc(activeTeacher()?.name||"")}</b> • 1 giáo viên và tối đa 3 bạn hỗ trợ.</div></div><div class=actions><button class=btn onclick=openAccountSwitcher()>⇄ Đổi tài khoản</button>${canEdit&&helpers.length<3?`<button class="btn primary" onclick=openMemberForm()>＋ Thêm hỗ trợ</button>`:""}</div></div>
+ <div class=card style="margin-bottom:14px"><b>👥 ${rows.length} thành viên</b><div class=muted style="margin-top:4px">${canEdit?"Giáo viên có thể sửa tài khoản và quản lý 2–3 bạn hỗ trợ.":"Bạn đang đăng nhập bằng tài khoản hỗ trợ; dữ liệu làm việc chung với giáo viên phụ trách."}</div></div>
+ <div class=table-wrap><table><thead><tr><th>Họ tên</th><th>Vai trò</th><th>Liên hệ</th><th>Mật khẩu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.role)}</td><td>${esc(x.phone||"")}</td><td>${canEdit?`<code>${esc(x.password||"")}</code>`:"••••••"}</td><td>${statusBadge(!!x.done,"Đang hoạt động","Tạm ngưng")}</td><td>${canEdit?`<div class=actions><button class="btn sm" onclick="openMemberForm('${x.id}')">Sửa</button>${x.role!=="Giáo viên"?`<button class="btn sm ${x.done?"warn":"good"}" onclick="toggleRecordFlag('members','${x.id}','done',()=>{syncRegistryFromMembers();renderMembers()},'Đã cập nhật thành viên')">${x.done?"Tạm ngưng":"✓ Kích hoạt"}</button><button class="btn sm bad" onclick="deleteHelper('${x.id}')">Xóa</button>`:""}</div>`:"—"}</td></tr>`).join("")}</tbody></table></div>`;
 }
 function openMemberForm(id=""){
- const x=(state.members||[]).find(v=>v.id===id)||{};
- modal(`<h3>${id?"Sửa":"Thêm"} thành viên</h3><div class=form-grid>
+ if(!isTeacherAccount())return toast("Chỉ giáo viên được quản lý thành viên");
+ const x=(state.members||[]).find(v=>v.id===id)||{},isGV=x.role==="Giáo viên";
+ modal(`<h3>${id?"Sửa":"Thêm"} ${isGV?"giáo viên":"bạn hỗ trợ"}</h3><div class=form-grid>
  <div class=field><label>Họ tên</label><input id=mbName value="${esc(x.name||"")}"></div>
- <div class=field><label>Vai trò</label><select id=mbRole>${["Giáo viên","Lớp trưởng","Bí thư","Thủ quỹ","Lớp phó","Thư ký"].map(v=>`<option ${x.role===v?"selected":""}>${v}</option>`).join("")}</select></div>
+ <div class=field><label>Vai trò</label><select id=mbRole ${isGV?"disabled":""}>${(isGV?["Giáo viên"]:["Lớp trưởng","Bí thư","Thủ quỹ","Lớp phó","Thư ký"]).map(v=>`<option ${x.role===v?"selected":""}>${v}</option>`).join("")}</select></div>
  <div class=field><label>Liên hệ</label><input id=mbPhone value="${esc(x.phone||"")}"></div>
- <div class=field><label>Mật khẩu</label><input id=mbPassword value="${esc(x.password||"123456")}" placeholder="Nhập mật khẩu"></div>
- </div><div class=modal-foot>${id?`<button class="btn bad" onclick="closeModal();delItem('members','${id}',renderMembers)">Xóa</button>`:""}<button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveMember('${id}')">Lưu</button></div>`)
+ <div class=field><label>Mật khẩu</label><input id=mbPassword value="${esc(x.password||"123456")}"></div>
+ </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveMember('${id}')">Lưu</button></div>`)
 }
 function saveMember(id=""){
+ if(!isTeacherAccount())return toast("Chỉ giáo viên được quản lý thành viên");
  state.members=state.members||[];
- const data={name:val("mbName").trim(),role:val("mbRole"),phone:val("mbPhone").trim(),password:val("mbPassword").trim()};
- if(!data.name)return toast("Nhập họ tên");
- if(!data.password)return toast("Nhập mật khẩu");
- if(id){const x=state.members.find(v=>v.id===id);if(x)Object.assign(x,data)}
- else state.members.push({id:uid(),done:true,...data});
- closeModal();save(id?"Đã sửa thành viên":"Đã thêm thành viên");renderMembers();
+ const old=state.members.find(v=>v.id===id),role=old?.role==="Giáo viên"?"Giáo viên":val("mbRole");
+ const data={name:val("mbName").trim(),role,phone:val("mbPhone").trim(),password:val("mbPassword").trim()};
+ if(!data.name||!data.password)return toast("Nhập họ tên và mật khẩu");
+ if(!id&&state.members.filter(x=>x.role!=="Giáo viên").length>=3)return toast("Mỗi giáo viên tối đa 3 bạn hỗ trợ");
+ if(id){if(old)Object.assign(old,data)}else state.members.push({id:uid(),done:true,...data});
+ syncRegistryFromMembers();closeModal();save(id?"Đã sửa thành viên":"Đã thêm bạn hỗ trợ");updateAccountUI();renderMembers();
+}
+function deleteHelper(id){
+ if(!isTeacherAccount())return;
+ const x=(state.members||[]).find(v=>v.id===id);if(!x||x.role==="Giáo viên")return;
+ const helpers=state.members.filter(v=>v.role!=="Giáo viên");
+ if(helpers.length<=2)return toast("Mỗi giáo viên cần ít nhất 2 bạn hỗ trợ");
+ if(!confirm(`Xóa tài khoản hỗ trợ "${x.name}"?`))return;
+ state.members=state.members.filter(v=>v.id!==id);syncRegistryFromMembers();save("Đã xóa bạn hỗ trợ");renderMembers();
 }
 
 function renderActivity(){
@@ -4967,7 +5087,7 @@ function downloadBlob(blob,name){const a=document.createElement("a");a.href=URL.
 function downloadCSV(rows,name){const csv=rows.map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n");downloadBlob(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),name)}
 
 setupCompactSidebar();
-renderClassSelect();navigate("home");
+updateAccountUI();renderClassSelect();navigate("home");
 </script>
 
 
