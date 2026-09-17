@@ -2032,7 +2032,7 @@ input,select,textarea{
 @media(max-width:520px){.gvcn-login-screen{padding:14px}.gvcn-login-card{padding:24px 18px;border-radius:20px}}
 </style>
 
-<!-- GVCN V38.58: sửa dứt điểm tài khoản quản trị gốc + thành viên online CRUD -->
+<!-- GVCN V38.59: admin đúng tài khoản + giao diện Google/Gmail + quên mật khẩu -->
 </head>
 <body>
 
@@ -2053,7 +2053,10 @@ input,select,textarea{
       </div>
     </div>
     <div id="mainLoginError" class="gvcn-login-error"></div>
-    <button class="gvcn-login-submit" onclick="mainLogin()">Đăng nhập</button>
+    <button class="gvcn-login-submit" onclick="mainLogin()">Đăng nhập</button><div class="login-extra-actions" style="margin-top:10px;display:grid;gap:8px">
+<button type="button" class="btn" style="width:100%" onclick="loginWithGoogleGVCN()">🔵 Đăng nhập bằng Google / Gmail</button>
+<button type="button" class="btn ghost" style="width:100%" onclick="forgotPasswordGVCN()">Quên mật khẩu?</button>
+</div>
     <div class="gvcn-login-note">Dữ liệu được mở theo đúng tài khoản và không gian lớp được cấp.</div>
     <div class="gvcn-login-copy">Copyright@GVCN 2026</div>
   </div>
@@ -2427,6 +2430,30 @@ function hideLoginScreen(){
 function toggleMainPassword(){
  const p=document.getElementById("mainLoginPass");if(p)p.type=p.type==="password"?"text":"password";
 }
+
+function loginWithGoogleGVCN(){
+  // UI đã sẵn sàng. Khi cấu hình Google hoàn tất, API hiện có sẽ xử lý OAuth.
+  window.location.href="/api/auth/google";
+}
+function forgotPasswordGVCN(){
+  modal(`<h3>🔑 Quên mật khẩu</h3>
+  <div class=muted style="margin-bottom:12px">Nhập Gmail đã đăng ký với tài khoản GVCN.</div>
+  <div class=field><label>Gmail</label><input id=forgotEmail type=email placeholder="ten@gmail.com"></div>
+  <div id=forgotMsg class=muted style="margin-top:10px"></div>
+  <div class=modal-foot><button class=btn onclick=closeModal()>Đóng</button><button class="btn primary" id=forgotBtn onclick=sendForgotPasswordGVCN()>Tiếp tục</button></div>`);
+}
+async function sendForgotPasswordGVCN(){
+  const email=val("forgotEmail").trim();
+  if(!email)return toast("Nhập Gmail đã đăng ký");
+  const btn=document.getElementById("forgotBtn"); if(btn){btn.disabled=true;btn.textContent="Đang kiểm tra..."}
+  try{
+    const x=await onlineAPI({action:"request_password_reset",email});
+    const box=document.getElementById("forgotMsg");
+    if(box)box.innerHTML=`<div class=notice>${esc(x.message||"Đã tiếp nhận yêu cầu.")}</div>`;
+  }catch(e){toast(e.message||"Chưa thể thực hiện")}
+  finally{if(btn){btn.disabled=false;btn.textContent="Tiếp tục"}}
+}
+
 async function mainLogin(){
  const username=(document.getElementById("mainLoginUser")?.value||"").trim().toLowerCase();
  const password=document.getElementById("mainLoginPass")?.value||"";
@@ -5102,7 +5129,7 @@ function openMemberForm(id=""){
 async function saveOnlineMember(id=""){
  if(!canManageOnlineMembers())return;
  const old=onlineMembersCache.find(v=>v.id===id);
- const member={name:val("mbName").trim(),username:(old?.systemRole==="admin"?"thien":val("mbUsername").trim().toLowerCase()),role:(old?.systemRole==="admin"?"Quản trị hệ thống":val("mbRole")),phone:val("mbPhone").trim(),password:val("mbPassword")};
+ const member={name:val("mbName").trim(),username:(old?.systemRole==="admin"?"admin":val("mbUsername").trim().toLowerCase()),role:(old?.systemRole==="admin"?"Quản trị hệ thống":val("mbRole")),phone:val("mbPhone").trim(),password:val("mbPassword")};
  if(!member.name||!member.username||(!id&&!member.password))return toast("Nhập đủ họ tên, tài khoản và mật khẩu");
  const btn=document.getElementById("saveMemberBtn");if(btn){btn.disabled=true;btn.textContent="Đang lưu..."}
  try{
