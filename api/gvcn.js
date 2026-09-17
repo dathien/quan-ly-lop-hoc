@@ -177,6 +177,26 @@ export default async function handler(req,res){
       return json(res,200,{ok:true,authenticated:true,user:{id:user.id,name:user.full_name,username:user.username,role:roleLabel(user.role),systemRole:user.role,isAdmin:user.role==="admin",workspaceId:user.workspace_id,workspaceRole:user.workspace_role,teacherId:user.owner_user_id||user.id,teacherName:user.owner_name||user.full_name}});
     }
 
+    if(action==="list_teachers"){
+      if(user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ quản trị được xem danh sách giáo viên"});
+      const rows=await sql`
+        SELECT u.id,u.full_name,u.username,u.phone,u.email,u.google_email,u.active,
+               w.id AS workspace_id,w.name AS workspace_name,w.school_year,
+               (SELECT c.name FROM public.gvcn_classes c
+                WHERE c.workspace_id=w.id AND c.name<>'__GVCN_SYNC__' AND c.active=TRUE
+                ORDER BY c.created_at ASC LIMIT 1) AS class_name
+        FROM public.gvcn_users u
+        LEFT JOIN public.gvcn_workspaces w ON w.owner_user_id=u.id AND w.active=TRUE
+        WHERE u.role='teacher'
+        ORDER BY u.created_at DESC`;
+      return json(res,200,{ok:true,teachers:rows.map(x=>({
+        id:x.id,name:x.full_name,username:x.username||"",phone:x.phone||"",
+        email:x.google_email||x.email||"",active:x.active!==false,
+        workspaceId:x.workspace_id||"",workspaceName:x.workspace_name||"",
+        className:x.class_name||"",schoolYear:x.school_year||""
+      }))});
+    }
+
     if(action==="create_teacher"){
       if(user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ quản trị được tạo giáo viên"});
       const t=body.teacher||{};
@@ -188,7 +208,7 @@ export default async function handler(req,res){
       const assistants=Array.isArray(t.assistants)?t.assistants.slice(0,3):[];
       if(!fullName||!username||!password||!className)return json(res,400,{ok:false,message:"Thiếu họ tên, tài khoản, mật khẩu hoặc tên lớp"});
       if(!/^[a-z0-9._-]{3,32}$/.test(username))return json(res,400,{ok:false,message:"Tài khoản giáo viên không hợp lệ"});
-      if(assistants.length<2)return json(res,400,{ok:false,message:"Cần ít nhất 2 tài khoản hỗ trợ"});
+      // Thành viên hỗ trợ là tùy chọn; giáo viên có thể tạo sau trong mục Thành viên.
       const names=[username,...assistants.map(a=>String(a.username||"").trim().toLowerCase())];
       if(new Set(names).size!==names.length)return json(res,400,{ok:false,message:"Các tài khoản không được trùng nhau"});
       const conflict=await sql`SELECT username FROM public.gvcn_users WHERE lower(username)=ANY(${names}) LIMIT 1`;
