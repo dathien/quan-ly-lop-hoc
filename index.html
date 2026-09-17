@@ -79,6 +79,7 @@ tr:last-child td{border-bottom:0}
   .hero img{height:230px}.hero-title{font-size:22px}.seat-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}
 }
 @media print{.sidebar,.topbar,.no-print,.btn{display:none!important}.app{display:block}.content{padding:0}.card{box-shadow:none}}
+.perm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.perm-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #dbe4ee;border-radius:10px;background:#fff}.perm-item input{width:17px;height:17px}@media(max-width:700px){.perm-grid{grid-template-columns:1fr}}
 </style>
 
 <style id="gvcnpro-v371-ui-refine">
@@ -2634,7 +2635,22 @@ const titles={
  parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],members:["Thành viên","Thiết lập sau khi vào app"],activity:["Lịch sử","Nhật ký hoạt động"],
  data:["Dữ liệu & Sao lưu","Sao lưu và đồng bộ dữ liệu"]
 };
+
+function areaForPage(p){
+ const a=MEMBER_AREAS.find(x=>x.pages.includes(p));
+ return a?.id||null;
+}
+function canAccessPage(p){
+ if(isFullAccessAccount())return true;
+ const area=areaForPage(p);
+ if(!area)return true;
+ const own=session?.permissions;
+ const list=Array.isArray(own)?own:(own&&Array.isArray(own.areas)?own.areas:[]);
+ return list.includes(area);
+}
+
 function navigate(p){
+  if(!canAccessPage(p)){toast("Tài khoản này chưa được giáo viên cấp quyền vào khu vực này");return}
   page=p; sessionStorage.setItem("GVCN_CURRENT_PAGE",p); $$(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===p));
   $("#pageTitle").textContent=titles[p]?.[0]||"GVCN Pro";$("#pageSub").textContent=titles[p]?.[1]||"";
   render();
@@ -5077,6 +5093,31 @@ function closeWinnerOverlay(){
 }
 
 
+
+const MEMBER_AREAS=[
+ {id:"class",label:"🏫 Lớp học",pages:["classes","home","students","seats","timetable"]},
+ {id:"tracking",label:"📘 Theo dõi",pages:["grades","conduct","duty","weekly","tasks","finance","reports"]},
+ {id:"support",label:"💬 Hỗ trợ GVCN",pages:["comments","parents","situations","companion","career","race"]},
+ {id:"admin",label:"⚙️ Quản trị",pages:["members","activity","backup"]}
+];
+function isFullAccessAccount(){
+ return !!session?.isAdmin || isTeacherAccount();
+}
+function memberAreaPermissions(x){
+ const p=x?.permissions;
+ if(Array.isArray(p))return p;
+ if(p&&Array.isArray(p.areas))return p.areas;
+ return [];
+}
+function areaLabelList(x){
+ if(x?.systemRole==="admin"||x?.workspaceRole==="teacher")return "Toàn bộ ứng dụng";
+ const a=memberAreaPermissions(x);
+ return a.length?MEMBER_AREAS.filter(v=>a.includes(v.id)).map(v=>v.label.replace(/^[^ ]+ /,"")).join(", "):"Chưa được cấp";
+}
+function selectedMemberAreas(){
+ return MEMBER_AREAS.filter(a=>document.getElementById("perm_"+a.id)?.checked).map(a=>a.id);
+}
+
 let onlineMembersCache=[];
 let onlineMembersLoaded=false;
 let onlineMembersRequest=0;
@@ -5102,10 +5143,11 @@ function memberRowsHTML(rows,canEdit){
     <td><code>${esc(x.username||"")}</code></td>
     <td>${root?"Quản trị hệ thống":esc(x.role)}</td>
     <td>${esc(x.phone||"")}</td>
+    <td>${esc(areaLabelList(x))}</td>
     <td>${statusBadge(x.active,"Đang hoạt động","Đã khóa")}</td>
     <td>${canEdit?`<div class=actions><button class="btn sm" onclick="openMemberForm('${x.id}')">✏️ Sửa</button>${(!main&&!root)?`<button class="btn sm ${x.active?"warn":"good"}" onclick="toggleOnlineMember('${x.id}',${!x.active})">${x.active?"🔒 Khóa":"🔓 Mở khóa"}</button><button class="btn sm bad" onclick="deleteOnlineMember('${x.id}')">🗑️ Xóa</button>`:`<span class="badge">🔐 Được bảo vệ</span>`}</div>`:"—"}</td>
    </tr>`;
- }).join("")||`<tr><td colspan=6 class=empty>Chưa có thành viên.</td></tr>`;
+ }).join("")||`<tr><td colspan=7 class=empty>Chưa có thành viên.</td></tr>`;
 }
 function updateMemberTable(){
  if(page!=="members")return;
@@ -5128,7 +5170,7 @@ async function reloadMembersOnly(){
    updateMemberTable();
  }catch(e){
    const body=document.getElementById("onlineMemberRows");
-   if(body&&!onlineMembersLoaded)body.innerHTML=`<tr><td colspan=6 class=empty>${esc(e.message)}</td></tr>`;
+   if(body&&!onlineMembersLoaded)body.innerHTML=`<tr><td colspan=7 class=empty>${esc(e.message)}</td></tr>`;
    else toast(e.message||"Không tải được thành viên");
  }
 }
@@ -5138,7 +5180,7 @@ function renderMembers(){
  <div class=actions>${canEdit?`<button id=addMemberBtn class="btn primary" onclick=openMemberForm() ${limited?"disabled":""}>${limited?"✓ Đã đủ 3 tài khoản hỗ trợ":"＋ Thêm thành viên"}</button>`:""}</div></div>
  ${session?.isAdmin?`<div class=card style="margin-bottom:14px;border:1px solid #bfdbfe;background:#eff6ff"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-size:24px">🛡️</span><div><b>HỒ NGUYỄN ĐA THIỆN</b><div class=muted>Tài khoản quản trị hệ thống • Tài khoản chính được bảo vệ</div></div></div></div>`:""}
  <div class=card style="margin-bottom:14px"><b id=memberCount>👥 ${onlineMembersLoaded?onlineMembersCache.length:"…"} thành viên</b><div class=muted style="margin-top:4px">${canEdit?(session?.isAdmin?"Quản trị hệ thống được thêm và quản lý thành viên không giới hạn.":"Có thể thêm, sửa, khóa/mở khóa và xóa tài khoản hỗ trợ. Giáo viên chủ nhiệm được tối đa 3 tài khoản hỗ trợ."):"Tài khoản hỗ trợ chỉ xem danh sách thành viên."}</div></div>
- <div class=table-wrap><table><thead><tr><th>Họ tên</th><th>Tài khoản</th><th>Vai trò</th><th>Liên hệ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id=onlineMemberRows>${onlineMembersLoaded?memberRowsHTML(onlineMembersCache,canEdit):`<tr><td colspan=6 class=empty>Đang tải dữ liệu thành viên...</td></tr>`}</tbody></table></div>`;
+ <div class=table-wrap><table><thead><tr><th>Họ tên</th><th>Tài khoản</th><th>Vai trò</th><th>Liên hệ</th><th>Khu vực được vào</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id=onlineMemberRows>${onlineMembersLoaded?memberRowsHTML(onlineMembersCache,canEdit):`<tr><td colspan=7 class=empty>Đang tải dữ liệu thành viên...</td></tr>`}</tbody></table></div>`;
  reloadMembersOnly();
 }
 function openMemberForm(id=""){
@@ -5152,12 +5194,13 @@ function openMemberForm(id=""){
  <div class=field><label>Vai trò</label><select id=mbRole ${(isGV||isRoot)?"disabled":""}>${(isRoot?["Quản trị hệ thống"]:(isGV?["Giáo viên"]:["Lớp trưởng","Bí thư","Thủ quỹ","Lớp phó","Thư ký"])).map(v=>`<option ${x.role===v?"selected":""}>${v}</option>`).join("")}</select></div>
  <div class=field><label>Liên hệ</label><input id=mbPhone value="${esc(x.phone||"")}" placeholder="Số điện thoại hoặc ghi chú"></div>
  <div class=field style="grid-column:1/-1"><label>${id?"Mật khẩu mới (để trống nếu giữ nguyên)":"Mật khẩu"}</label><input id=mbPassword type=password value="${id?"":"123456"}"></div>
+ ${(!isGV&&!isRoot)?`<div class=field style="grid-column:1/-1"><label>Khu vực được phép truy cập</label><div class=muted style="margin-bottom:8px">Chỉ áp dụng cho tài khoản thành viên hỗ trợ. Giáo viên luôn có toàn quyền trên ứng dụng.</div><div class="perm-grid">${MEMBER_AREAS.map(a=>`<label class="perm-item"><input type=checkbox id="perm_${a.id}" ${memberAreaPermissions(x).includes(a.id)?"checked":""}> ${a.label}</label>`).join("")}</div></div>`:`<div class=field style="grid-column:1/-1"><label>Quyền truy cập</label><div class=notice>✓ Giáo viên/Quản trị luôn được truy cập toàn bộ ứng dụng.</div></div>`}
  </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" id=saveMemberBtn onclick="saveOnlineMember('${id}')">💾 ${id?"Lưu thay đổi":"Thêm thành viên"}</button></div>`);
 }
 async function saveOnlineMember(id=""){
  if(!canManageOnlineMembers())return;
  const old=onlineMembersCache.find(v=>v.id===id);
- const member={name:val("mbName").trim(),username:(old?.systemRole==="admin"?"admin":val("mbUsername").trim().toLowerCase()),role:(old?.systemRole==="admin"?"Quản trị hệ thống":val("mbRole")),phone:val("mbPhone").trim(),password:val("mbPassword")};
+ const member={name:val("mbName").trim(),username:(old?.systemRole==="admin"?"admin":val("mbUsername").trim().toLowerCase()),role:(old?.systemRole==="admin"?"Quản trị hệ thống":val("mbRole")),phone:val("mbPhone").trim(),password:val("mbPassword"),permissions:(old?.systemRole==="admin"||old?.workspaceRole==="teacher")?["class","tracking","support","admin"]:selectedMemberAreas()};
  if(!member.name||!member.username||(!id&&!member.password))return toast("Nhập đủ họ tên, tài khoản và mật khẩu");
  const btn=document.getElementById("saveMemberBtn");if(btn){btn.disabled=true;btn.textContent="Đang lưu..."}
  try{
