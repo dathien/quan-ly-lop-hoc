@@ -235,7 +235,7 @@ export default async function handler(req,res){
       if(!user.workspace_id)return json(res,403,{ok:false,message:"Tài khoản chưa được cấp không gian dữ liệu"});
       if(user.role==="admin")await ensureAdminWorkspace(user.id,user.full_name);
       const rows=await sql`
-        SELECT u.id,u.full_name,u.username,u.phone,u.active,u.role AS system_role,wm.role AS workspace_role
+        SELECT u.id,u.full_name,u.username,u.phone, u.permissions,u.active,u.role AS system_role,wm.role AS workspace_role
         FROM public.gvcn_workspace_members wm
         JOIN public.gvcn_users u ON u.id=wm.user_id
         WHERE wm.workspace_id=${user.workspace_id}::uuid
