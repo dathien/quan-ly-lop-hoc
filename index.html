@@ -2635,7 +2635,7 @@ const titles={
  data:["Dữ liệu & Sao lưu","Sao lưu và đồng bộ dữ liệu"]
 };
 function navigate(p){
-  page=p; $$(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===p));
+  page=p; sessionStorage.setItem("GVCN_CURRENT_PAGE",p); $$(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===p));
   $("#pageTitle").textContent=titles[p]?.[0]||"GVCN Pro";$("#pageSub").textContent=titles[p]?.[1]||"";
   render();
   if(innerWidth<780)$("#sidebar").classList.remove("open");
@@ -5278,7 +5278,7 @@ async function pushSync(){
 async function pullSync(){
  try{
   const x=await onlineAPI({action:"pull"});if(!x.ok)throw new Error(x.message||"Không tải được dữ liệu");
-  if(x.data&&x.data.classes){state=x.data;localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();navigate("home");toast("Đã tải dữ liệu mới nhất")}
+  if(x.data&&x.data.classes){state=x.data;localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();toast("Đã tải dữ liệu mới nhất")}
   else toast("Chưa có dữ liệu trên Cloud");
  }catch(e){toast(e.message)}
 }
@@ -5309,13 +5309,13 @@ function downloadBlob(blob,name){const a=document.createElement("a");a.href=URL.
 function downloadCSV(rows,name){const csv=rows.map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n");downloadBlob(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),name)}
 
 setupCompactSidebar();
-updateAccountUI();renderClassSelect();navigate("home");
+updateAccountUI();renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");
 if(AUTHENTICATED){
  onlineAPI({action:"me"}).then(async x=>{
   if(!x.ok||!x.authenticated){showLoginScreen();return}
   const u=x.user;session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
   sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));KEY=teacherDataKey(session.teacherId);
-  const remote=await onlineAPI({action:"pull"});if(remote.ok&&remote.data){state=remote.data;localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();navigate("home")}
+  const remote=await onlineAPI({action:"pull"});if(remote.ok&&remote.data){state=remote.data;localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView()}
   hideLoginScreen();updateAccountUI();
  }).catch(()=>showLoginScreen());
 }else showLoginScreen();
