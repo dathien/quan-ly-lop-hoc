@@ -2434,7 +2434,7 @@ function loadState(){try{
   if(session.teacherId==="teacher-thien")ensureDemoClassData(s);
   return s
 }catch(e){return ensureDemoClassData(seed())}}
-function save(msg="Đã lưu"){localStorage.setItem(KEY,JSON.stringify(state));log(msg);renderClassSelect(); if(msg) toast(msg)}
+function save(msg="Đã lưu"){log(msg);localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();scheduleCloudSync();if(msg)toast(msg)}
 function log(action){state.logs=state.logs||[];state.logs.unshift({id:uid(),at:new Date().toISOString(),action});state.logs=state.logs.slice(0,500)}
 function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
 function $(q){return document.querySelector(q)}
@@ -4952,10 +4952,11 @@ function renderActivity(){
 
 function renderData(){
  const s=state.sync||{};
- $("#content").innerHTML=`<div class="grid g2"><div class=card><h3 style="margin-top:0">💾 Sao lưu & phục hồi</h3><p class=muted>Sao lưu và phục hồi dữ liệu.</p><div class=actions><button class="btn primary" onclick=exportJSON()>Xuất sao lưu JSON</button><button class=btn onclick=importJSON()>Nhập sao lưu</button><button class="btn bad" onclick=resetAll()>Đặt lại toàn bộ</button></div></div>
- <div class=card><h3 style="margin-top:0">☁️ Google Sheets / Apps Script</h3><div class=field><label>Web App URL</label><input id=syncUrl value="${esc(s.url||"")}"></div><div class=field style="margin-top:10px"><label>API key</label><input id=syncKey type=password value="${esc(s.apiKey||"")}"></div><div class=actions style="margin-top:12px"><button class=btn onclick=saveSyncConfig()>Lưu cấu hình</button><button class=btn onclick=pingSync()>Kiểm tra kết nối</button><button class="btn primary" onclick=pushSync()>Đồng bộ ngay</button><button class=btn onclick=pullSync()>Tải dữ liệu</button></div><div class=muted style="margin-top:10px">Lần đồng bộ: ${esc(s.lastSync?fmtDT(s.lastSync):"Chưa có")}</div></div></div>`;
+ const online=navigator.onLine;
+ $("#content").innerHTML=`<div class="grid g2"><div class=card><h3 style="margin-top:0">💾 Sao lưu & phục hồi</h3><p class=muted>Sao lưu thủ công để lưu trữ hoặc chuyển dữ liệu khi cần.</p><div class=actions><button class="btn primary" onclick=exportJSON()>Xuất sao lưu JSON</button><button class=btn onclick=importJSON()>Nhập sao lưu</button><button class="btn bad" onclick=resetAll()>Đặt lại toàn bộ</button></div></div>
+ <div class=card><h3 style="margin-top:0">☁️ Đồng bộ trực tuyến</h3><div><span class="badge ${online?"good":"warn"}">${online?"● Có Internet":"● Ngoại tuyến"}</span> <span class=muted>${esc(s.status||"Sẵn sàng")}</span></div><p class=muted style="margin:10px 0 12px">Dữ liệu được lưu ngay trên thiết bị và đồng bộ với Neon qua Vercel khi có Internet.</p><div class=actions><button class=btn onclick=pingSync()>Kiểm tra kết nối</button><button class="btn primary" onclick=pushSync(true)>Đồng bộ ngay</button><button class=btn onclick=pullSync(true)>Tải dữ liệu mới nhất</button></div><div class=muted style="margin-top:10px">Lần đồng bộ: ${esc(s.lastSync?fmtDT(s.lastSync):"Chưa có")}</div></div></div>`;
 }
-function exportJSON(){downloadBlob(new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),`GVCNPro_backup_${todayISO()}.json`)}
+function exportJSON(){downloadBlob(new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),`GVCN_backup_${todayISO()}.json`)}
 function importJSON(){const i=document.createElement("input");i.type="file";i.accept=".json,application/json";i.onchange=()=>{const f=i.files?.[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{state=JSON.parse(e.target.result);localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();render();toast("Đã phục hồi dữ liệu")}catch(err){toast("File sao lưu không hợp lệ")}};r.readAsText(f)};i.click()}
 
 function resetAll(){
@@ -5054,11 +5055,19 @@ function saveClassIdentityQuick(){
   toast("Đã lưu thay đổi");
 }
 
-function saveSyncConfig(){state.sync={...(state.sync||{}),url:val("syncUrl").trim(),apiKey:val("syncKey").trim()};save("Đã lưu cấu hình đồng bộ");renderData()}
-async function callAPI(body){const s=state.sync||{};if(!s.url)throw new Error("Chưa nhập Web App URL");const r=await fetch(s.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({...body,apiKey:s.apiKey||""})});return await r.json()}
-async function pingSync(){try{const x=await callAPI({action:"ping"});toast(x.ok?"Kết nối thành công":(x.message||"Kết nối thất bại"))}catch(e){toast(e.message)}}
-async function pushSync(){try{const x=await callAPI({action:"push",snapshot:{classId:state.currentClassId,updatedAt:new Date().toISOString(),schema:"GVCNPro-V37",data:state}});if(!x.ok)throw new Error(x.message||"Đồng bộ thất bại");state.sync.lastSync=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));renderData();toast("Đồng bộ thành công")}catch(e){toast(e.message)}}
-async function pullSync(){try{const x=await callAPI({action:"pull",classId:state.currentClassId});if(!x.ok)throw new Error(x.message||"Không tải được dữ liệu");const incoming=x.data?.data||x.data;if(incoming&&incoming.classes){const keep=state.sync;state=incoming;state.sync={...(state.sync||{}),...keep,lastSync:new Date().toISOString()};localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();navigate("home");toast("Đã tải dữ liệu")}else toast("Không có dữ liệu phù hợp")}catch(e){toast(e.message)}}
+const GVCN_API="/api/gvcn";
+let syncTimer=null,syncBusy=false,lastPushedHash="";
+function stateForSync(){const copy=JSON.parse(JSON.stringify(state));copy.sync={...(copy.sync||{}),status:""};return copy}
+function syncHash(){try{return JSON.stringify(stateForSync())}catch(e){return String(Date.now())}}
+function setSyncStatus(text){state.sync={...(state.sync||{}),status:text};localStorage.setItem(KEY,JSON.stringify(state))}
+async function callGvcnAPI(body){const r=await fetch(GVCN_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});let x={};try{x=await r.json()}catch(e){}if(!r.ok||x.ok===false)throw new Error(x.message||`Lỗi máy chủ (${r.status})`);return x}
+async function pingSync(){try{const x=await callGvcnAPI({action:"ping"});setSyncStatus("Kết nối Neon thành công");if(page==="data")renderData();toast(x.message||"Kết nối Neon thành công")}catch(e){setSyncStatus("Chưa kết nối được máy chủ");if(page==="data")renderData();toast(e.message)}}
+function scheduleCloudSync(){if(!navigator.onLine){setSyncStatus("Đã lưu trên thiết bị • chờ Internet");return}clearTimeout(syncTimer);syncTimer=setTimeout(()=>pushSync(false),900)}
+async function pushSync(manual=false){if(syncBusy||!navigator.onLine){if(manual&&!navigator.onLine)toast("Thiết bị đang ngoại tuyến");return}const h=syncHash();if(!manual&&h===lastPushedHash)return;syncBusy=true;setSyncStatus("Đang đồng bộ…");try{const x=await callGvcnAPI({action:"push",teacherId:session.teacherId,schema:"GVCN-MULTI-V1",data:stateForSync()});lastPushedHash=h;state.sync={...(state.sync||{}),lastSync:x.updatedAt||new Date().toISOString(),status:"Đã đồng bộ"};localStorage.setItem(KEY,JSON.stringify(state));if(manual)toast("Đồng bộ thành công")}catch(e){setSyncStatus("Đã lưu trên thiết bị • chưa đồng bộ");if(manual)toast(e.message)}finally{syncBusy=false;if(page==="data")renderData()}}
+async function pullSync(manual=false){if(!navigator.onLine){if(manual)toast("Thiết bị đang ngoại tuyến");return false}try{const x=await callGvcnAPI({action:"pull",teacherId:session.teacherId});if(x.data&&Array.isArray(x.data.classes)){const keep=state.sync||{};state=x.data;state.sync={...(state.sync||{}),...keep,lastSync:x.updatedAt||new Date().toISOString(),status:"Đã tải dữ liệu mới nhất"};localStorage.setItem(KEY,JSON.stringify(state));lastPushedHash=syncHash();renderClassSelect();updateSidebarClassIdentity();updateAccountUI();render();if(manual)toast("Đã tải dữ liệu mới nhất");return true}if(manual)toast("Máy chủ chưa có dữ liệu cho giáo viên này");return false}catch(e){if(manual)toast(e.message);return false}}
+async function bootstrapCloud(){if(!navigator.onLine)return;try{const x=await callGvcnAPI({action:"pull",teacherId:session.teacherId});if(x.data&&Array.isArray(x.data.classes)){const remote=Date.parse(x.updatedAt||0)||0,local=Date.parse(state.sync?.lastSync||0)||0;if(remote>local){const keep=state.sync||{};state=x.data;state.sync={...(state.sync||{}),...keep,lastSync:x.updatedAt||new Date().toISOString(),status:"Đã đồng bộ"};localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();updateSidebarClassIdentity();updateAccountUI();render()}lastPushedHash=syncHash()}else scheduleCloudSync()}catch(e){setSyncStatus("Đang dùng dữ liệu trên thiết bị")}}
+window.addEventListener("online",()=>{setSyncStatus("Đã có Internet • đang đồng bộ");bootstrapCloud()});
+window.addEventListener("offline",()=>setSyncStatus("Đã lưu trên thiết bị • chờ Internet"));
 
 
 function statusBadge(done,doneText="Hoàn thành",openText="Chưa hoàn thành"){
@@ -5088,6 +5097,7 @@ function downloadCSV(rows,name){const csv=rows.map(r=>r.map(v=>`"${String(v??"")
 
 setupCompactSidebar();
 updateAccountUI();renderClassSelect();navigate("home");
+setTimeout(()=>bootstrapCloud(),500);
 </script>
 
 
