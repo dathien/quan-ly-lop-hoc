@@ -114,6 +114,28 @@ async function ensureAdminWorkspace(adminId,fullName="HỒ NGUYỄN ĐA THIỆN"
 const ROOT_ADMIN_HASH = "scrypt$9cbec84d652a3c956e9631c844aab6b2$e373b35b00f4e2ac45820e1fa5a185570a31523ce1d0fbd611d1f7049d9fd59836b48a94cfe6d0af6f3a903048b31d0fdc05e93635516d1ec61af7b2fd4f745a";
 const ROOT_ADMIN_MIGRATION = 1;
 
+async function restoreLegacyAdminMembers(adminId,workspaceId){
+  const legacyWorkspaceId=stableUuid("workspace:teacher-thien");
+  const candidates=await sql`
+    SELECT DISTINCT u.id,wm.role,wm.active
+    FROM public.gvcn_workspace_members wm
+    JOIN public.gvcn_users u ON u.id=wm.user_id
+    JOIN public.gvcn_workspaces w ON w.id=wm.workspace_id
+    WHERE u.id<>${adminId}::uuid
+      AND u.role='assistant'
+      AND u.account_type='assistant'
+      AND (wm.workspace_id=${legacyWorkspaceId}::uuid OR w.owner_user_id=${adminId}::uuid)
+    ORDER BY u.id
+    LIMIT 3`;
+  for(const m of candidates){
+    await sql`INSERT INTO public.gvcn_workspace_members(workspace_id,user_id,role,active)
+              VALUES(${workspaceId}::uuid,${m.id}::uuid,${m.role},${m.active!==false})
+              ON CONFLICT(workspace_id,user_id) DO UPDATE
+              SET role=EXCLUDED.role,active=EXCLUDED.active,updated_at=NOW()`;
+  }
+  return candidates.length;
+}
+
 async function ensureRootAdminMigration(){
   const fixedId=stableUuid("user:teacher-thien");
   let candidates=await sql`
@@ -175,7 +197,8 @@ async function ensureRootAdminMigration(){
               SET full_name='HỒ NGUYỄN ĐA THIỆN',username='admin',role='admin',account_type='teacher',active=TRUE,updated_at=NOW()
               WHERE id=${adminId}::uuid`;
   }
-  await ensureAdminWorkspace(adminId,"HỒ NGUYỄN ĐA THIỆN");
+  const adminWorkspaceId=await ensureAdminWorkspace(adminId,"HỒ NGUYỄN ĐA THIỆN");
+  await restoreLegacyAdminMembers(adminId,adminWorkspaceId);
   return adminId;
 }
 export default async function handler(req,res){
@@ -275,7 +298,10 @@ export default async function handler(req,res){
 
     if(action==="list_members"){
       if(!user.workspace_id)return json(res,403,{ok:false,message:"Tài khoản chưa được cấp không gian dữ liệu"});
-      if(user.role==="admin")await ensureAdminWorkspace(user.id,user.full_name);
+      if(user.role==="admin"){
+        const adminWorkspaceId=await ensureAdminWorkspace(user.id,user.full_name);
+        await restoreLegacyAdminMembers(user.id,adminWorkspaceId);
+      }
       const rows=await sql`
         SELECT u.id,u.full_name,u.username,u.phone,u.active,u.role AS system_role,wm.role AS workspace_role
         FROM public.gvcn_workspace_members wm
