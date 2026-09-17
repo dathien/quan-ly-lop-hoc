@@ -184,6 +184,93 @@ export default async function handler(req,res){
       return json(res,200,{ok:true,teacher:{id:teacherId,name:fullName,username,workspaceId,classId,className,schoolYear,assistants:createdAssistants}});
     }
 
+
+    if(action==="list_members"){
+      if(!user.workspace_id)return json(res,403,{ok:false,message:"Tài khoản chưa được cấp không gian dữ liệu"});
+      const rows=await sql`
+        SELECT u.id,u.full_name,u.username,u.phone,u.active,u.role AS system_role,wm.role AS workspace_role
+        FROM public.gvcn_workspace_members wm
+        JOIN public.gvcn_users u ON u.id=wm.user_id
+        WHERE wm.workspace_id=${user.workspace_id}::uuid
+        ORDER BY CASE WHEN wm.role='teacher' THEN 0 ELSE 1 END, wm.created_at`;
+      return json(res,200,{ok:true,members:rows.map(m=>({
+        id:m.id,name:m.full_name,username:m.username||"",phone:m.phone||"",active:m.active!==false,
+        systemRole:m.system_role,workspaceRole:m.workspace_role,role:roleLabel(m.workspace_role)
+      }))});
+    }
+
+    if(action==="create_member"){
+      if(user.role!=="teacher" && user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ giáo viên được thêm thành viên"});
+      if(!user.workspace_id)return json(res,403,{ok:false,message:"Chưa có không gian dữ liệu"});
+      const count=await sql`SELECT COUNT(*)::int AS n FROM public.gvcn_workspace_members WHERE workspace_id=${user.workspace_id}::uuid AND role<>'teacher'`;
+      if((count[0]?.n||0)>=3)return json(res,400,{ok:false,message:"Mỗi giáo viên tối đa 3 tài khoản hỗ trợ"});
+      const m=body.member||{},name=String(m.name||"").trim(),username=String(m.username||"").trim().toLowerCase(),
+            password=String(m.password||""),phone=String(m.phone||"").trim(),wr=roleDb(String(m.role||""));
+      if(!name||!username||!password)return json(res,400,{ok:false,message:"Nhập họ tên, tài khoản và mật khẩu"});
+      if(!/^[a-z0-9._-]{3,32}$/.test(username))return json(res,400,{ok:false,message:"Tài khoản không hợp lệ"});
+      const exists=await sql`SELECT id FROM public.gvcn_users WHERE lower(username)=${username} LIMIT 1`;
+      if(exists.length)return json(res,409,{ok:false,message:"Tài khoản đã tồn tại"});
+      const id=crypto.randomUUID();
+      await sql`INSERT INTO public.gvcn_users(id,full_name,username,password_hash,phone,role,account_type,active)
+                VALUES(${id}::uuid,${name},${username},${hashPassword(password)},${phone},'assistant','assistant',TRUE)`;
+      await sql`INSERT INTO public.gvcn_workspace_members(workspace_id,user_id,role,active)
+                VALUES(${user.workspace_id}::uuid,${id}::uuid,${wr},TRUE)`;
+      return json(res,200,{ok:true,message:"Đã thêm thành viên"});
+    }
+
+    if(action==="update_member"){
+      if(user.role!=="teacher" && user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ giáo viên được sửa thành viên"});
+      const id=String(body.id||""),m=body.member||{};
+      const target=(await sql`
+        SELECT u.id,u.role AS system_role,wm.role AS workspace_role
+        FROM public.gvcn_workspace_members wm JOIN public.gvcn_users u ON u.id=wm.user_id
+        WHERE wm.workspace_id=${user.workspace_id}::uuid AND u.id=${id}::uuid LIMIT 1`)[0];
+      if(!target)return json(res,404,{ok:false,message:"Không tìm thấy thành viên"});
+      const name=String(m.name||"").trim(),phone=String(m.phone||"").trim(),
+            username=String(m.username||"").trim().toLowerCase(),password=String(m.password||"");
+      if(!name||!username)return json(res,400,{ok:false,message:"Nhập họ tên và tài khoản"});
+      const dup=await sql`SELECT id FROM public.gvcn_users WHERE lower(username)=${username} AND id<>${id}::uuid LIMIT 1`;
+      if(dup.length)return json(res,409,{ok:false,message:"Tài khoản đã tồn tại"});
+      if(password){
+        await sql`UPDATE public.gvcn_users SET full_name=${name},username=${username},phone=${phone},password_hash=${hashPassword(password)},updated_at=NOW() WHERE id=${id}::uuid`;
+      }else{
+        await sql`UPDATE public.gvcn_users SET full_name=${name},username=${username},phone=${phone},updated_at=NOW() WHERE id=${id}::uuid`;
+      }
+      if(target.workspace_role!=="teacher"){
+        await sql`UPDATE public.gvcn_workspace_members SET role=${roleDb(String(m.role||""))},updated_at=NOW()
+                  WHERE workspace_id=${user.workspace_id}::uuid AND user_id=${id}::uuid`;
+      }
+      return json(res,200,{ok:true,message:"Đã sửa thành viên"});
+    }
+
+    if(action==="toggle_member"){
+      if(user.role!=="teacher" && user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ giáo viên được khóa hoặc mở khóa thành viên"});
+      const id=String(body.id||"");
+      const target=(await sql`
+        SELECT wm.role FROM public.gvcn_workspace_members wm
+        WHERE wm.workspace_id=${user.workspace_id}::uuid AND wm.user_id=${id}::uuid LIMIT 1`)[0];
+      if(!target)return json(res,404,{ok:false,message:"Không tìm thấy thành viên"});
+      if(target.role==="teacher")return json(res,400,{ok:false,message:"Không khóa tài khoản giáo viên chính tại đây"});
+      const active=!!body.active;
+      await sql`UPDATE public.gvcn_users SET active=${active},updated_at=NOW() WHERE id=${id}::uuid`;
+      await sql`UPDATE public.gvcn_workspace_members SET active=${active},updated_at=NOW() WHERE workspace_id=${user.workspace_id}::uuid AND user_id=${id}::uuid`;
+      return json(res,200,{ok:true,message:active?"Đã mở khóa tài khoản":"Đã khóa tài khoản"});
+    }
+
+    if(action==="delete_member"){
+      if(user.role!=="teacher" && user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ giáo viên được xóa thành viên"});
+      const id=String(body.id||"");
+      const target=(await sql`
+        SELECT wm.role FROM public.gvcn_workspace_members wm
+        WHERE wm.workspace_id=${user.workspace_id}::uuid AND wm.user_id=${id}::uuid LIMIT 1`)[0];
+      if(!target)return json(res,404,{ok:false,message:"Không tìm thấy thành viên"});
+      if(target.role==="teacher")return json(res,400,{ok:false,message:"Không thể xóa giáo viên chính"});
+      const count=await sql`SELECT COUNT(*)::int AS n FROM public.gvcn_workspace_members WHERE workspace_id=${user.workspace_id}::uuid AND role<>'teacher'`;
+      if((count[0]?.n||0)<=2)return json(res,400,{ok:false,message:"Phải giữ ít nhất 2 tài khoản hỗ trợ"});
+      await sql`DELETE FROM public.gvcn_users WHERE id=${id}::uuid`;
+      return json(res,200,{ok:true,message:"Đã xóa thành viên"});
+    }
+
     if(!user.workspace_id)return json(res,403,{ok:false,message:"Tài khoản chưa được cấp không gian dữ liệu"});
     const snapId=await snapshotClassId(user.workspace_id);
 
