@@ -2421,11 +2421,18 @@ function allLoginUsers(){
  });
  return out;
 }
+let LOGIN_USER_INITIATED=false;
 function showLoginScreen(){
+ if(!LOGIN_USER_INITIATED)return;
+
  AUTHENTICATED=false;
  const s=document.getElementById("loginScreen"),app=document.getElementById("mainApp");
  if(s)s.style.display="flex";if(app)app.style.visibility="hidden";
  setTimeout(()=>document.getElementById("mainLoginUser")?.focus(),80);
+}
+function requestLogin(){
+ LOGIN_USER_INITIATED=true;
+ try{showLoginScreen()}finally{LOGIN_USER_INITIATED=false}
 }
 function hideLoginScreen(){
  const s=document.getElementById("loginScreen"),app=document.getElementById("mainApp");
@@ -2650,7 +2657,7 @@ function isGuestMode(){return !AUTHENTICATED}
 function requireLoginToEdit(){
  if(!isGuestMode())return true;
  toast("Vui lòng đăng nhập để chỉnh sửa");
- showLoginScreen();
+ requestLogin();
  return false;
 }
 function updateGuestUI(){
@@ -5637,8 +5644,19 @@ document.addEventListener("change",function(e){
 document.addEventListener("click",function(e){
  const b=e.target.closest("#accountBtn");
  if(!b||!isGuestMode())return;
- e.preventDefault();e.stopImmediatePropagation();showLoginScreen();
+ e.preventDefault();e.stopImmediatePropagation();requestLogin();
 },true);
+
+// V38.70 invariant: khách luôn ở trong app; session lỗi/hết hạn không được mở màn hình đăng nhập.
+function enforceGuestView(){
+ if(!AUTHENTICATED){
+   try{hideLoginScreen()}catch(e){}
+   try{updateGuestUI()}catch(e){}
+ }
+}
+window.addEventListener("load",()=>setTimeout(enforceGuestView,50));
+window.addEventListener("focus",()=>setTimeout(enforceGuestView,0));
+
 </script>
 
 </body>
