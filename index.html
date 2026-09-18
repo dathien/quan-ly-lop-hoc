@@ -2042,7 +2042,8 @@ input,select,textarea{
 </style>
 
 <!-- GVCN V38.59: admin đúng tài khoản + giao diện Google/Gmail + quên mật khẩu -->
-<script>window.GVCN_BUILD="38.75";</script>
+<script>window.GVCN_BUILD="38.75";console.info("GVCN build 38.77 • root registry consolidated");
+</script>
 </head>
 <body>
 
@@ -2165,12 +2166,41 @@ function normalizeRegistry(a){
  });
  return a;
 }
+function rootNameKey(v){
+ return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/gi,"d").replace(/[^a-z0-9]/gi,"").toLowerCase();
+}
+function consolidateRootAdminRegistry(list){
+ const a=Array.isArray(list)?list.filter(Boolean):[];
+ let live=null;try{live=JSON.parse(sessionStorage.getItem(SESSION_KEY)||"null")}catch(e){}
+ const rootKey=rootNameKey("HỒ NGUYỄN ĐA THIỆN");
+ const roots=a.filter(t=>t&&(t.id==="teacher-thien"||t.isAdmin===true||String(t.username||"").toLowerCase()==="admin"||rootNameKey(t.name)===rootKey));
+ if(roots.length<=1)return a;
+ const canonical=roots.find(t=>live?.teacherId&&t.id===live.teacherId)
+   || roots.find(t=>String(t.username||"").toLowerCase()==="admin")
+   || roots.slice().sort((x,y)=>(y.assistants||[]).length-(x.assistants||[]).length)[0];
+ const assistants=[],seen=new Set();
+ roots.forEach(t=>(t.assistants||[]).forEach(m=>{
+   const k=String(m.id||m.username||rootNameKey(m.name));
+   if(!seen.has(k)){seen.add(k);assistants.push(m)}
+ }));
+ canonical.name="HỒ NGUYỄN ĐA THIỆN";
+ canonical.username="admin";
+ canonical.isAdmin=true;
+ canonical.assistants=assistants;
+ return [canonical,...a.filter(t=>!roots.includes(t))];
+}
 function teacherRegistry(){
  try{
-   const a=JSON.parse(localStorage.getItem(TEACHERS_KEY));
-   if(Array.isArray(a)&&a.length){normalizeRegistry(a);localStorage.setItem(TEACHERS_KEY,JSON.stringify(a));return a}
+   let a=JSON.parse(localStorage.getItem(TEACHERS_KEY));
+   if(Array.isArray(a)&&a.length){
+     a=consolidateRootAdminRegistry(a);
+     normalizeRegistry(a);
+     localStorage.setItem(TEACHERS_KEY,JSON.stringify(a));
+     return a;
+   }
  }catch(e){}
- const a=normalizeRegistry(defaultTeacherRegistry());localStorage.setItem(TEACHERS_KEY,JSON.stringify(a));return a;
+ let a=consolidateRootAdminRegistry(defaultTeacherRegistry());
+ normalizeRegistry(a);localStorage.setItem(TEACHERS_KEY,JSON.stringify(a));return a;
 }
 function currentSession(){
  try{const s=JSON.parse(sessionStorage.getItem(SESSION_KEY));if(s&&s.teacherId)return s}catch(e){}
@@ -2488,7 +2518,8 @@ async function mainLogin(){
    sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;
    // Bổ sung hồ sơ chủ workspace vào registry cục bộ để app tạo trạng thái đúng khi máy mới chưa có dữ liệu.
    const reg=teacherRegistry();let t=reg.find(v=>v.id===session.teacherId);
-   if(!t){t={id:session.teacherId,name:u.teacherName||u.name,username:u.isAdmin?u.username:"",password:"",assistants:[]};reg.push(t);persistRegistry(reg)}
+   if(!t){t={id:session.teacherId,name:u.teacherName||u.name,username:u.isAdmin?u.username:"",password:"",assistants:[]};reg.push(t)}
+   persistRegistry(consolidateRootAdminRegistry(reg));
    KEY=teacherDataKey(session.teacherId);
    state=loadState();
    if(err)err.textContent="";
@@ -2524,8 +2555,7 @@ function updateAccountUI(){
 }
 function persistRegistry(arr){localStorage.setItem(TEACHERS_KEY,JSON.stringify(arr))}
 function openAccountSwitcher(){
- const raw=teacherRegistry(),p=activeTeacher(),seen=new Set();
- const reg=raw.filter(t=>{const key=(t.id===session.teacherId||String(t.username||"").toLowerCase()==="admin")&&String(t.name||"").toUpperCase().includes("HỒ NGUYỄN ĐA THIỆN")?"ROOT_ADMIN":String(t.id||t.username||t.name);if(seen.has(key))return false;seen.add(key);return true});
+ const reg=teacherRegistry(),p=activeTeacher();
  modal(`<h3>👥 Không gian đa giáo viên</h3>
  <div class=account-current><b>Đang sử dụng:</b> ${esc(session.name||"")} <span class=badge>${esc(session.role||"")}</span><div class=muted style="margin-top:4px">Không gian dữ liệu: ${esc(p?.name||"")}. Dữ liệu của từng giáo viên được tách riêng trên trình duyệt này.</div></div>
  <div class=teacher-list>${reg.map(t=>`<div class=teacher-row><div><b>${esc(t.name)}</b><small>1 giáo viên + ${(t.assistants||[]).length} bạn hỗ trợ</small></div><div class=actions><button class="btn sm" onclick="openWorkspaceLogin('${t.id}')">${t.id===session.teacherId?"Đổi người dùng":"Đăng nhập"}</button>${isTeacherAccount()&&t.id!=="teacher-thien"?`<button class="btn sm bad" onclick="deleteTeacherWorkspace('${t.id}')">Xóa GV</button>`:""}</div></div>`).join("")}</div>
