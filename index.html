@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title> Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -80,6 +80,8 @@ tr:last-child td{border-bottom:0}
 }
 @media print{.sidebar,.topbar,.no-print,.btn{display:none!important}.app{display:block}.content{padding:0}.card{box-shadow:none}}
 .perm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.perm-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #dbe4ee;border-radius:10px;background:#fff}.perm-item input{width:17px;height:17px}@media(max-width:700px){.perm-grid{grid-template-columns:1fr}}
+
+body.guest-mode .edit-only{opacity:.55}.guest-view-note{display:none}body.guest-mode .guest-view-note{display:inline-flex}
 </style>
 
 <style id="gvcnpro-v371-ui-refine">
@@ -2473,11 +2475,15 @@ async function mainLogin(){
    const reg=teacherRegistry();let t=reg.find(v=>v.id===session.teacherId);
    if(!t){t={id:session.teacherId,name:u.teacherName||u.name,username:u.isAdmin?u.username:"",password:"",assistants:[]};reg.push(t);persistRegistry(reg)}
    KEY=teacherDataKey(session.teacherId);
-   const remote=await onlineAPI({action:"pull"});
-   if(remote.ok&&remote.data){state=remote.data;localStorage.setItem(KEY,JSON.stringify(state))}
-   else state=loadState();
+   state=loadState();
    if(err)err.textContent="";
    hideLoginScreen();updateAccountUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${u.name}`);
+   // Không bắt người dùng chờ tải toàn bộ dữ liệu Neon. Đồng bộ chạy nền sau khi đã vào app.
+   onlineAPI({action:"pull"}).then(remote=>{
+     if(remote.ok&&remote.data&&remote.data.classes){
+       state=remote.data;localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();
+     }
+   }).catch(()=>{});
  }catch(e){if(err)err.textContent=e.message||"Không thể đăng nhập"}
  finally{if(btn){btn.disabled=false;btn.textContent="Đăng nhập"}}
 }
@@ -2501,7 +2507,8 @@ function updateAccountUI(){
 }
 function persistRegistry(arr){localStorage.setItem(TEACHERS_KEY,JSON.stringify(arr))}
 function openAccountSwitcher(){
- const reg=teacherRegistry(),p=activeTeacher();
+ const raw=teacherRegistry(),p=activeTeacher(),seen=new Set();
+ const reg=raw.filter(t=>{const key=(t.id===session.teacherId||String(t.username||"").toLowerCase()==="admin")&&String(t.name||"").toUpperCase().includes("HỒ NGUYỄN ĐA THIỆN")?"ROOT_ADMIN":String(t.id||t.username||t.name);if(seen.has(key))return false;seen.add(key);return true});
  modal(`<h3>👥 Không gian đa giáo viên</h3>
  <div class=account-current><b>Đang sử dụng:</b> ${esc(session.name||"")} <span class=badge>${esc(session.role||"")}</span><div class=muted style="margin-top:4px">Không gian dữ liệu: ${esc(p?.name||"")}. Dữ liệu của từng giáo viên được tách riêng trên trình duyệt này.</div></div>
  <div class=teacher-list>${reg.map(t=>`<div class=teacher-row><div><b>${esc(t.name)}</b><small>1 giáo viên + ${(t.assistants||[]).length} bạn hỗ trợ</small></div><div class=actions><button class="btn sm" onclick="openWorkspaceLogin('${t.id}')">${t.id===session.teacherId?"Đổi người dùng":"Đăng nhập"}</button>${isTeacherAccount()&&t.id!=="teacher-thien"?`<button class="btn sm bad" onclick="deleteTeacherWorkspace('${t.id}')">Xóa GV</button>`:""}</div></div>`).join("")}</div>
@@ -2636,11 +2643,29 @@ const titles={
  data:["Dữ liệu & Sao lưu","Sao lưu và đồng bộ dữ liệu"]
 };
 
+
+function isGuestMode(){return !AUTHENTICATED}
+function requireLoginToEdit(){
+ if(!isGuestMode())return true;
+ toast("Vui lòng đăng nhập để chỉnh sửa");
+ showLoginScreen();
+ return false;
+}
+function updateGuestUI(){
+ document.body.classList.toggle("guest-mode",isGuestMode());
+ const btn=document.getElementById("accountBtn");
+ if(btn&&isGuestMode())btn.textContent="🔐 Đăng nhập";
+ let note=document.getElementById("guestViewNote");
+ if(isGuestMode()&&btn&&!note){note=document.createElement("span");note.id="guestViewNote";note.className="badge";note.textContent="👁 Chế độ chỉ xem";btn.parentNode.insertBefore(note,btn)}
+ if(note)note.style.display=isGuestMode()?"inline-flex":"none";
+}
+
 function areaForPage(p){
  const a=MEMBER_AREAS.find(x=>x.pages.includes(p));
  return a?.id||null;
 }
 function canAccessPage(p){
+ if(isGuestMode())return true;
  if(isFullAccessAccount())return true;
  const area=areaForPage(p);
  if(!area)return true;
@@ -2829,6 +2854,31 @@ function rankRows(){
  }).sort((a,b)=>b.score-a.score||b.positive-a.positive||a.violations-b.violations||a.s.name.localeCompare(b.s.name,"vi"))
 }
 
+function groupCompetitionRows(x1,x2){
+ const rules=state.disciplineRules||DEFAULT_RULES,groups=[...new Set(classStudents().map(x=>x.group||"Chưa xếp tổ"))];
+ return groups.map(group=>{
+  const ids=new Set(classStudents().filter(x=>(x.group||"Chưa xếp tổ")===group).map(x=>x.id));
+  let plus=0,minus=0;
+  byClass(state.positive).filter(x=>ids.has(x.studentId)&&x.date>=x1&&x.date<=x2).forEach(x=>plus+=Number(x.points||0));
+  byClass(state.attendance).filter(x=>ids.has(x.studentId)&&x.date>=x1&&x.date<=x2).forEach(x=>{
+   if(x.status==="Đi trễ")minus+=Math.abs(Number(rules.late||0));
+   if(x.status==="Vắng phép")minus+=Math.abs(Number(rules.excused||0));
+   if(x.status==="Vắng không phép")minus+=Math.abs(Number(rules.unexcused||0));
+   if(x.status==="Về sớm")minus+=Math.abs(Number(rules.early||0));
+  });
+  byClass(state.incidents).filter(x=>ids.has(x.studentId)&&x.date>=x1&&x.date<=x2).forEach(x=>{
+   const v=x.level==="Nghiêm trọng"?rules.incidentSerious:x.level==="Cần lưu ý"?rules.incidentAttention:rules.incidentReminder;
+   minus+=Math.abs(Number(v||0));
+  });
+  return {group,plus,minus,score:plus-minus};
+ }).sort((a,b)=>b.score-a.score||b.plus-a.plus||a.group.localeCompare(b.group,"vi"));
+}
+function groupCompetitionBoard(x1,x2){
+ const rows=groupCompetitionRows(x1,x2);
+ return `<div class=card style="margin-top:15px"><div class=section-head><div><h3>🏆 Xếp hạng thi đua Tổ/Nhóm</h3><div class=muted>${fmtDate(x1)} – ${fmtDate(x2)} • tự tổng hợp từ chuyên cần, vi phạm và điểm tích cực</div></div></div>
+ <div class=table-wrap><table><thead><tr><th>Hạng</th><th>Tổ/Nhóm</th><th>Điểm cộng</th><th>Điểm trừ</th><th>Điểm thi đua</th></tr></thead><tbody>${rows.map((x,i)=>`<tr><td><b>${i===0?"🥇":i===1?"🥈":i===2?"🥉":i+1}</b></td><td><b>${esc(x.group)}</b></td><td>+${x.plus}</td><td>-${x.minus}</td><td><b>${x.score}</b></td></tr>`).join("")||`<tr><td colspan=5 class=empty>Chưa có dữ liệu thi đua.</td></tr>`}</tbody></table></div></div>`;
+}
+
 function rankBoard(){
  const r=getRankRange(),rows=rankRows(),top=rows.slice(0,3);
  return `<div class="card honor-board" style="margin-top:15px">
@@ -2922,6 +2972,7 @@ function rankBoard(){
      ${honorPerson(top[0],1)}
      ${honorPerson(top[2],3)}
    </div>
+   ${groupCompetitionBoard(r.x1,r.x2)}
  </div>`;
 }
 
@@ -3939,6 +3990,17 @@ function saveScore(id=""){
 }
 
 let disciplineTab="attendance";
+let attendanceDate=todayISO();
+let reportWeekDate=todayISO();
+
+function shiftISODate(iso,days){
+ const d=new Date((iso||todayISO())+"T12:00:00");d.setDate(d.getDate()+days);
+ return new Date(d.getFullYear(),d.getMonth(),d.getDate()-d.getTimezoneOffset()/1440).toISOString().slice(0,10);
+}
+function attendanceDoneMap(){const c=curClass();c.attendanceDoneDates=c.attendanceDoneDates||{};if(c.attendanceDoneDate)c.attendanceDoneDates[c.attendanceDoneDate]=true;return c.attendanceDoneDates}
+function isAttendanceDone(d){return !!attendanceDoneMap()[d]}
+function setAttendanceDate(d){attendanceDate=d||todayISO();renderDisciplineAttendance()}
+function moveAttendanceDate(n){attendanceDate=shiftISODate(attendanceDate,n);renderDisciplineAttendance()}
 let concernFilter="all";
 
 function renderDiscipline(){
@@ -3962,15 +4024,27 @@ function renderDiscipline(){
 }
 
 function renderDisciplineAttendance(){
-  const d=todayISO(), pane=$("#disciplinePane");
+  const d=attendanceDate||todayISO(), pane=$("#disciplinePane"),done=isAttendanceDone(d),isToday=d===todayISO();
+  const dayRows=byClass(state.attendance).filter(x=>x.date===d);
+  const present=dayRows.filter(x=>x.status==="Có mặt").length;
+  const absent=dayRows.filter(x=>["Vắng phép","Vắng không phép"].includes(x.status)).length;
+  const late=dayRows.filter(x=>x.status==="Đi trễ").length;
   pane.innerHTML=`<div class=card>
-    <div class=section-head><div><h3>Điểm danh hôm nay</h3><div class=muted>${fmtDate(d)}</div></div><div class=actions><span class=badge>${classStudents().length} học sinh</span><button class="btn ${curClass().attendanceDoneDate===d?"warn":"good"}" onclick="toggleAttendanceDayDone('${d}')">${curClass().attendanceDoneDate===d?"Mở lại":"✓ Xác nhận điểm danh"}</button></div></div>
+    <div class=section-head>
+      <div><h3>Sổ điểm danh theo ngày</h3><div class=muted>${isToday?"Hôm nay • ":""}${fmtDate(d)} • Có mặt ${present} • Vắng ${absent} • Đi trễ ${late}</div></div>
+      <div class=actions>
+        <button class=btn onclick="moveAttendanceDate(-1)">← Ngày trước</button>
+        <input type=date value="${d}" onchange="setAttendanceDate(this.value)" style="width:auto">
+        <button class=btn onclick="moveAttendanceDate(1)">Ngày sau →</button>
+        ${!isToday?`<button class=btn onclick="setAttendanceDate('${todayISO()}')">Hôm nay</button>`:""}
+        <button class="btn ${done?"warn":"good"}" onclick="toggleAttendanceDayDone('${d}')">${done?"Mở lại":"✓ Xác nhận điểm danh"}</button>
+      </div>
+    </div>
     <div class=table-wrap><table><thead><tr><th>Học sinh</th><th>Tổ</th><th>Trạng thái</th><th style="min-width:220px">Lý do</th></tr></thead><tbody>
-      ${classStudents().map(s=>{const a=byClass(state.attendance).find(x=>x.studentId===s.id&&x.date===d);return`<tr><td><b>${esc(s.name)}</b></td><td>${esc(s.group||"")}</td><td><select onchange="setAttendance('${s.id}',this.value)">${["","Có mặt","Đi trễ","Vắng phép","Vắng không phép","Về sớm"].map(x=>`<option ${a?.status===x?"selected":""}>${x||"Chọn trạng thái"}</option>`).join("")}</select></td><td><input class=attendance-reason value="${esc(a?.reason||"")}" placeholder="Nhập lý do nếu cần..." onchange="setAttendanceReason('${s.id}',this.value)" ${a?"":"disabled"}></td></tr>`}).join("")||`<tr><td colspan=4 class=empty>Chưa có học sinh.</td></tr>`}
+      ${classStudents().map(st=>{const a=dayRows.find(x=>x.studentId===st.id);return`<tr><td><b>${esc(st.name)}</b></td><td>${esc(st.group||"")}</td><td><select ${done?"disabled":""} onchange="setAttendance('${st.id}',this.value)">${["","Có mặt","Đi trễ","Vắng phép","Vắng không phép","Về sớm"].map(x=>`<option ${a?.status===x?"selected":""}>${x||"Chọn trạng thái"}</option>`).join("")}</select></td><td><input class=attendance-reason value="${esc(a?.reason||"")}" placeholder="Nhập lý do nếu cần..." onchange="setAttendanceReason('${st.id}',this.value)" ${(!a||done)?"disabled":""}></td></tr>`}).join("")||`<tr><td colspan=4 class=empty>Chưa có học sinh.</td></tr>`}
     </tbody></table></div>
   </div>`;
 }
-
 function renderDisciplineRecord(){
   const pane=$("#disciplinePane");
   pane.innerHTML=`<div class="grid g2">
@@ -4219,10 +4293,14 @@ function renderDisciplineHistory(){
   pane.innerHTML=`<div class=card><div class=table-wrap><table><thead><tr><th>Ngày</th><th>Học sinh</th><th>Nhóm</th><th>Nội dung</th><th>Thao tác</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${fmtDate(x.date)}</td><td>${esc(state.students.find(s=>s.id===x.studentId)?.name||"")}</td><td>${esc(x.type)}</td><td>${esc(x.text)}</td><td><div class=actions><button class="btn sm" onclick="editDisciplineEvent('${x.type}','${x.id||""}','${x.studentId}','${x.date}')">Sửa</button><button class="btn sm bad" onclick="deleteDisciplineEvent('${x.type}','${x.id||""}','${x.studentId}','${x.date}')">Xóa</button></div></td></tr>`).join("")||`<tr><td colspan=5 class=empty>Chưa có lịch sử nề nếp.</td></tr>`}</tbody></table></div></div>`;
 }
 
-function toggleAttendanceDayDone(d){curClass().attendanceDoneDate=curClass().attendanceDoneDate===d?"":d;localStorage.setItem(KEY,JSON.stringify(state));log(curClass().attendanceDoneDate===d?"Đã xác nhận điểm danh":"Đã mở lại điểm danh");localStorage.setItem(KEY,JSON.stringify(state));refreshCurrentView();toast(curClass().attendanceDoneDate===d?"Đã xác nhận điểm danh":"Đã mở lại điểm danh")}
+function toggleAttendanceDayDone(d){
+ const map=attendanceDoneMap();map[d]=!map[d];if(!map[d])delete map[d];
+ log(map[d]?"Đã xác nhận điểm danh":"Đã mở lại điểm danh");save("");renderDisciplineAttendance();
+ toast(map[d]?"Đã xác nhận điểm danh":"Đã mở lại điểm danh");
+}
 function setAttendance(studentId,status){
- if(curClass().attendanceDoneDate===todayISO()){toast("Điểm danh hôm nay đã hoàn thành. Hãy mở lại để chỉnh.");renderDiscipline();return}
- const date=todayISO();
+ const date=attendanceDate||todayISO();
+ if(isAttendanceDone(date)){toast("Ngày này đã xác nhận điểm danh. Hãy mở lại để chỉnh.");return}
  const old=state.attendance.find(x=>x.classId===state.currentClassId&&x.studentId===studentId&&x.date===date);
  const reason=old?.reason||"";
  state.attendance=state.attendance.filter(x=>!(x.classId===state.currentClassId&&x.studentId===studentId&&x.date===date));
@@ -4230,11 +4308,11 @@ function setAttendance(studentId,status){
  save("Đã cập nhật điểm danh");renderDisciplineAttendance();
 }
 function setAttendanceReason(studentId,reason){
- if(curClass().attendanceDoneDate===todayISO()){toast("Điểm danh hôm nay đã hoàn thành. Hãy mở lại để chỉnh.");renderDiscipline();return}
- const a=state.attendance.find(x=>x.classId===state.currentClassId&&x.studentId===studentId&&x.date===todayISO());
+ const date=attendanceDate||todayISO();
+ if(isAttendanceDone(date)){toast("Ngày này đã xác nhận điểm danh. Hãy mở lại để chỉnh.");return}
+ const a=state.attendance.find(x=>x.classId===state.currentClassId&&x.studentId===studentId&&x.date===date);
  if(!a)return toast("Hãy chọn trạng thái trước khi nhập lý do");
- a.reason=String(reason||"").trim();
- save("Đã lưu lý do điểm danh");
+ a.reason=String(reason||"").trim();save("Đã lưu lý do điểm danh");
 }
 function openIncidentForm(){modal(`<h3>Ghi nhận nề nếp</h3><div class=form-grid><div class=field><label>Học sinh</label><select id=nStudent>${studentOptions()}</select></div><div class=field><label>Loại</label><select id=nKind onchange="document.getElementById('nLevelWrap').style.display=this.value==='Vi phạm'?'block':'none'"><option>Vi phạm</option><option>Tích cực</option></select></div><div class=field id=nLevelWrap><label>Mức vi phạm</label><select id=nLevel><option>Nhắc nhở</option><option>Cần lưu ý</option><option>Nghiêm trọng</option></select></div><div class=field><label>Điểm tích cực</label><input id=nPoints type=number value=1></div><div class=field><label>Ngày</label><input id=nDate type=date value="${todayISO()}"></div></div><div class=field style="margin-top:12px"><label>Nội dung</label><textarea id=nNote></textarea></div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick=saveNeNep()>Lưu</button></div>`)}
 function saveNeNep(){const k=val("nKind"),base={id:uid(),classId:state.currentClassId,studentId:val("nStudent"),date:val("nDate"),note:val("nNote")};if(k==="Tích cực")state.positive.push({...base,points:nval("nPoints")});else state.incidents.push({...base,level:val("nLevel"),resolved:false});closeModal();save("Đã ghi nhận nề nếp");renderDiscipline()}
@@ -4451,10 +4529,30 @@ function renderFinance(){
 function openFinanceForm(id=""){const x=state.finance.find(v=>v.id===id)||{};modal(`<h3>${id?"Sửa":"Thêm"} giao dịch</h3><div class=form-grid><div class=field><label>Ngày</label><input id=fDate type=date value="${esc(x.date||todayISO())}"></div><div class=field><label>Loại</label><select id=fType><option ${x.type==="Thu"?"selected":""}>Thu</option><option ${x.type==="Chi"?"selected":""}>Chi</option></select></div><div class=field><label>Số tiền</label><input id=fAmount type=number min=0 value="${x.amount??""}"></div><div class=field><label>Nội dung</label><input id=fNote value="${esc(x.note||"")}"></div></div><div class=modal-foot>${id?`<button class="btn bad" onclick="closeModal();delItem('finance','${id}',renderFinance)">Xóa</button>`:""}<button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveFinance('${id}')">Lưu</button></div>`)}
 function saveFinance(id=""){const data={date:val("fDate"),type:val("fType"),amount:nval("fAmount"),note:val("fNote")};if(id){const x=state.finance.find(v=>v.id===id);if(x)Object.assign(x,data)}else state.finance.push({id:uid(),classId:state.currentClassId,done:false,...data});closeModal();save(id?"Đã sửa giao dịch":"Đã lưu giao dịch");renderFinance()}
 
+function weekRangeFor(iso){
+ const d=new Date((iso||todayISO())+"T12:00:00"),day=(d.getDay()+6)%7;
+ const a=new Date(d);a.setDate(d.getDate()-day);const b=new Date(a);b.setDate(a.getDate()+6);
+ const cv=x=>new Date(x.getFullYear(),x.getMonth(),x.getDate()-x.getTimezoneOffset()/1440).toISOString().slice(0,10);
+ return {x1:cv(a),x2:cv(b)};
+}
+function weeklyAttendanceRows(){
+ const r=weekRangeFor(reportWeekDate);
+ return classStudents().map(st=>{
+  const a=byClass(state.attendance).filter(x=>x.studentId===st.id&&x.date>=r.x1&&x.date<=r.x2);
+  return {st,present:a.filter(x=>x.status==="Có mặt").length,late:a.filter(x=>x.status==="Đi trễ").length,
+   excused:a.filter(x=>x.status==="Vắng phép").length,unexcused:a.filter(x=>x.status==="Vắng không phép").length,
+   early:a.filter(x=>x.status==="Về sớm").length};
+ });
+}
 function renderReports(){
  const ss=classStudents(),rows=rankRows(),bal=byClass(state.finance).reduce((a,x)=>a+(x.type==="Thu"?Number(x.amount):-Number(x.amount)),0);
- $("#content").innerHTML=`<div class=section-head><div><h3>Báo cáo lớp</h3></div><div class=actions><button class=btn onclick=window.print()>In / PDF</button><button class=btn onclick=exportReportWord()>Xuất Word</button></div></div>
- <div class="grid g4">${statCard("👥","Học sinh",ss.length)}${statCard("🏆","Điểm nề nếp cao nhất",rows[0]?.score??0)}${statCard("⚠️","Vi phạm",byClass(state.incidents).length)}${statCard("💰","Số dư",money(bal))}</div>
+ const wr=weekRangeFor(reportWeekDate),wa=weeklyAttendanceRows();
+ const totalLate=wa.reduce((n,x)=>n+x.late,0),totalAbsent=wa.reduce((n,x)=>n+x.excused+x.unexcused,0);
+ $("#content").innerHTML=`<div class=section-head><div><h3>Báo cáo lớp</h3><div class=muted>Báo cáo chuyên cần theo tuần và tổng hợp lớp.</div></div><div class=actions><button class=btn onclick=window.print()>In / PDF</button><button class=btn onclick=exportReportWord()>Xuất Word</button></div></div>
+ <div class=card style="margin-bottom:15px"><div class=section-head><div><b>📅 Tuần báo cáo: ${fmtDate(wr.x1)} – ${fmtDate(wr.x2)}</b></div><div class=actions><button class=btn onclick="reportWeekDate=shiftISODate(reportWeekDate,-7);renderReports()">← Tuần trước</button><input type=date value="${reportWeekDate}" onchange="reportWeekDate=this.value;renderReports()" style="width:auto"><button class=btn onclick="reportWeekDate=shiftISODate(reportWeekDate,7);renderReports()">Tuần sau →</button><button class=btn onclick="reportWeekDate=todayISO();renderReports()">Tuần này</button></div></div></div>
+ <div class="grid g4">${statCard("👥","Học sinh",ss.length)}${statCard("🚫","Lượt vắng tuần",totalAbsent)}${statCard("⏰","Lượt đi trễ tuần",totalLate)}${statCard("💰","Số dư",money(bal))}</div>
+ <div class=card style="margin-top:15px"><h3>Chuyên cần trong tuần</h3><div class=table-wrap><table><thead><tr><th>Học sinh</th><th>Tổ/Nhóm</th><th>Có mặt</th><th>Đi trễ</th><th>Vắng phép</th><th>Vắng không phép</th><th>Về sớm</th></tr></thead><tbody>${wa.map(x=>`<tr><td><b>${esc(x.st.name)}</b></td><td>${esc(x.st.group||"")}</td><td>${x.present}</td><td>${x.late}</td><td>${x.excused}</td><td>${x.unexcused}</td><td>${x.early}</td></tr>`).join("")||`<tr><td colspan=7 class=empty>Chưa có dữ liệu.</td></tr>`}</tbody></table></div></div>
+ ${groupCompetitionBoard(wr.x1,wr.x2)}
  <div class=card style="margin-top:15px"><h3>Top nề nếp</h3><div class=table-wrap><table><thead><tr><th>Học sinh</th><th>Điểm</th><th>Tích cực</th><th>Vi phạm</th></tr></thead><tbody>${rows.slice(0,10).map(x=>`<tr><td>${esc(x.s.name)}</td><td><b>${x.score}</b></td><td>${x.positive}</td><td>${x.violations}</td></tr>`).join("")}</tbody></table></div></div>`;
 }
 function exportReportWord(){const rows=rankRows().slice(0,10).map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.s.name)}</td><td>${x.score}</td><td>${x.positive}</td><td>${x.violations}</td></tr>`).join("");
@@ -5412,8 +5510,8 @@ if(AUTHENTICATED){
   if(!x.ok||!x.authenticated){showLoginScreen();return}
   const u=x.user;session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
   sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));KEY=teacherDataKey(session.teacherId);
+  state=loadState();hideLoginScreen();updateAccountUI();renderClassSelect();refreshCurrentView();
   const remote=await onlineAPI({action:"pull"});if(remote.ok&&remote.data){state=remote.data;localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView()}
-  hideLoginScreen();updateAccountUI();
  }).catch(()=>showLoginScreen());
 }else showLoginScreen();
 </script>
@@ -5500,6 +5598,36 @@ document.addEventListener("click",function(e){
     if(window.innerWidth>780)closeMenu();
   });
 })();
+
+// Chế độ khách: xem toàn bộ giao diện, không được ghi dữ liệu.
+document.addEventListener("click",function(e){
+ if(!isGuestMode())return;
+ const el=e.target.closest("button,[onclick]");
+ if(!el)return;
+ const nav=el.closest("[data-page]")||el.closest(".group-title");
+ const code=String(el.getAttribute("onclick")||"");
+ const safe=/^(navigate|render|setDisciplineTab|moveAttendanceDate|setAttendanceDate|showLoginScreen|openAccountMenu|closeModal|window\.print)/.test(code);
+ if(nav||safe)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ requireLoginToEdit();
+},true);
+document.addEventListener("change",function(e){
+ if(!isGuestMode())return;
+ const el=e.target;
+ if(el.matches("#classSelect")||el.closest("[data-guest-view]"))return;
+ const code=String(el.getAttribute("onchange")||"");
+ if(/^(setAttendanceDate|reportWeekDate)/.test(code))return;
+ if(el.matches("input,select,textarea")){
+   e.preventDefault();e.stopImmediatePropagation();requireLoginToEdit();refreshCurrentView();
+ }
+},true);
+
+
+document.addEventListener("click",function(e){
+ const b=e.target.closest("#accountBtn");
+ if(!b||!isGuestMode())return;
+ e.preventDefault();e.stopImmediatePropagation();showLoginScreen();
+},true);
 </script>
 
 </body>
