@@ -2432,8 +2432,7 @@ function showLoginScreen(){
 }
 function requestLogin(){
  LOGIN_USER_INITIATED=true;
- showLoginScreen();
- LOGIN_USER_INITIATED=false;
+ try{showLoginScreen()}finally{LOGIN_USER_INITIATED=false}
 }
 function hideLoginScreen(){
  const s=document.getElementById("loginScreen"),app=document.getElementById("mainApp");
@@ -2657,7 +2656,8 @@ const titles={
 function isGuestMode(){return !AUTHENTICATED}
 function requireLoginToEdit(){
  if(!isGuestMode())return true;
- toast("Chế độ chỉ xem • Bấm Đăng nhập để chỉnh sửa");
+ toast("Vui lòng đăng nhập để chỉnh sửa");
+ requestLogin();
  return false;
 }
 function updateGuestUI(){
@@ -5622,7 +5622,6 @@ document.addEventListener("click",function(e){
  if(!isGuestMode())return;
  const el=e.target.closest("button,[onclick]");
  if(!el)return;
- if(el.id==="accountBtn"||el.closest("#accountBtn")){requestLogin();e.preventDefault();e.stopImmediatePropagation();return}
  const nav=el.closest("[data-page]")||el.closest(".group-title");
  const code=String(el.getAttribute("onclick")||"");
  const safe=/^(navigate|render|setDisciplineTab|moveAttendanceDate|setAttendanceDate|showLoginScreen|openAccountMenu|closeModal|window\.print)/.test(code);
@@ -5642,7 +5641,11 @@ document.addEventListener("change",function(e){
 },true);
 
 
-
+document.addEventListener("click",function(e){
+ const b=e.target.closest("#accountBtn");
+ if(!b||!isGuestMode())return;
+ e.preventDefault();e.stopImmediatePropagation();requestLogin();
+},true);
 
 // V38.70 invariant: khách luôn ở trong app; session lỗi/hết hạn không được mở màn hình đăng nhập.
 function enforceGuestView(){
