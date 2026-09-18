@@ -2042,6 +2042,7 @@ input,select,textarea{
 </style>
 
 <!-- GVCN V38.59: admin đúng tài khoản + giao diện Google/Gmail + quên mật khẩu -->
+<script>window.GVCN_BUILD="38.75";</script>
 </head>
 <body>
 
@@ -5628,6 +5629,9 @@ document.addEventListener("click",function(e){
  if(!isGuestMode())return;
  const el=e.target.closest("button,[onclick]");
  if(!el)return;
+ // V38.75: tuyệt đối không chặn các nút bên trong hộp đăng nhập.
+ // Trước đây bộ chặn chế độ khách bắt luôn nút Đăng nhập trước khi mainLogin() chạy.
+ if(el.closest("#loginScreen"))return;
  if(el.id==="accountBtn"||el.closest("#accountBtn")){requestLogin();e.preventDefault();e.stopImmediatePropagation();return}
  const nav=el.closest("[data-page]")||el.closest(".group-title");
  const code=String(el.getAttribute("onclick")||"");
@@ -5639,6 +5643,8 @@ document.addEventListener("click",function(e){
 document.addEventListener("change",function(e){
  if(!isGuestMode())return;
  const el=e.target;
+ // Cho phép nhập tài khoản/mật khẩu và thao tác biểu mẫu đăng nhập.
+ if(el.closest("#loginScreen"))return;
  if(el.matches("#classSelect")||el.closest("[data-guest-view]"))return;
  const code=String(el.getAttribute("onchange")||"");
  if(/^(setAttendanceDate|reportWeekDate)/.test(code))return;
