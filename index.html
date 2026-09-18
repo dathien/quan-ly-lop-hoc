@@ -2864,7 +2864,7 @@ function rankRows(){
   byClass(state.attendance).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{if(x.status==="Có mặt")o.present++;if(x.status==="Đi trễ"){o.late++;o.score+=Number(rules.late||0)}
    if(x.status==="Vắng phép"){o.excused++;o.score+=Number(rules.excused||0)}if(x.status==="Vắng không phép"){o.unexcused++;o.score+=Number(rules.unexcused||0)}if(x.status==="Về sớm")o.score+=Number(rules.early||0)});
   byClass(state.incidents).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{o.violations++;const lv=x.level||"Nhắc nhở";o.score+=lv==="Nghiêm trọng"?Number(rules.incidentSerious):lv==="Cần lưu ý"?Number(rules.incidentAttention):Number(rules.incidentReminder)});
-  byClass(state.positive).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{const p=Number(x.points||0);if(x.category==="Học tập")o.academic+=p;else o.positive+=p;o.score+=p});
+  byClass(state.positive).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{const p=Number(x.points||0);if(x.category==="Học tập")o.academic+=p;else if(x.category==="Chuyên cần"){if(x.criterion==="Đi trễ")o.late++;if(x.criterion==="Vắng phép")o.excused++;if(x.criterion==="Vắng không phép")o.unexcused++;}else o.positive+=p;o.score+=p});
   return o
  }).sort((a,b)=>b.score-a.score||b.positive-a.positive||a.violations-b.violations||a.s.name.localeCompare(b.s.name,"vi"))
 }
@@ -4071,20 +4071,19 @@ function renderDisciplineRecord(){
   const pane=$("#disciplinePane");
   pane.innerHTML=`<div class="grid g2">
     <div class=card>
-      <h3 style="margin-top:0">Ghi nhận nhanh</h3>
-      <p class=muted>Chọn học sinh và nội dung; điểm được lấy tự động từ Thang điểm nề nếp.</p>
-      <div class=actions><button class="btn primary" onclick=openQuickConduct()>＋ Ghi nhận</button><button class=btn onclick=loadConductSamples()>🧪 Nạp dữ liệu mẫu</button></div>
+      <h3 style="margin-top:0">⚡ Sổ nề nếp nhập nhanh</h3>
+      <p class=muted>Bấm <b>⚡ Nhập nhanh</b> tại học sinh để ghi nhận ngay, không cần mở form nhiều bước.</p>
+      <div class=actions><button class="btn primary" onclick=openBulkConduct()>👥 Nhập hàng loạt</button><button class=btn onclick=loadConductSamples()>🧪 Nạp dữ liệu mẫu</button></div>
     </div>
     <div class=card>
-      <h3 style="margin-top:0">Cách dùng</h3>
-      <div class=muted>Không cần nhập điểm thủ công. Khi cần sửa hoặc xóa, bấm <b>Lịch sử / sửa</b> ngay tại học sinh.</div>
-      <div style="margin-top:10px"><button class=btn onclick=showRankDetail()>Xem bảng điểm nề nếp</button></div>
+      <h3 style="margin-top:0">Cách nhập nhanh</h3>
+      <div class=muted>Chọn tiêu chí → app tự lấy điểm từ <b>Thang điểm nề nếp</b> → lưu ngay. Dùng <b>Lịch sử / sửa</b> khi cần sửa hoặc xóa.</div>
     </div>
   </div>
   <div class=card style="margin-top:15px">
-    <h3 style="margin-top:0">Điểm nề nếp theo học sinh</h3>
+    <div class=section-head><div><h3 style="margin:0">Điểm nề nếp theo học sinh</h3><div class=muted>Điểm được tính từ từng ghi nhận, không nhập số điểm trực tiếp.</div></div><button class="btn primary" onclick=openBulkConduct()>👥 Nhập hàng loạt</button></div>
     <div class=table-wrap><table><thead><tr><th>Học sinh</th><th>Đi trễ</th><th>Vắng phép</th><th>Vắng KP</th><th>Học tập</th><th>Vi phạm</th><th>Tích cực</th><th>Điểm</th><th>Thao tác</th></tr></thead><tbody>
-    ${rankRows().map(x=>`<tr><td><b>${esc(x.s.name)}</b></td><td>${x.late}</td><td>${x.excused}</td><td>${x.unexcused}</td><td><b>${x.academic>0?"+":""}${x.academic}</b></td><td>${x.violations}</td><td>${x.positive>0?"+":""}${x.positive}</td><td><b>${x.score>0?"+":""}${x.score}</b></td><td><div class=actions><button class="btn sm primary" onclick="openQuickConduct('${x.s.id}')">＋ Ghi nhận</button><button class="btn sm" onclick="manageConcernData('${x.s.id}')">✏️ Lịch sử / sửa</button></div></td></tr>`).join("")||`<tr><td colspan=9 class=empty>Chưa có dữ liệu.</td></tr>`}
+    ${rankRows().map(x=>`<tr><td><b>${esc(x.s.name)}</b></td><td>${x.late}</td><td>${x.excused}</td><td>${x.unexcused}</td><td><b>${x.academic>0?"+":""}${x.academic}</b></td><td>${x.violations}</td><td>${x.positive>0?"+":""}${x.positive}</td><td><b>${x.score>0?"+":""}${x.score}</b></td><td><div class=actions><button class="btn sm primary" onclick="toggleQuickConductRow('${x.s.id}',this)">⚡ Nhập nhanh</button><button class="btn sm" onclick="manageConcernData('${x.s.id}')">✏️ Lịch sử / sửa</button></div><div id="quick_${x.s.id}" class="quick-conduct-panel" style="display:none"></div></td></tr>`).join("")||`<tr><td colspan=9 class=empty>Chưa có dữ liệu.</td></tr>`}
     </tbody></table></div>
   </div>`;
 }
@@ -4265,7 +4264,7 @@ function manageConcernData(studentId){
   byClass(state.incidents).filter(x=>x.studentId===studentId)
     .forEach(x=>rows.push({id:x.id,type:"Vi phạm",date:x.date,text:`${x.level||"Nhắc nhở"}${x.note?": "+x.note:""}`}));
   byClass(state.positive).filter(x=>x.studentId===studentId)
-    .forEach(x=>rows.push({id:x.id,type:"Tích cực",date:x.date,text:`${x.category==="Học tập"?(x.criterion||"Học tập")+" • ":""}${Number(x.points||0)>0?"+":""}${x.points||0} điểm${x.note?": "+x.note:""}`}));
+    .forEach(x=>rows.push({id:x.id,type:x.category||"Tích cực",date:x.date,text:`${x.criterion?(x.criterion+" • "):""}${Number(x.points||0)>0?"+":""}${x.points||0} điểm${x.note?": "+x.note:""}`}));
   rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
 
   modal(`<h3>🛠️ Chỉnh dữ liệu cần quan tâm – ${esc(s.name)}</h3>
@@ -4337,6 +4336,81 @@ function setAttendanceReason(studentId,reason){
  a.reason=String(reason||"").trim();save("Đã lưu lý do điểm danh");
 }
 
+
+function quickConductButtons(){
+ const r={...DEFAULT_RULES,...(state.disciplineRules||{})};
+ return [
+  ["late","Đi trễ",r.late],["unexcused","Vắng KP",r.unexcused],["notLearned","Chưa thuộc bài",r.notLearned],["notHomework","Chưa làm bài",r.notHomework],
+  ["learned","Thuộc bài",r.learned],["homeworkDone","Làm bài đầy đủ",r.homeworkDone],["incidentReminder","Nhắc nhở",r.incidentReminder],["positive","Tích cực",1]
+ ];
+}
+function toggleQuickConductRow(studentId,btn){
+ const box=document.getElementById("quick_"+studentId);if(!box)return;
+ document.querySelectorAll(".quick-conduct-panel").forEach(x=>{if(x!==box)x.style.display="none"});
+ if(box.style.display!=="none"){box.style.display="none";return}
+ const today=todayISO();
+ const marked=new Set([
+   ...byClass(state.positive).filter(x=>x.studentId===studentId&&x.date===today).map(x=>x.criterion),
+   ...byClass(state.incidents).filter(x=>x.studentId===studentId&&x.date===today).map(x=>x.level)
+ ]);
+ box.innerHTML=`<div class="quick-chip-wrap">${quickConductButtons().map(x=>`<button class="quick-chip ${Number(x[2])>=0?"quick-plus":"quick-minus"} ${marked.has(x[1])?"quick-marked":""}" onclick="saveInstantConduct('${studentId}','${x[0]}')">${marked.has(x[1])?"✓ ":""}${esc(x[1])} <b>${Number(x[2])>0?"+":""}${Number(x[2])}</b></button>`).join("")}<button class="quick-chip" onclick="openQuickConduct('${studentId}')">••• Khác</button></div>`;
+ box.style.display="block";
+}
+function saveInstantConduct(studentId,key,force=false){
+ const opt=conductOptions().find(x=>x[0]===key);if(!opt)return;
+ const date=todayISO(),criterion=opt[2],points=key==="positive"?1:Number(opt[3]||0);
+ const same=byClass(state.positive).filter(x=>x.studentId===studentId&&x.date===date&&x.criterion===criterion);
+ const sameIncident=byClass(state.incidents).filter(x=>x.studentId===studentId&&x.date===date&&x.level===criterion);
+ if(!force&&(same.length||sameIncident.length)){
+   const again=confirm(`Đã ghi nhận "${criterion}" cho học sinh này hôm nay.\n\nOK: Ghi thêm lần nữa\nHủy: Không ghi`);
+   if(!again)return;
+ }
+ if(["incidentReminder","incidentAttention","incidentSerious"].includes(key)){
+  const level={incidentReminder:"Nhắc nhở",incidentAttention:"Cần lưu ý",incidentSerious:"Nghiêm trọng"}[key];
+  state.incidents.push({id:uid(),classId:state.currentClassId,studentId,date,level,note:"",resolved:false});
+ }else{
+  const category=["late","excused","unexcused","early"].includes(key)?"Chuyên cần":(key==="positive"?"Tích cực":"Học tập");
+  state.positive.push({id:uid(),classId:state.currentClassId,studentId,date,points,note:"",category,criterion});
+ }
+ save("Đã ghi nhận nề nếp");disciplineTab="record";renderDiscipline();
+ toast(`${state.students.find(x=>x.id===studentId)?.name||"Học sinh"} • ${criterion} • ${points>0?"+":""}${points} điểm`);
+}
+function openBulkConduct(){
+ const opts=conductOptions();
+ modal(`<h3>👥 Nhập nề nếp hàng loạt</h3>
+  <div class=muted style="margin-bottom:12px">Chọn một tiêu chí rồi đánh dấu nhiều học sinh. App áp dụng cùng một ghi nhận cho tất cả học sinh đã chọn.</div>
+  <div class=form-grid>
+   <div class=field><label>Ngày</label><input id=bcDate type=date value="${todayISO()}"></div>
+   <div class=field><label>Tiêu chí</label><select id=bcType onchange=updateBulkPreview()>${opts.map(x=>`<option value="${x[0]}">${esc(x[1])} • ${esc(x[2])} (${Number(x[3])>0?"+":""}${Number(x[3])})</option>`).join("")}</select></div>
+  </div>
+  <div id=bcPreview class=card style="padding:10px;margin-top:12px"></div>
+  <div style="margin:12px 0 8px"><div class=actions><button class="btn sm" onclick=bulkSelectAll(true)>Chọn tất cả</button><button class="btn sm" onclick=bulkSelectAll(false)>Bỏ chọn</button></div></div>
+  <div class="bulk-student-grid">${classStudents().map(st=>`<label class=bulk-student><input class=bcStudent type=checkbox value="${st.id}"><span>${esc(st.name)}</span></label>`).join("")}</div>
+  <div class=field style="margin-top:12px"><label>Ghi chú chung (không bắt buộc)</label><input id=bcNote placeholder="Ví dụ: kiểm tra bài đầu giờ"></div>
+  <div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick=saveBulkConduct()>Áp dụng cho học sinh đã chọn</button></div>`);
+ setTimeout(updateBulkPreview,0);
+}
+function updateBulkPreview(){
+ const opt=conductOptions().find(x=>x[0]===val("bcType"));const b=document.getElementById("bcPreview");if(!opt||!b)return;
+ b.innerHTML=`Đang nhập: <b>${esc(opt[1])} • ${esc(opt[2])}</b> → <b>${Number(opt[3])>0?"+":""}${Number(opt[3])} điểm / học sinh</b>`;
+}
+function bulkSelectAll(on){document.querySelectorAll(".bcStudent").forEach(x=>x.checked=!!on)}
+function saveBulkConduct(){
+ const ids=[...document.querySelectorAll(".bcStudent:checked")].map(x=>x.value);if(!ids.length)return toast("Hãy chọn ít nhất 1 học sinh");
+ const key=val("bcType"),date=val("bcDate"),note=val("bcNote"),opt=conductOptions().find(x=>x[0]===key);if(!opt)return;
+ ids.forEach(studentId=>{
+  if(["late","excused","unexcused","early"].includes(key)){
+   state.positive.push({id:uid(),classId:state.currentClassId,studentId,date,points:Number(opt[3]||0),note,category:"Chuyên cần",criterion:opt[2]});
+  }else if(["incidentReminder","incidentAttention","incidentSerious"].includes(key)){
+   const level={incidentReminder:"Nhắc nhở",incidentAttention:"Cần lưu ý",incidentSerious:"Nghiêm trọng"}[key];
+   state.incidents.push({id:uid(),classId:state.currentClassId,studentId,date,level,note,resolved:false});
+  }else{
+   const points=key==="positive"?1:Number(opt[3]||0);
+   state.positive.push({id:uid(),classId:state.currentClassId,studentId,date,points,note,category:key==="positive"?"Tích cực":"Học tập",criterion:opt[2]});
+  }
+ });
+ closeModal();save(`Đã ghi nhận nề nếp cho ${ids.length} học sinh`);disciplineTab="record";renderDiscipline();toast(`Đã áp dụng cho ${ids.length} học sinh`);
+}
 function conductOptions(){
  const r={...DEFAULT_RULES,...(state.disciplineRules||{})};
  return [
@@ -4372,10 +4446,7 @@ function saveQuickConduct(){
  const studentId=val("qcStudent"),date=val("qcDate"),key=val("qcType"),note=val("qcNote");
  const opt=conductOptions().find(x=>x[0]===key); if(!studentId||!date||!opt)return toast("Hãy chọn học sinh, ngày và nội dung");
  if(["late","excused","unexcused","early"].includes(key)){
-  const status={late:"Đi trễ",excused:"Vắng phép",unexcused:"Vắng không phép",early:"Về sớm"}[key];
-  const old=state.attendance.find(x=>x.classId===state.currentClassId&&x.studentId===studentId&&x.date===date);
-  state.attendance=state.attendance.filter(x=>!(x.classId===state.currentClassId&&x.studentId===studentId&&x.date===date));
-  state.attendance.push({id:old?.id||uid(),classId:state.currentClassId,studentId,date,status,reason:note||old?.reason||""});
+  state.positive.push({id:uid(),classId:state.currentClassId,studentId,date,points:Number(opt[3]||0),note,category:"Chuyên cần",criterion:opt[2]});
  }else if(["incidentReminder","incidentAttention","incidentSerious"].includes(key)){
   const level={incidentReminder:"Nhắc nhở",incidentAttention:"Cần lưu ý",incidentSerious:"Nghiêm trọng"}[key];
   state.incidents.push({id:uid(),classId:state.currentClassId,studentId,date,level,note,resolved:false});
@@ -5637,6 +5708,21 @@ if(AUTHENTICATED){
 
 <style id="gvcn-v3820-instant-status">
 .btn.status-clicked{opacity:.7;pointer-events:none}
+
+/* V38.82 - Sổ nề nếp nhập nhanh */
+.quick-conduct-panel{margin-top:8px;min-width:390px}
+.quick-chip-wrap{display:flex;flex-wrap:wrap;gap:6px;padding:9px;background:#f8fafc;border:1px solid #dbe3ee;border-radius:12px}
+.quick-chip{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:7px 10px;font-weight:700;cursor:pointer;white-space:nowrap}
+.quick-chip:hover{background:#f1f5f9}
+.quick-plus{border-color:#bbf7d0;background:#f0fdf4;color:#166534}
+.quick-minus{border-color:#fecaca;background:#fff7f7;color:#991b1b}
+.bulk-student-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:360px;overflow:auto;padding:4px}
+.bulk-student{display:flex;align-items:center;gap:9px;padding:10px;border:1px solid #dbe3ee;border-radius:10px;cursor:pointer;background:#fff}
+.bulk-student:has(input:checked){background:#eff6ff;border-color:#93c5fd}
+.bulk-student input{width:18px;height:18px}
+@media(max-width:720px){.quick-conduct-panel{min-width:260px}.bulk-student-grid{grid-template-columns:1fr}}
+
+.quick-marked{box-shadow:inset 0 0 0 2px #2563eb!important;position:relative}
 </style>
 <script id="gvcn-v3820-instant-status-js">
 document.addEventListener("click",function(e){
