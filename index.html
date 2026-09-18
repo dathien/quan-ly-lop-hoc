@@ -2042,8 +2042,6 @@ input,select,textarea{
 </style>
 
 <!-- GVCN V38.59: admin đúng tài khoản + giao diện Google/Gmail + quên mật khẩu -->
-<script>window.GVCN_BUILD="38.75";console.info("GVCN build 38.77 • root registry consolidated");
-</script>
 </head>
 <body>
 
@@ -2166,41 +2164,12 @@ function normalizeRegistry(a){
  });
  return a;
 }
-function rootNameKey(v){
- return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/gi,"d").replace(/[^a-z0-9]/gi,"").toLowerCase();
-}
-function consolidateRootAdminRegistry(list){
- const a=Array.isArray(list)?list.filter(Boolean):[];
- let live=null;try{live=JSON.parse(sessionStorage.getItem(SESSION_KEY)||"null")}catch(e){}
- const rootKey=rootNameKey("HỒ NGUYỄN ĐA THIỆN");
- const roots=a.filter(t=>t&&(t.id==="teacher-thien"||t.isAdmin===true||String(t.username||"").toLowerCase()==="admin"||rootNameKey(t.name)===rootKey));
- if(roots.length<=1)return a;
- const canonical=roots.find(t=>live?.teacherId&&t.id===live.teacherId)
-   || roots.find(t=>String(t.username||"").toLowerCase()==="admin")
-   || roots.slice().sort((x,y)=>(y.assistants||[]).length-(x.assistants||[]).length)[0];
- const assistants=[],seen=new Set();
- roots.forEach(t=>(t.assistants||[]).forEach(m=>{
-   const k=String(m.id||m.username||rootNameKey(m.name));
-   if(!seen.has(k)){seen.add(k);assistants.push(m)}
- }));
- canonical.name="HỒ NGUYỄN ĐA THIỆN";
- canonical.username="admin";
- canonical.isAdmin=true;
- canonical.assistants=assistants;
- return [canonical,...a.filter(t=>!roots.includes(t))];
-}
 function teacherRegistry(){
  try{
-   let a=JSON.parse(localStorage.getItem(TEACHERS_KEY));
-   if(Array.isArray(a)&&a.length){
-     a=consolidateRootAdminRegistry(a);
-     normalizeRegistry(a);
-     localStorage.setItem(TEACHERS_KEY,JSON.stringify(a));
-     return a;
-   }
+   const a=JSON.parse(localStorage.getItem(TEACHERS_KEY));
+   if(Array.isArray(a)&&a.length){normalizeRegistry(a);localStorage.setItem(TEACHERS_KEY,JSON.stringify(a));return a}
  }catch(e){}
- let a=consolidateRootAdminRegistry(defaultTeacherRegistry());
- normalizeRegistry(a);localStorage.setItem(TEACHERS_KEY,JSON.stringify(a));return a;
+ const a=normalizeRegistry(defaultTeacherRegistry());localStorage.setItem(TEACHERS_KEY,JSON.stringify(a));return a;
 }
 function currentSession(){
  try{const s=JSON.parse(sessionStorage.getItem(SESSION_KEY));if(s&&s.teacherId)return s}catch(e){}
@@ -2211,7 +2180,7 @@ let AUTHENTICATED=!!currentSession();
 function activeTeacher(){return teacherRegistry().find(x=>x.id===session.teacherId)||teacherRegistry()[0]}
 function teacherDataKey(id=session.teacherId){return id==="teacher-thien"?LEGACY_KEY:`GVCN_TEACHER_${id}`}
 let KEY=teacherDataKey();
-const DEFAULT_RULES={base:0,late:-2,excused:-1,unexcused:-5,early:-2,incidentReminder:-1,incidentAttention:-3,incidentSerious:-5};
+const DEFAULT_RULES={base:0,late:-2,excused:-1,unexcused:-5,early:-2,notLearned:-2,notHomework:-2,learned:1,homeworkDone:1,dutyExcellent:2,dutyDone:1,dutyIncomplete:-2,dutySkipped:-3,incidentReminder:-1,incidentAttention:-3,incidentSerious:-5};
 let state=loadState();
 let page="home";
 
@@ -2510,16 +2479,15 @@ async function mainLogin(){
  if(!username||!password){if(err)err.textContent="Vui lòng nhập tài khoản và mật khẩu.";return}
  if(btn){btn.disabled=true;btn.textContent="Đang đăng nhập..."}
  try{
-   const r=await fetch("/api/gvcn",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({action:"login",username,password})});
+   const r=await fetch("/api/gvcn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"login",username,password})});
    const x=await r.json();
-   if(!r.ok||!x.ok)throw new Error(x.message||x.error||"Đăng nhập thất bại");
+   if(!r.ok||!x.ok)throw new Error(x.message||"Đăng nhập thất bại");
    const u=x.user;
    session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
    sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;
    // Bổ sung hồ sơ chủ workspace vào registry cục bộ để app tạo trạng thái đúng khi máy mới chưa có dữ liệu.
    const reg=teacherRegistry();let t=reg.find(v=>v.id===session.teacherId);
-   if(!t){t={id:session.teacherId,name:u.teacherName||u.name,username:u.isAdmin?u.username:"",password:"",assistants:[]};reg.push(t)}
-   persistRegistry(consolidateRootAdminRegistry(reg));
+   if(!t){t={id:session.teacherId,name:u.teacherName||u.name,username:u.isAdmin?u.username:"",password:"",assistants:[]};reg.push(t);persistRegistry(reg)}
    KEY=teacherDataKey(session.teacherId);
    state=loadState();
    if(err)err.textContent="";
@@ -2555,7 +2523,8 @@ function updateAccountUI(){
 }
 function persistRegistry(arr){localStorage.setItem(TEACHERS_KEY,JSON.stringify(arr))}
 function openAccountSwitcher(){
- const reg=teacherRegistry(),p=activeTeacher();
+ const raw=teacherRegistry(),p=activeTeacher(),seen=new Set();
+ const reg=raw.filter(t=>{const key=(t.id===session.teacherId||String(t.username||"").toLowerCase()==="admin")&&String(t.name||"").toUpperCase().includes("HỒ NGUYỄN ĐA THIỆN")?"ROOT_ADMIN":String(t.id||t.username||t.name);if(seen.has(key))return false;seen.add(key);return true});
  modal(`<h3>👥 Không gian đa giáo viên</h3>
  <div class=account-current><b>Đang sử dụng:</b> ${esc(session.name||"")} <span class=badge>${esc(session.role||"")}</span><div class=muted style="margin-top:4px">Không gian dữ liệu: ${esc(p?.name||"")}. Dữ liệu của từng giáo viên được tách riêng trên trình duyệt này.</div></div>
  <div class=teacher-list>${reg.map(t=>`<div class=teacher-row><div><b>${esc(t.name)}</b><small>1 giáo viên + ${(t.assistants||[]).length} bạn hỗ trợ</small></div><div class=actions><button class="btn sm" onclick="openWorkspaceLogin('${t.id}')">${t.id===session.teacherId?"Đổi người dùng":"Đăng nhập"}</button>${isTeacherAccount()&&t.id!=="teacher-thien"?`<button class="btn sm bad" onclick="deleteTeacherWorkspace('${t.id}')">Xóa GV</button>`:""}</div></div>`).join("")}</div>
@@ -2667,7 +2636,7 @@ function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36
 function $(q){return document.querySelector(q)}
 function $$(q){return [...document.querySelectorAll(q)]}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
-function todayISO(){const d=new Date();const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return `${y}-${m}-${day}`}
+function todayISO(){const d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate()-d.getTimezoneOffset()/1440).toISOString().slice(0,10)}
 function fmtDate(x){if(!x)return"";const [y,m,d]=String(x).slice(0,10).split("-");return `${d}/${m}/${y}`}
 function fmtDT(x){if(!x)return"";return new Date(x).toLocaleString("vi-VN")}
 function curClass(){return state.classes.find(x=>x.id===state.currentClassId)||state.classes[0]}
@@ -2731,10 +2700,6 @@ function navigate(p){
 function refreshCurrentView(){
   try{
     renderClassSelect();
-    if(page==="teachers"&&document.getElementById("teacherRows")){
-      loadTeachersOnline();
-      return;
-    }
     render();
   }catch(err){
     console.error("Không thể cập nhật giao diện:",err);
@@ -2894,7 +2859,7 @@ function getRankRange(){
  return{x1:`${y.s}-09-01`,x2:`${y.e}-05-31`,label:`Cả năm học • ${y.s}–${y.e}`};
 }
 function rankRows(){
- const r=getRankRange(),rules=state.disciplineRules||DEFAULT_RULES;
+ const r=getRankRange(),rules={...DEFAULT_RULES,...(state.disciplineRules||{})};
  return classStudents().map(s=>{let o={s,present:0,late:0,excused:0,unexcused:0,violations:0,positive:0,score:Number(rules.base||0)};
   byClass(state.attendance).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{if(x.status==="Có mặt")o.present++;if(x.status==="Đi trễ"){o.late++;o.score+=Number(rules.late||0)}
    if(x.status==="Vắng phép"){o.excused++;o.score+=Number(rules.excused||0)}if(x.status==="Vắng không phép"){o.unexcused++;o.score+=Number(rules.unexcused||0)}if(x.status==="Về sớm")o.score+=Number(rules.early||0)});
@@ -2905,7 +2870,7 @@ function rankRows(){
 }
 
 function groupCompetitionRows(x1,x2){
- const rules=state.disciplineRules||DEFAULT_RULES,groups=[...new Set(classStudents().map(x=>x.group||"Chưa xếp tổ"))];
+ const rules={...DEFAULT_RULES,...(state.disciplineRules||{})},groups=[...new Set(classStudents().map(x=>x.group||"Chưa xếp tổ"))];
  return groups.map(group=>{
   const ids=new Set(classStudents().filter(x=>(x.group||"Chưa xếp tổ")===group).map(x=>x.id));
   let plus=0,minus=0;
@@ -2920,12 +2885,19 @@ function groupCompetitionRows(x1,x2){
    const v=x.level==="Nghiêm trọng"?rules.incidentSerious:x.level==="Cần lưu ý"?rules.incidentAttention:rules.incidentReminder;
    minus+=Math.abs(Number(v||0));
   });
+  byClass(state.duty).filter(x=>x.date>=x1&&x.date<=x2).forEach(x=>{
+   const who=String(x.assignee||"").trim().toLocaleLowerCase("vi");
+   const groupMatch=String(group).trim().toLocaleLowerCase("vi");
+   const student=classStudents().find(s=>String(s.name||"").trim().toLocaleLowerCase("vi")===who);
+   const applies=who===groupMatch || (student&&ids.has(student.id));
+   if(applies){const p=dutyScore(x);if(p>=0)plus+=p;else minus+=Math.abs(p)}
+  });
   return {group,plus,minus,score:plus-minus};
  }).sort((a,b)=>b.score-a.score||b.plus-a.plus||a.group.localeCompare(b.group,"vi"));
 }
 function groupCompetitionBoard(x1,x2){
  const rows=groupCompetitionRows(x1,x2);
- return `<div class=card style="margin-top:15px"><div class=section-head><div><h3>🏆 Xếp hạng thi đua Tổ/Nhóm</h3><div class=muted>${fmtDate(x1)} – ${fmtDate(x2)} • tự tổng hợp từ chuyên cần, vi phạm và điểm tích cực</div></div></div>
+ return `<div class=card style="margin-top:15px"><div class=section-head><div><h3>🏆 Xếp hạng thi đua Tổ/Nhóm</h3><div class=muted>${fmtDate(x1)} – ${fmtDate(x2)} • tự tổng hợp từ chuyên cần, học tập, trực nhật, vi phạm và điểm tích cực</div></div></div>
  <div class=table-wrap><table><thead><tr><th>Hạng</th><th>Tổ/Nhóm</th><th>Điểm cộng</th><th>Điểm trừ</th><th>Điểm thi đua</th></tr></thead><tbody>${rows.map((x,i)=>`<tr><td><b>${i===0?"🥇":i===1?"🥈":i===2?"🥉":i+1}</b></td><td><b>${esc(x.group)}</b></td><td>+${x.plus}</td><td>-${x.minus}</td><td><b>${x.score}</b></td></tr>`).join("")||`<tr><td colspan=5 class=empty>Chưa có dữ liệu thi đua.</td></tr>`}</tbody></table></div></div>`;
 }
 
@@ -4366,19 +4338,27 @@ function setAttendanceReason(studentId,reason){
 }
 function openIncidentForm(){modal(`<h3>Ghi nhận nề nếp</h3><div class=form-grid><div class=field><label>Học sinh</label><select id=nStudent>${studentOptions()}</select></div><div class=field><label>Loại</label><select id=nKind onchange="document.getElementById('nLevelWrap').style.display=this.value==='Vi phạm'?'block':'none'"><option>Vi phạm</option><option>Tích cực</option></select></div><div class=field id=nLevelWrap><label>Mức vi phạm</label><select id=nLevel><option>Nhắc nhở</option><option>Cần lưu ý</option><option>Nghiêm trọng</option></select></div><div class=field><label>Điểm tích cực</label><input id=nPoints type=number value=1></div><div class=field><label>Ngày</label><input id=nDate type=date value="${todayISO()}"></div></div><div class=field style="margin-top:12px"><label>Nội dung</label><textarea id=nNote></textarea></div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick=saveNeNep()>Lưu</button></div>`)}
 function saveNeNep(){const k=val("nKind"),base={id:uid(),classId:state.currentClassId,studentId:val("nStudent"),date:val("nDate"),note:val("nNote")};if(k==="Tích cực")state.positive.push({...base,points:nval("nPoints")});else state.incidents.push({...base,level:val("nLevel"),resolved:false});closeModal();save("Đã ghi nhận nề nếp");renderDiscipline()}
-function openRules(){const r=state.disciplineRules||DEFAULT_RULES;modal(`<h3>⚙️ Thang điểm nề nếp</h3><div class=muted style="margin-bottom:12px">Thiết lập thang điểm nề nếp.</div><div class=form-grid>
- ${[["base","Điểm bắt đầu"],["late","Đi trễ"],["excused","Vắng phép"],["unexcused","Vắng không phép"],["early","Về sớm"],["incidentReminder","Nhắc nhở"],["incidentAttention","Cần lưu ý"],["incidentSerious","Nghiêm trọng"]].map(([k,l])=>`<div class=field><label>${l}</label><input id="r_${k}" type=number value="${r[k]}"></div>`).join("")}</div>
+function openRules(){const r={...DEFAULT_RULES,...(state.disciplineRules||{})};modal(`<h3>⚙️ Thang điểm nề nếp</h3><div class=muted style="margin-bottom:12px">Thiết lập thang điểm nề nếp.</div><div class=form-grid>
+ <div style="grid-column:1/-1;font-weight:900;color:#334155;margin-top:2px">Chuyên cần</div>
+ ${[["base","Điểm bắt đầu"],["late","Đi trễ"],["excused","Vắng phép"],["unexcused","Vắng không phép"],["early","Về sớm"]].map(([k,l])=>`<div class=field><label>${l}</label><input id="r_${k}" type=number value="${r[k]}"></div>`).join("")}
+ <div style="grid-column:1/-1;font-weight:900;color:#334155;margin-top:8px">Học tập</div>
+ ${[["notLearned","Chưa thuộc bài"],["notHomework","Chưa làm bài"],["learned","Thuộc bài"],["homeworkDone","Làm bài đầy đủ"]].map(([k,l])=>`<div class=field><label>${l}</label><input id="r_${k}" type=number value="${r[k]}"></div>`).join("")}
+ <div style="grid-column:1/-1;font-weight:900;color:#334155;margin-top:8px">Trực nhật</div>
+ ${[["dutyExcellent","Hoàn thành tốt"],["dutyDone","Hoàn thành"],["dutyIncomplete","Chưa hoàn thành"],["dutySkipped","Không thực hiện"]].map(([k,l])=>`<div class=field><label>${l}</label><input id="r_${k}" type=number value="${r[k]}"></div>`).join("")}
+ <div style="grid-column:1/-1;font-weight:900;color:#334155;margin-top:8px">Ghi nhận nề nếp</div>
+ ${[["incidentReminder","Nhắc nhở"],["incidentAttention","Cần lưu ý"],["incidentSerious","Nghiêm trọng"]].map(([k,l])=>`<div class=field><label>${l}</label><input id="r_${k}" type=number value="${r[k]}"></div>`).join("")}</div>
  <div class=modal-foot><button class=btn onclick="state.disciplineRules={...DEFAULT_RULES};closeModal();save('Đã khôi phục mặc định');renderDiscipline()">Khôi phục mặc định</button><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick=saveRules()>Lưu</button></div>`)}
 function saveRules(){const r={};Object.keys(DEFAULT_RULES).forEach(k=>r[k]=Number(val("r_"+k)));state.disciplineRules=r;closeModal();save("Đã lưu thang điểm");renderDiscipline()}
 
 
+function dutyScore(x){const r={...DEFAULT_RULES,...(state.disciplineRules||{})};return x.evaluation==="Hoàn thành tốt"?Number(r.dutyExcellent||0):x.evaluation==="Hoàn thành"?Number(r.dutyDone||0):x.evaluation==="Chưa hoàn thành"?Number(r.dutyIncomplete||0):x.evaluation==="Không thực hiện"?Number(r.dutySkipped||0):0}
 function renderDuty(){
- $("#content").innerHTML=`<div class=section-head><div><h3>Trực nhật</h3><div class=muted>Phân công, sửa, xóa và đánh dấu hoàn thành.</div></div><button class="btn primary" onclick=openDutyForm()>＋ Phân công</button></div><div class=table-wrap><table><thead><tr><th>Ngày</th><th>Tổ / Học sinh</th><th>Nhiệm vụ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
- ${byClass(state.duty).map(x=>`<tr><td>${fmtDate(x.date)}</td><td>${esc(x.assignee)}</td><td>${esc(x.task)}</td><td>${statusBadge(!!x.done)}</td><td><div class=actions><button class="btn sm" onclick="openDutyForm('${x.id}')">Sửa</button><button class="btn sm ${x.done?"warn":"good"}" onclick="toggleDuty('${x.id}')">${x.done?"Bỏ hoàn thành":"✓ Hoàn thành"}</button><button class="btn sm bad" onclick="delItem('duty','${x.id}',renderDuty)">Xóa</button></div></td></tr>`).join("")||`<tr><td colspan=5 class=empty>Chưa có phân công.</td></tr>`}</tbody></table></div>`;
+ $("#content").innerHTML=`<div class=section-head><div><h3>Trực nhật</h3><div class=muted>Phân công và đánh giá một lần; điểm được tự động đưa vào thi đua Tổ/Nhóm.</div></div><button class="btn primary" onclick=openDutyForm()>＋ Phân công</button></div><div class=table-wrap><table><thead><tr><th>Ngày</th><th>Tổ / Học sinh</th><th>Nhiệm vụ</th><th>Đánh giá</th><th>Điểm</th><th>Thao tác</th></tr></thead><tbody>
+ ${byClass(state.duty).map(x=>`<tr><td>${fmtDate(x.date)}</td><td>${esc(x.assignee)}</td><td>${esc(x.task)}</td><td>${esc(x.evaluation||"Chưa đánh giá")}</td><td><b>${dutyScore(x)>0?"+":""}${dutyScore(x)}</b></td><td><div class=actions><button class="btn sm" onclick="openDutyForm('${x.id}')">Sửa / Đánh giá</button><button class="btn sm bad" onclick="delItem('duty','${x.id}',renderDuty)">Xóa</button></div></td></tr>`).join("")||`<tr><td colspan=6 class=empty>Chưa có phân công.</td></tr>`}</tbody></table></div>`;
 }
-function openDutyForm(id=""){const x=state.duty.find(v=>v.id===id)||{};modal(`<h3>${id?"Sửa":"Phân công"} trực nhật</h3><div class=form-grid><div class=field><label>Ngày</label><input id=dDate type=date value="${esc(x.date||todayISO())}"></div><div class=field><label>Tổ / Học sinh</label><input id=dWho value="${esc(x.assignee||"")}"></div><div class=field><label>Nhiệm vụ</label><input id=dTask value="${esc(x.task||"Vệ sinh lớp học")}"></div></div><div class=modal-foot>${id?`<button class="btn bad" onclick="closeModal();delItem('duty','${id}',renderDuty)">Xóa</button>`:""}<button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveDuty('${id}')">Lưu</button></div>`)}
-function saveDuty(id=""){const data={date:val("dDate"),assignee:val("dWho"),task:val("dTask")};if(id){const x=state.duty.find(v=>v.id===id);if(x)Object.assign(x,data)}else state.duty.push({id:uid(),classId:state.currentClassId,done:false,...data});closeModal();save(id?"Đã sửa trực nhật":"Đã phân công trực nhật");renderDuty()}
-function toggleDuty(id){const x=state.duty.find(x=>x.id===id);if(!x)return;x.done=!x.done;localStorage.setItem(KEY,JSON.stringify(state));log(x.done?"Đã hoàn thành trực nhật":"Đã mở lại nhiệm vụ trực nhật");localStorage.setItem(KEY,JSON.stringify(state));refreshCurrentView();toast(x.done?"Đã hoàn thành trực nhật":"Đã mở lại nhiệm vụ")}
+function openDutyForm(id=""){const x=state.duty.find(v=>v.id===id)||{};modal(`<h3>${id?"Sửa / Đánh giá":"Phân công"} trực nhật</h3><div class=form-grid><div class=field><label>Ngày</label><input id=dDate type=date value="${esc(x.date||todayISO())}"></div><div class=field><label>Tổ / Học sinh</label><input id=dWho value="${esc(x.assignee||"")}" placeholder="Ví dụ: Tổ 1"></div><div class=field><label>Nhiệm vụ</label><input id=dTask value="${esc(x.task||"Vệ sinh lớp học")}"></div><div class=field><label>Đánh giá</label><select id=dEvaluation><option value="">Chưa đánh giá</option>${["Hoàn thành tốt","Hoàn thành","Chưa hoàn thành","Không thực hiện"].map(v=>`<option ${x.evaluation===v?"selected":""}>${v}</option>`).join("")}</select></div></div><div class=muted style="margin-top:10px">Điểm trực nhật lấy theo ⚙️ Thang điểm nề nếp và tự tính vào thi đua Tổ/Nhóm.</div><div class=modal-foot>${id?`<button class="btn bad" onclick="closeModal();delItem('duty','${id}',renderDuty)">Xóa</button>`:""}<button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveDuty('${id}')">Lưu</button></div>`)}
+function saveDuty(id=""){const evaluation=val("dEvaluation");const data={date:val("dDate"),assignee:val("dWho"),task:val("dTask"),evaluation,done:evaluation==="Hoàn thành"||evaluation==="Hoàn thành tốt"};if(id){const x=state.duty.find(v=>v.id===id);if(x)Object.assign(x,data)}else state.duty.push({id:uid(),classId:state.currentClassId,...data});closeModal();save(id?"Đã cập nhật trực nhật":"Đã phân công trực nhật");renderDuty()}
+function toggleDuty(id){const x=state.duty.find(x=>x.id===id);if(!x)return;x.evaluation=x.done?"":"Hoàn thành";x.done=!x.done;save(x.done?"Đã hoàn thành trực nhật":"Đã mở lại nhiệm vụ trực nhật");renderDuty()}
 
 
 function renderWeekly(){
@@ -5243,60 +5223,25 @@ function closeWinnerOverlay(){
 
 
 let onlineTeachersCache=[];
-let onlineTeachersRequest=0;
 async function loadTeachersOnline(){
  if(!session?.isAdmin)return;
- const req=++onlineTeachersRequest;
  const body=document.getElementById("teacherRows");
  try{
   const x=await onlineAPI({action:"list_teachers"});
   if(!x.ok)throw new Error(x.message||"Không tải được danh sách giáo viên");
-  if(req!==onlineTeachersRequest)return;
   onlineTeachersCache=x.teachers||[];
-  if(page!=="teachers"||!document.getElementById("teacherRows"))return;
+  if(page!=="teachers")return;
   const count=document.getElementById("teacherCount");if(count)count.textContent=`👨‍🏫 ${onlineTeachersCache.length} giáo viên`;
   const rows=document.getElementById("teacherRows");
-  if(rows)rows.innerHTML=onlineTeachersCache.map(v=>`<tr>
-    <td><b>${esc(v.name)}</b></td>
-    <td><code>${esc(v.username||"—")}</code></td>
-    <td><span class=muted>••••••••</span><div class=muted style="font-size:11px;margin-top:3px">Được bảo vệ bằng mã hóa</div></td>
-    <td>${esc(v.className||"—")}</td><td>${esc(v.schoolYear||"—")}</td>
-    <td>${statusBadge(v.active,"Đang hoạt động","Đã khóa")}</td>
-    <td><div class=actions><button class="btn sm" onclick="openTeacherAccountAdmin('${v.id}')">✏️ Xem / sửa tài khoản</button><button class="btn sm" onclick="openTeacherPasswordReset('${v.id}')">🔑 Đổi mật khẩu</button></div></td>
-  </tr>`).join("")||`<tr><td colspan=7 class=empty>Chưa có giáo viên.</td></tr>`;
- }catch(e){if(req===onlineTeachersRequest&&body)body.innerHTML=`<tr><td colspan=7 class=empty>${esc(e.message)}</td></tr>`}
+  if(rows)rows.innerHTML=onlineTeachersCache.map(v=>`<tr><td><b>${esc(v.name)}</b></td><td><code>${esc(v.username)}</code></td><td>${esc(v.className||"—")}</td><td>${esc(v.schoolYear||"—")}</td><td>${statusBadge(v.active,"Đang hoạt động","Đã khóa")}</td><td><span class=badge>Toàn quyền workspace</span></td></tr>`).join("")||`<tr><td colspan=6 class=empty>Chưa có giáo viên.</td></tr>`;
+ }catch(e){if(body)body.innerHTML=`<tr><td colspan=6 class=empty>${esc(e.message)}</td></tr>`;else toast(e.message)}
 }
 function renderTeachers(){
  if(!session?.isAdmin){$("#content").innerHTML=`<div class=empty>Chỉ quản trị hệ thống được quản lý giáo viên.</div>`;return}
- $("#content").innerHTML=`<div class=section-head><div><h3>👨‍🏫 Giáo viên</h3><div class=muted>Quản trị hệ thống có toàn quyền quản lý tài khoản giáo viên.</div></div><button class="btn primary" onclick=openNewTeacherForm()>＋ Thêm giáo viên</button></div>
- <div class=card style="margin-bottom:14px"><b id=teacherCount>👨‍🏫 ${onlineTeachersCache.length||"…"} giáo viên</b><div class=muted style="margin-top:4px">Xem và sửa tên đăng nhập; đặt mật khẩu mới cho từng giáo viên. Mật khẩu hiện tại không hiển thị vì được lưu dưới dạng mã hóa.</div></div>
- <div class=table-wrap><table><thead><tr><th>Giáo viên</th><th>Tài khoản</th><th>Mật khẩu</th><th>Lớp ban đầu</th><th>Năm học</th><th>Trạng thái</th><th>Quản lý</th></tr></thead><tbody id=teacherRows>${onlineTeachersCache.length?onlineTeachersCache.map(v=>`<tr><td><b>${esc(v.name)}</b></td><td><code>${esc(v.username||"—")}</code></td><td><span class=muted>••••••••</span></td><td>${esc(v.className||"—")}</td><td>${esc(v.schoolYear||"—")}</td><td>${statusBadge(v.active,"Đang hoạt động","Đã khóa")}</td><td><div class=actions><button class="btn sm" onclick="openTeacherAccountAdmin('${v.id}')">✏️ Xem / sửa tài khoản</button><button class="btn sm" onclick="openTeacherPasswordReset('${v.id}')">🔑 Đổi mật khẩu</button></div></td></tr>`).join(""):`<tr><td colspan=7 class=empty>Đang tải danh sách giáo viên...</td></tr>`}</tbody></table></div>`;
+ $("#content").innerHTML=`<div class=section-head><div><h3>👨‍🏫 Giáo viên</h3><div class=muted>Admin tạo tài khoản giáo viên và không gian lớp độc lập.</div></div><button class="btn primary" onclick=openNewTeacherForm()>＋ Thêm giáo viên</button></div>
+ <div class=card style="margin-bottom:14px"><b id=teacherCount>👨‍🏫 … giáo viên</b><div class=muted style="margin-top:4px">Giáo viên luôn có quyền sử dụng toàn bộ chức năng trong workspace của mình.</div></div>
+ <div class=table-wrap><table><thead><tr><th>Giáo viên</th><th>Tài khoản</th><th>Lớp ban đầu</th><th>Năm học</th><th>Trạng thái</th><th>Quyền</th></tr></thead><tbody id=teacherRows><tr><td colspan=6 class=empty>Đang tải danh sách giáo viên...</td></tr></tbody></table></div>`;
  loadTeachersOnline();
-}
-async function adminUpdateTeacher(id,changes){
- if(!session?.isAdmin)throw new Error("Chỉ quản trị hệ thống được thực hiện thao tác này");
- const x=await onlineAPI({action:"update_teacher",teacherId:id,...changes});
- if(!x.ok)throw new Error(x.message||"Không cập nhật được tài khoản giáo viên");
- return x;
-}
-async function openTeacherAccountAdmin(id){
- const u=onlineTeachersCache.find(x=>x.id===id);if(!u)return toast("Không tìm thấy tài khoản giáo viên");
- modal(`<h3>✏️ Xem / sửa tài khoản giáo viên</h3><div class=notice style="margin-bottom:12px"><b>${esc(u.name||"Giáo viên")}</b><div class=muted>Quản trị hệ thống được sửa họ tên, tên đăng nhập và đặt mật khẩu mới.</div></div><div class=form-grid><div class=field><label>Họ tên giáo viên</label><input id=tauName value="${esc(u.name||"")}"></div><div class=field><label>Tên đăng nhập</label><input id=tauUsername value="${esc(u.username||"")}"></div><div class=field style="grid-column:1/-1"><label>Mật khẩu hiện tại</label><input value="••••••••" disabled><div class=muted>Hệ thống không lưu mật khẩu dạng đọc được. Nếu cần, thầy đặt mật khẩu mới bên dưới.</div></div><div class=field style="grid-column:1/-1"><label>Mật khẩu mới</label><input id=tauPassword type=password autocomplete=new-password placeholder="Để trống nếu không đổi"><label style="margin-top:6px"><input type=checkbox style="width:auto" onchange="document.getElementById('tauPassword').type=this.checked?'text':'password'"> Hiện mật khẩu mới đang nhập</label></div></div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button id=tauSave class="btn primary" onclick="saveTeacherAccountAdmin('${id}')">💾 Lưu thay đổi</button></div>`);
-}
-async function saveTeacherAccountAdmin(id){
- const name=val("tauName").trim(),username=val("tauUsername").trim().toLowerCase(),password=val("tauPassword");
- if(!name||!username)return toast("Nhập đầy đủ họ tên và tên đăng nhập");
- const btn=document.getElementById("tauSave");if(btn){btn.disabled=true;btn.textContent="Đang lưu..."}
- try{await adminUpdateTeacher(id,{name,username,...(password?{password}:{})});closeModal();toast(password?"Đã cập nhật tài khoản và mật khẩu giáo viên":"Đã cập nhật tài khoản giáo viên");await loadTeachersOnline()}catch(e){toast(e.message)}finally{if(btn){btn.disabled=false;btn.textContent="💾 Lưu thay đổi"}}
-}
-async function openTeacherPasswordReset(id){
- const u=onlineTeachersCache.find(x=>x.id===id);if(!u)return toast("Không tìm thấy tài khoản giáo viên");
- modal(`<h3>🔑 Đổi mật khẩu giáo viên</h3><div class=notice style="margin-bottom:12px"><b>${esc(u.name||"Giáo viên")}</b> • <code>${esc(u.username||"")}</code></div><div class=field><label>Mật khẩu mới</label><input id=trp1 type=password autocomplete=new-password></div><div class=field style="margin-top:10px"><label>Nhập lại mật khẩu mới</label><input id=trp2 type=password autocomplete=new-password></div><label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type=checkbox style="width:auto" onchange="document.getElementById('trp1').type=document.getElementById('trp2').type=this.checked?'text':'password'"> Hiện mật khẩu đang nhập</label><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button id=trpSave class="btn primary" onclick="saveTeacherPasswordReset('${id}')">🔑 Cập nhật mật khẩu</button></div>`);
-}
-async function saveTeacherPasswordReset(id){
- const a=val("trp1"),b=val("trp2");if(!a)return toast("Nhập mật khẩu mới");if(a!==b)return toast("Hai lần nhập mật khẩu chưa khớp");if(a.length<6)return toast("Mật khẩu cần ít nhất 6 ký tự");
- const btn=document.getElementById("trpSave");if(btn){btn.disabled=true;btn.textContent="Đang cập nhật..."}
- try{await adminUpdateTeacher(id,{password:a});closeModal();toast("Đã cập nhật mật khẩu giáo viên")}catch(e){toast(e.message)}finally{if(btn){btn.disabled=false;btn.textContent="🔑 Cập nhật mật khẩu"}}
 }
 
 const MEMBER_AREAS=[
@@ -5698,9 +5643,6 @@ document.addEventListener("click",function(e){
  if(!isGuestMode())return;
  const el=e.target.closest("button,[onclick]");
  if(!el)return;
- // V38.75: tuyệt đối không chặn các nút bên trong hộp đăng nhập.
- // Trước đây bộ chặn chế độ khách bắt luôn nút Đăng nhập trước khi mainLogin() chạy.
- if(el.closest("#loginScreen"))return;
  if(el.id==="accountBtn"||el.closest("#accountBtn")){requestLogin();e.preventDefault();e.stopImmediatePropagation();return}
  const nav=el.closest("[data-page]")||el.closest(".group-title");
  const code=String(el.getAttribute("onclick")||"");
@@ -5712,8 +5654,6 @@ document.addEventListener("click",function(e){
 document.addEventListener("change",function(e){
  if(!isGuestMode())return;
  const el=e.target;
- // Cho phép nhập tài khoản/mật khẩu và thao tác biểu mẫu đăng nhập.
- if(el.closest("#loginScreen"))return;
  if(el.matches("#classSelect")||el.closest("[data-guest-view]"))return;
  const code=String(el.getAttribute("onchange")||"");
  if(/^(setAttendanceDate|reportWeekDate)/.test(code))return;
