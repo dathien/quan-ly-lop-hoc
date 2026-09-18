@@ -82,6 +82,12 @@ tr:last-child td{border-bottom:0}
 .perm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.perm-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #dbe4ee;border-radius:10px;background:#fff}.perm-item input{width:17px;height:17px}@media(max-width:700px){.perm-grid{grid-template-columns:1fr}}
 
 body.guest-mode .edit-only{opacity:.55}.guest-view-note{display:none}body.guest-mode .guest-view-note{display:inline-flex}
+
+/* V38.73: form đăng nhập là hộp thoại trên app */
+.gvcn-login-screen{background:rgba(15,23,42,.28)!important;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.gvcn-login-card{position:relative!important}
+.gvcn-login-close{position:absolute;right:12px;top:12px;width:36px;height:36px;border:0;border-radius:10px;background:#eef2f7;color:#475569;font-size:22px;line-height:1;cursor:pointer}
+.gvcn-login-close:hover{background:#e2e8f0}
 </style>
 
 <style id="gvcnpro-v371-ui-refine">
@@ -2040,7 +2046,7 @@ input,select,textarea{
 <body>
 
 <div id="loginScreen" class="gvcn-login-screen" style="display:none">
-  <div class="gvcn-login-card">
+  <div class="gvcn-login-card"><button type="button" class="gvcn-login-close" onclick="hideLoginScreen()" aria-label="Đóng đăng nhập">×</button>
     <div class="gvcn-login-logo">🏫</div>
     <h1>GVCN</h1>
     <p class="gvcn-login-sub">Quản lý lớp học dành cho giáo viên</p>
@@ -2427,12 +2433,13 @@ function showLoginScreen(){
 
  AUTHENTICATED=false;
  const s=document.getElementById("loginScreen"),app=document.getElementById("mainApp");
- if(s)s.style.display="flex";if(app)app.style.visibility="hidden";
+ if(s)s.style.display="flex";if(app)app.style.visibility="visible";
  setTimeout(()=>document.getElementById("mainLoginUser")?.focus(),80);
 }
 function requestLogin(){
  LOGIN_USER_INITIATED=true;
- try{showLoginScreen()}finally{LOGIN_USER_INITIATED=false}
+ showLoginScreen();
+ LOGIN_USER_INITIATED=false;
 }
 function hideLoginScreen(){
  const s=document.getElementById("loginScreen"),app=document.getElementById("mainApp");
@@ -2656,8 +2663,7 @@ const titles={
 function isGuestMode(){return !AUTHENTICATED}
 function requireLoginToEdit(){
  if(!isGuestMode())return true;
- toast("Vui lòng đăng nhập để chỉnh sửa");
- requestLogin();
+ toast("Chế độ chỉ xem • Bấm Đăng nhập để chỉnh sửa");
  return false;
 }
 function updateGuestUI(){
@@ -5622,6 +5628,7 @@ document.addEventListener("click",function(e){
  if(!isGuestMode())return;
  const el=e.target.closest("button,[onclick]");
  if(!el)return;
+ if(el.id==="accountBtn"||el.closest("#accountBtn")){requestLogin();e.preventDefault();e.stopImmediatePropagation();return}
  const nav=el.closest("[data-page]")||el.closest(".group-title");
  const code=String(el.getAttribute("onclick")||"");
  const safe=/^(navigate|render|setDisciplineTab|moveAttendanceDate|setAttendanceDate|showLoginScreen|openAccountMenu|closeModal|window\.print)/.test(code);
@@ -5641,11 +5648,7 @@ document.addEventListener("change",function(e){
 },true);
 
 
-document.addEventListener("click",function(e){
- const b=e.target.closest("#accountBtn");
- if(!b||!isGuestMode())return;
- e.preventDefault();e.stopImmediatePropagation();requestLogin();
-},true);
+
 
 // V38.70 invariant: khách luôn ở trong app; session lỗi/hết hạn không được mở màn hình đăng nhập.
 function enforceGuestView(){
@@ -5655,7 +5658,7 @@ function enforceGuestView(){
  }
 }
 window.addEventListener("load",()=>setTimeout(enforceGuestView,50));
-window.addEventListener("focus",()=>setTimeout(enforceGuestView,0));
+
 
 </script>
 
