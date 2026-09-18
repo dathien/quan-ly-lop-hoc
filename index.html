@@ -5239,25 +5239,104 @@ function closeWinnerOverlay(){
 
 
 let onlineTeachersCache=[];
+let adminTeacherUsersCache=[];
+async function loadAdminTeacherUsers(){
+ if(!session?.isAdmin)return [];
+ try{
+  const r=await fetch('/api/admin/users',{credentials:'same-origin'});
+  const x=await r.json();
+  if(!r.ok||!x.ok)throw new Error(x.error||'Không tải được tài khoản giáo viên');
+  adminTeacherUsersCache=(x.users||[]).filter(u=>u.role==='teacher'||u.account_type==='teacher'||u.workspace_role==='teacher');
+  return adminTeacherUsersCache;
+ }catch(e){
+  console.warn('[GVCN teacher accounts]',e);
+  adminTeacherUsersCache=[];
+  return [];
+ }
+}
+function teacherAccountFor(v){
+ const vn=String(v?.name||'').trim().toLowerCase();
+ const vu=String(v?.username||'').trim().toLowerCase();
+ return adminTeacherUsersCache.find(u=>String(u.username||'').trim().toLowerCase()===vu)
+   ||adminTeacherUsersCache.find(u=>String(u.full_name||u.name||'').trim().toLowerCase()===vn)
+   ||null;
+}
 async function loadTeachersOnline(){
  if(!session?.isAdmin)return;
- const body=document.getElementById("teacherRows");
+ const body=document.getElementById('teacherRows');
  try{
-  const x=await onlineAPI({action:"list_teachers"});
-  if(!x.ok)throw new Error(x.message||"Không tải được danh sách giáo viên");
+  const [x]=await Promise.all([onlineAPI({action:'list_teachers'}),loadAdminTeacherUsers()]);
+  if(!x.ok)throw new Error(x.message||'Không tải được danh sách giáo viên');
   onlineTeachersCache=x.teachers||[];
-  if(page!=="teachers")return;
-  const count=document.getElementById("teacherCount");if(count)count.textContent=`👨‍🏫 ${onlineTeachersCache.length} giáo viên`;
-  const rows=document.getElementById("teacherRows");
-  if(rows)rows.innerHTML=onlineTeachersCache.map(v=>`<tr><td><b>${esc(v.name)}</b></td><td><code>${esc(v.username)}</code></td><td>${esc(v.className||"—")}</td><td>${esc(v.schoolYear||"—")}</td><td>${statusBadge(v.active,"Đang hoạt động","Đã khóa")}</td><td><span class=badge>Toàn quyền workspace</span></td></tr>`).join("")||`<tr><td colspan=6 class=empty>Chưa có giáo viên.</td></tr>`;
- }catch(e){if(body)body.innerHTML=`<tr><td colspan=6 class=empty>${esc(e.message)}</td></tr>`;else toast(e.message)}
+  if(page!=='teachers')return;
+  const count=document.getElementById('teacherCount');if(count)count.textContent=`👨‍🏫 ${onlineTeachersCache.length} giáo viên`;
+  const rows=document.getElementById('teacherRows');
+  if(rows)rows.innerHTML=onlineTeachersCache.map(v=>{
+    const u=teacherAccountFor(v), uid=u?.id||v.userId||v.user_id||'';
+    const username=u?.username||v.username||'';
+    return `<tr>
+      <td><b>${esc(v.name)}</b></td>
+      <td><code>${esc(username)}</code></td>
+      <td><span class=muted>••••••••</span><div class=muted style="font-size:11px;margin-top:3px">Mật khẩu được mã hóa</div></td>
+      <td>${esc(v.className||'—')}</td><td>${esc(v.schoolYear||'—')}</td>
+      <td>${statusBadge(v.active,'Đang hoạt động','Đã khóa')}</td>
+      <td><div class=actions>${uid?`<button class="btn sm" onclick="openTeacherAccountAdmin('${uid}')">✏️ Tài khoản</button><button class="btn sm" onclick="openTeacherPasswordReset('${uid}')">🔑 Đặt mật khẩu mới</button>`:`<span class="badge warn">Chưa liên kết tài khoản</span>`}</div></td>
+    </tr>`;
+  }).join('')||`<tr><td colspan=7 class=empty>Chưa có giáo viên.</td></tr>`;
+ }catch(e){if(body)body.innerHTML=`<tr><td colspan=7 class=empty>${esc(e.message)}</td></tr>`;else toast(e.message)}
 }
 function renderTeachers(){
- if(!session?.isAdmin){$("#content").innerHTML=`<div class=empty>Chỉ quản trị hệ thống được quản lý giáo viên.</div>`;return}
- $("#content").innerHTML=`<div class=section-head><div><h3>👨‍🏫 Giáo viên</h3><div class=muted>Admin tạo tài khoản giáo viên và không gian lớp độc lập.</div></div><button class="btn primary" onclick=openNewTeacherForm()>＋ Thêm giáo viên</button></div>
- <div class=card style="margin-bottom:14px"><b id=teacherCount>👨‍🏫 … giáo viên</b><div class=muted style="margin-top:4px">Giáo viên luôn có quyền sử dụng toàn bộ chức năng trong workspace của mình.</div></div>
- <div class=table-wrap><table><thead><tr><th>Giáo viên</th><th>Tài khoản</th><th>Lớp ban đầu</th><th>Năm học</th><th>Trạng thái</th><th>Quyền</th></tr></thead><tbody id=teacherRows><tr><td colspan=6 class=empty>Đang tải danh sách giáo viên...</td></tr></tbody></table></div>`;
+ if(!session?.isAdmin){$('#content').innerHTML=`<div class=empty>Chỉ quản trị hệ thống được quản lý giáo viên.</div>`;return}
+ $('#content').innerHTML=`<div class=section-head><div><h3>👨‍🏫 Giáo viên</h3><div class=muted>Quản trị hệ thống có toàn quyền quản lý tài khoản giáo viên.</div></div><button class="btn primary" onclick=openNewTeacherForm()>＋ Thêm giáo viên</button></div>
+ <div class=card style="margin-bottom:14px"><b id=teacherCount>👨‍🏫 … giáo viên</b><div class=muted style="margin-top:4px">Có thể xem/sửa tên đăng nhập và đặt mật khẩu mới cho giáo viên. Mật khẩu hiện tại không thể đọc lại vì được lưu dưới dạng mã hóa.</div></div>
+ <div class=table-wrap><table><thead><tr><th>Giáo viên</th><th>Tài khoản</th><th>Mật khẩu</th><th>Lớp ban đầu</th><th>Năm học</th><th>Trạng thái</th><th>Quản lý</th></tr></thead><tbody id=teacherRows><tr><td colspan=7 class=empty>Đang tải danh sách giáo viên...</td></tr></tbody></table></div>`;
  loadTeachersOnline();
+}
+async function adminPatchTeacherUser(id,body){
+ if(!session?.isAdmin)throw new Error('Chỉ quản trị hệ thống được thực hiện thao tác này');
+ const r=await fetch('/api/admin/users',{method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,...body})});
+ const x=await r.json();
+ if(!r.ok||!x.ok)throw new Error(x.error||'Không cập nhật được tài khoản');
+ return x;
+}
+async function openTeacherAccountAdmin(id){
+ if(!session?.isAdmin)return toast('Chỉ quản trị hệ thống được quản lý giáo viên');
+ if(!adminTeacherUsersCache.length)await loadAdminTeacherUsers();
+ const u=adminTeacherUsersCache.find(x=>x.id===id);
+ if(!u)return toast('Không tìm thấy tài khoản giáo viên');
+ modal(`<h3>✏️ Quản lý tài khoản giáo viên</h3>
+ <div class=notice style="margin-bottom:12px"><b>${esc(u.full_name||u.name||'Giáo viên')}</b><div class=muted>Quản trị hệ thống có thể đổi tên đăng nhập và đặt mật khẩu mới.</div></div>
+ <div class=form-grid>
+  <div class=field><label>Họ tên</label><input id=tauName value="${esc(u.full_name||u.name||'')}"></div>
+  <div class=field><label>Tên đăng nhập</label><input id=tauUsername value="${esc(u.username||'')}"></div>
+  <div class=field style="grid-column:1/-1"><label>Mật khẩu hiện tại</label><input value="••••••••" disabled><div class=muted>Mật khẩu đã mã hóa nên không thể xem lại. Có thể đặt mật khẩu mới bên dưới.</div></div>
+  <div class=field style="grid-column:1/-1"><label>Mật khẩu mới</label><input id=tauPassword type=password autocomplete=new-password placeholder="Để trống nếu không đổi"><label style="margin-top:6px"><input id=tauShowPass type=checkbox onchange="document.getElementById('tauPassword').type=this.checked?'text':'password'" style="width:auto"> Hiện mật khẩu mới đang nhập</label></div>
+ </div>
+ <div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button id=tauSave class="btn primary" onclick="saveTeacherAccountAdmin('${id}')">💾 Lưu thay đổi</button></div>`);
+}
+async function saveTeacherAccountAdmin(id){
+ const fullName=val('tauName').trim(),username=val('tauUsername').trim().toLowerCase(),password=val('tauPassword');
+ if(!fullName||!username)return toast('Nhập đầy đủ họ tên và tên đăng nhập');
+ const btn=document.getElementById('tauSave');if(btn){btn.disabled=true;btn.textContent='Đang lưu...'}
+ try{
+  await adminPatchTeacherUser(id,{fullName,username,...(password?{password}:{})});
+  closeModal();toast(password?'Đã cập nhật tài khoản và mật khẩu giáo viên':'Đã cập nhật tài khoản giáo viên');await loadTeachersOnline();
+ }catch(e){toast(e.message)}finally{if(btn){btn.disabled=false;btn.textContent='💾 Lưu thay đổi'}}
+}
+async function openTeacherPasswordReset(id){
+ if(!session?.isAdmin)return toast('Chỉ quản trị hệ thống được đặt lại mật khẩu');
+ if(!adminTeacherUsersCache.length)await loadAdminTeacherUsers();
+ const u=adminTeacherUsersCache.find(x=>x.id===id);if(!u)return toast('Không tìm thấy tài khoản giáo viên');
+ modal(`<h3>🔑 Đặt mật khẩu mới</h3><div class=notice style="margin-bottom:12px"><b>${esc(u.full_name||u.name||'Giáo viên')}</b> • <code>${esc(u.username||'')}</code></div>
+ <div class=field><label>Mật khẩu mới</label><input id=trp1 type=password autocomplete=new-password placeholder="Nhập mật khẩu mới"></div>
+ <div class=field style="margin-top:10px"><label>Nhập lại mật khẩu mới</label><input id=trp2 type=password autocomplete=new-password placeholder="Nhập lại mật khẩu"></div>
+ <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id=trpShow type=checkbox style="width:auto" onchange="document.getElementById('trp1').type=document.getElementById('trp2').type=this.checked?'text':'password'"> Hiện mật khẩu đang nhập</label>
+ <div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button id=trpSave class="btn primary" onclick="saveTeacherPasswordReset('${id}')">🔑 Cập nhật mật khẩu</button></div>`);
+}
+async function saveTeacherPasswordReset(id){
+ const a=val('trp1'),b=val('trp2');if(!a)return toast('Nhập mật khẩu mới');if(a!==b)return toast('Hai lần nhập mật khẩu chưa khớp');if(a.length<6)return toast('Mật khẩu cần ít nhất 6 ký tự');
+ const btn=document.getElementById('trpSave');if(btn){btn.disabled=true;btn.textContent='Đang cập nhật...'}
+ try{await adminPatchTeacherUser(id,{password:a});closeModal();toast('Đã cập nhật mật khẩu giáo viên')}catch(e){toast(e.message)}finally{if(btn){btn.disabled=false;btn.textContent='🔑 Cập nhật mật khẩu'}}
 }
 
 const MEMBER_AREAS=[
