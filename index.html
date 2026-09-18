@@ -2860,11 +2860,11 @@ function getRankRange(){
 }
 function rankRows(){
  const r=getRankRange(),rules={...DEFAULT_RULES,...(state.disciplineRules||{})};
- return classStudents().map(s=>{let o={s,present:0,late:0,excused:0,unexcused:0,violations:0,positive:0,score:Number(rules.base||0)};
+ return classStudents().map(s=>{let o={s,present:0,late:0,excused:0,unexcused:0,violations:0,positive:0,academic:0,score:Number(rules.base||0)};
   byClass(state.attendance).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{if(x.status==="Có mặt")o.present++;if(x.status==="Đi trễ"){o.late++;o.score+=Number(rules.late||0)}
    if(x.status==="Vắng phép"){o.excused++;o.score+=Number(rules.excused||0)}if(x.status==="Vắng không phép"){o.unexcused++;o.score+=Number(rules.unexcused||0)}if(x.status==="Về sớm")o.score+=Number(rules.early||0)});
   byClass(state.incidents).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{o.violations++;const lv=x.level||"Nhắc nhở";o.score+=lv==="Nghiêm trọng"?Number(rules.incidentSerious):lv==="Cần lưu ý"?Number(rules.incidentAttention):Number(rules.incidentReminder)});
-  byClass(state.positive).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{const p=Number(x.points||0);o.positive+=p;o.score+=p});
+  byClass(state.positive).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{const p=Number(x.points||0);if(x.category==="Học tập")o.academic+=p;else o.positive+=p;o.score+=p});
   return o
  }).sort((a,b)=>b.score-a.score||b.positive-a.positive||a.violations-b.violations||a.s.name.localeCompare(b.s.name,"vi"))
 }
@@ -4072,19 +4072,19 @@ function renderDisciplineRecord(){
   pane.innerHTML=`<div class="grid g2">
     <div class=card>
       <h3 style="margin-top:0">Ghi nhận nhanh</h3>
-      <p class=muted>Thêm vi phạm hoặc điểm tích cực cho học sinh.</p>
-      <button class="btn primary" onclick=openIncidentForm()>＋ Ghi nhận nề nếp</button>
+      <p class=muted>Chọn học sinh và nội dung; điểm được lấy tự động từ Thang điểm nề nếp.</p>
+      <div class=actions><button class="btn primary" onclick=openQuickConduct()>＋ Ghi nhận</button><button class=btn onclick=loadConductSamples()>🧪 Nạp dữ liệu mẫu</button></div>
     </div>
     <div class=card>
-      <h3 style="margin-top:0">Tổng hợp hiện tại</h3>
-      <div class=muted>Xem kết quả nề nếp theo học sinh.</div>
+      <h3 style="margin-top:0">Cách dùng</h3>
+      <div class=muted>Không cần nhập điểm thủ công. Khi cần sửa hoặc xóa, bấm <b>Lịch sử / sửa</b> ngay tại học sinh.</div>
       <div style="margin-top:10px"><button class=btn onclick=showRankDetail()>Xem bảng điểm nề nếp</button></div>
     </div>
   </div>
   <div class=card style="margin-top:15px">
     <h3 style="margin-top:0">Điểm nề nếp theo học sinh</h3>
-    <div class=table-wrap><table><thead><tr><th>Học sinh</th><th>Đi trễ</th><th>Vắng phép</th><th>Vắng KP</th><th>Vi phạm</th><th>Tích cực</th><th>Điểm</th></tr></thead><tbody>
-    ${rankRows().map(x=>`<tr><td><b>${esc(x.s.name)}</b><div style="margin-top:5px"><button class="btn sm" onclick="manageConcernData('${x.s.id}')">Chỉnh dữ liệu</button></div></td><td>${x.late}</td><td>${x.excused}</td><td>${x.unexcused}</td><td>${x.violations}</td><td>${x.positive}</td><td><b>${x.score}</b></td></tr>`).join("")||`<tr><td colspan=7 class=empty>Chưa có dữ liệu.</td></tr>`}
+    <div class=table-wrap><table><thead><tr><th>Học sinh</th><th>Đi trễ</th><th>Vắng phép</th><th>Vắng KP</th><th>Học tập</th><th>Vi phạm</th><th>Tích cực</th><th>Điểm</th><th>Thao tác</th></tr></thead><tbody>
+    ${rankRows().map(x=>`<tr><td><b>${esc(x.s.name)}</b></td><td>${x.late}</td><td>${x.excused}</td><td>${x.unexcused}</td><td><b>${x.academic>0?"+":""}${x.academic}</b></td><td>${x.violations}</td><td>${x.positive>0?"+":""}${x.positive}</td><td><b>${x.score>0?"+":""}${x.score}</b></td><td><div class=actions><button class="btn sm primary" onclick="openQuickConduct('${x.s.id}')">＋ Ghi nhận</button><button class="btn sm" onclick="manageConcernData('${x.s.id}')">✏️ Lịch sử / sửa</button></div></td></tr>`).join("")||`<tr><td colspan=9 class=empty>Chưa có dữ liệu.</td></tr>`}
     </tbody></table></div>
   </div>`;
 }
@@ -4180,7 +4180,7 @@ function concernCard(x){
       <div class=muted>${phone?`PHHS: ${esc(phone)}`:"Chưa có SĐT phụ huynh"}</div>
       <div class=actions>
         <button class="btn sm" onclick="openStudentForm('${s.id}')">✏️ Sửa HS</button>
-        <button class="btn sm" onclick="manageConcernData('${s.id}')">🛠️ Chỉnh dữ liệu</button>
+        <button class="btn sm" onclick="manageConcernData('${s.id}')">✏️ Lịch sử / sửa</button>
         <button class="btn sm" onclick="openStudentJournal('${s.id}')">📖 Nhật ký</button>
         <button class="btn sm" onclick="openParentMessageFor('${s.id}')">💬 Soạn tin PHHS</button>
         <button class="btn sm primary" onclick="openIncidentFor('${s.id}')">✍️ Ghi nhận</button>
@@ -4220,7 +4220,7 @@ function editDisciplineEvent(type,id,studentId,date){
   if(type==="Tích cực"){
     const x=state.positive.find(r=>r.id===id);
     if(!x)return toast("Không tìm thấy ghi nhận");
-    modal(`<h3>✏️ Sửa ghi nhận tích cực</h3>
+    modal(`<h3>✏️ Sửa ghi nhận học tập / tích cực</h3>
       <div class=form-grid>
         <div class=field><label>Học sinh</label><select id=ePosStudent>${classStudents().map(s=>`<option value="${s.id}" ${s.id===x.studentId?"selected":""}>${esc(s.name)}</option>`).join("")}</select></div>
         <div class=field><label>Ngày</label><input id=ePosDate type=date value="${esc(x.date||todayISO())}"></div>
@@ -4265,7 +4265,7 @@ function manageConcernData(studentId){
   byClass(state.incidents).filter(x=>x.studentId===studentId)
     .forEach(x=>rows.push({id:x.id,type:"Vi phạm",date:x.date,text:`${x.level||"Nhắc nhở"}${x.note?": "+x.note:""}`}));
   byClass(state.positive).filter(x=>x.studentId===studentId)
-    .forEach(x=>rows.push({id:x.id,type:"Tích cực",date:x.date,text:`+${x.points||0} điểm${x.note?": "+x.note:""}`}));
+    .forEach(x=>rows.push({id:x.id,type:"Tích cực",date:x.date,text:`${x.category==="Học tập"?(x.criterion||"Học tập")+" • ":""}${Number(x.points||0)>0?"+":""}${x.points||0} điểm${x.note?": "+x.note:""}`}));
   rows.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
 
   modal(`<h3>🛠️ Chỉnh dữ liệu cần quan tâm – ${esc(s.name)}</h3>
@@ -4335,6 +4335,70 @@ function setAttendanceReason(studentId,reason){
  const a=state.attendance.find(x=>x.classId===state.currentClassId&&x.studentId===studentId&&x.date===date);
  if(!a)return toast("Hãy chọn trạng thái trước khi nhập lý do");
  a.reason=String(reason||"").trim();save("Đã lưu lý do điểm danh");
+}
+
+function conductOptions(){
+ const r={...DEFAULT_RULES,...(state.disciplineRules||{})};
+ return [
+  ["late","Chuyên cần","Đi trễ",r.late],["excused","Chuyên cần","Vắng phép",r.excused],["unexcused","Chuyên cần","Vắng không phép",r.unexcused],["early","Chuyên cần","Về sớm",r.early],
+  ["notLearned","Học tập","Chưa thuộc bài",r.notLearned],["notHomework","Học tập","Chưa làm bài",r.notHomework],["learned","Học tập","Thuộc bài",r.learned],["homeworkDone","Học tập","Làm bài đầy đủ",r.homeworkDone],
+  ["incidentReminder","Nề nếp","Nhắc nhở",r.incidentReminder],["incidentAttention","Nề nếp","Cần lưu ý",r.incidentAttention],["incidentSerious","Nề nếp","Nghiêm trọng",r.incidentSerious],
+  ["positive","Tích cực","Điểm tích cực",1]
+ ];
+}
+function updateQuickConductPreview(){
+ const opt=conductOptions().find(x=>x[0]===val("qcType"));
+ const box=document.getElementById("qcPreview"); if(!box||!opt)return;
+ const points=opt[0]==="positive"?Number(val("qcPositive")||1):Number(opt[3]||0);
+ box.innerHTML=`<b>${esc(opt[1])} • ${esc(opt[2])}</b> → <b>${points>0?"+":""}${points} điểm</b>`;
+ const w=document.getElementById("qcPositiveWrap");if(w)w.style.display=opt[0]==="positive"?"block":"none";
+}
+function openQuickConduct(studentId=""){
+ const opts=conductOptions();
+ modal(`<h3>＋ Ghi nhận nề nếp</h3>
+  <div class=muted style="margin-bottom:12px">Chọn nội dung, app tự tính điểm. Giáo viên không cần nhớ mức cộng/trừ.</div>
+  <div class=form-grid>
+   <div class=field><label>Học sinh</label><select id=qcStudent>${classStudents().map(st=>`<option value="${st.id}" ${st.id===studentId?"selected":""}>${esc(st.name)}</option>`).join("")}</select></div>
+   <div class=field><label>Ngày</label><input id=qcDate type=date value="${todayISO()}"></div>
+   <div class=field><label>Nội dung ghi nhận</label><select id=qcType onchange=updateQuickConductPreview()>${opts.map(x=>`<option value="${x[0]}">${esc(x[1])} • ${esc(x[2])} (${Number(x[3])>0?"+":""}${Number(x[3])})</option>`).join("")}</select></div>
+   <div class=field id=qcPositiveWrap style="display:none"><label>Điểm tích cực</label><input id=qcPositive type=number value=1 min=1 onchange=updateQuickConductPreview()></div>
+  </div>
+  <div id=qcPreview class=card style="margin-top:12px;padding:12px"></div>
+  <div class=field style="margin-top:12px"><label>Ghi chú (không bắt buộc)</label><textarea id=qcNote placeholder="Ví dụ: chưa chuẩn bị bài, phát biểu tốt, đi học muộn..."></textarea></div>
+  <div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick=saveQuickConduct()>Lưu ghi nhận</button></div>`);
+ setTimeout(updateQuickConductPreview,0);
+}
+function saveQuickConduct(){
+ const studentId=val("qcStudent"),date=val("qcDate"),key=val("qcType"),note=val("qcNote");
+ const opt=conductOptions().find(x=>x[0]===key); if(!studentId||!date||!opt)return toast("Hãy chọn học sinh, ngày và nội dung");
+ if(["late","excused","unexcused","early"].includes(key)){
+  const status={late:"Đi trễ",excused:"Vắng phép",unexcused:"Vắng không phép",early:"Về sớm"}[key];
+  const old=state.attendance.find(x=>x.classId===state.currentClassId&&x.studentId===studentId&&x.date===date);
+  state.attendance=state.attendance.filter(x=>!(x.classId===state.currentClassId&&x.studentId===studentId&&x.date===date));
+  state.attendance.push({id:old?.id||uid(),classId:state.currentClassId,studentId,date,status,reason:note||old?.reason||""});
+ }else if(["incidentReminder","incidentAttention","incidentSerious"].includes(key)){
+  const level={incidentReminder:"Nhắc nhở",incidentAttention:"Cần lưu ý",incidentSerious:"Nghiêm trọng"}[key];
+  state.incidents.push({id:uid(),classId:state.currentClassId,studentId,date,level,note,resolved:false});
+ }else{
+  const points=key==="positive"?Number(val("qcPositive")||1):Number(opt[3]||0);
+  state.positive.push({id:uid(),classId:state.currentClassId,studentId,date,points,note,category:key==="positive"?"Tích cực":"Học tập",criterion:opt[2]});
+ }
+ closeModal();save("Đã lưu ghi nhận nề nếp");disciplineTab="record";renderDiscipline();
+}
+function loadConductSamples(){
+ const sts=classStudents();if(sts.length<4)return toast("Cần ít nhất 4 học sinh để nạp dữ liệu mẫu");
+ const existing=byClass(state.attendance).some(x=>x.status&&x.status!=="Có mặt")||byClass(state.incidents).length||byClass(state.positive).length;
+ if(existing&&!confirm("Lớp đã có dữ liệu nề nếp. Vẫn nạp thêm 4 ghi nhận mẫu?"))return;
+ const d=todayISO(),r={...DEFAULT_RULES,...(state.disciplineRules||{})};
+ state.attendance.push({id:uid(),classId:state.currentClassId,studentId:sts[0].id,date:d,status:"Đi trễ",reason:"Dữ liệu mẫu"});
+ state.positive.push({id:uid(),classId:state.currentClassId,studentId:sts[0].id,date:d,points:Number(r.learned),note:"Dữ liệu mẫu",category:"Học tập",criterion:"Thuộc bài"});
+ state.positive.push({id:uid(),classId:state.currentClassId,studentId:sts[1].id,date:d,points:Number(r.homeworkDone),note:"Dữ liệu mẫu",category:"Học tập",criterion:"Làm bài đầy đủ"});
+ state.positive.push({id:uid(),classId:state.currentClassId,studentId:sts[1].id,date:d,points:2,note:"Dữ liệu mẫu",category:"Tích cực",criterion:"Tích cực"});
+ state.attendance.push({id:uid(),classId:state.currentClassId,studentId:sts[2].id,date:d,status:"Vắng không phép",reason:"Dữ liệu mẫu"});
+ state.positive.push({id:uid(),classId:state.currentClassId,studentId:sts[2].id,date:d,points:Number(r.notHomework),note:"Dữ liệu mẫu",category:"Học tập",criterion:"Chưa làm bài"});
+ state.positive.push({id:uid(),classId:state.currentClassId,studentId:sts[3].id,date:d,points:Number(r.notLearned),note:"Dữ liệu mẫu",category:"Học tập",criterion:"Chưa thuộc bài"});
+ state.incidents.push({id:uid(),classId:state.currentClassId,studentId:sts[3].id,date:d,level:"Nhắc nhở",note:"Dữ liệu mẫu",resolved:false});
+ save("Đã nạp dữ liệu mẫu nề nếp");disciplineTab="record";renderDiscipline();toast("Đã nạp 4 tình huống mẫu");
 }
 function openIncidentForm(){modal(`<h3>Ghi nhận nề nếp</h3><div class=form-grid><div class=field><label>Học sinh</label><select id=nStudent>${studentOptions()}</select></div><div class=field><label>Loại</label><select id=nKind onchange="document.getElementById('nLevelWrap').style.display=this.value==='Vi phạm'?'block':'none'"><option>Vi phạm</option><option>Tích cực</option></select></div><div class=field id=nLevelWrap><label>Mức vi phạm</label><select id=nLevel><option>Nhắc nhở</option><option>Cần lưu ý</option><option>Nghiêm trọng</option></select></div><div class=field><label>Điểm tích cực</label><input id=nPoints type=number value=1></div><div class=field><label>Ngày</label><input id=nDate type=date value="${todayISO()}"></div></div><div class=field style="margin-top:12px"><label>Nội dung</label><textarea id=nNote></textarea></div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick=saveNeNep()>Lưu</button></div>`)}
 function saveNeNep(){const k=val("nKind"),base={id:uid(),classId:state.currentClassId,studentId:val("nStudent"),date:val("nDate"),note:val("nNote")};if(k==="Tích cực")state.positive.push({...base,points:nval("nPoints")});else state.incidents.push({...base,level:val("nLevel"),resolved:false});closeModal();save("Đã ghi nhận nề nếp");renderDiscipline()}
