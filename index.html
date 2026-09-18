@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title> Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2409,7 +2409,7 @@ function isTeacherAccount(){return session.role==="Giáo viên"}
 async function onlineAPI(body){
  const r=await fetch("/api/gvcn",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify(body)});
  let x={};try{x=await r.json()}catch(e){}
- if(r.status===401&&body.action!=="login"){sessionStorage.removeItem(SESSION_KEY);showLoginScreen()}
+ if(r.status===401&&body.action!=="login"){sessionStorage.removeItem(SESSION_KEY);AUTHENTICATED=false;updateGuestUI()}
  if(!r.ok&&!x.message)x.message="Không kết nối được máy chủ";
  return x;
 }
@@ -2477,7 +2477,7 @@ async function mainLogin(){
    KEY=teacherDataKey(session.teacherId);
    state=loadState();
    if(err)err.textContent="";
-   hideLoginScreen();updateAccountUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${u.name}`);
+   hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${u.name}`);
    // Không bắt người dùng chờ tải toàn bộ dữ liệu Neon. Đồng bộ chạy nền sau khi đã vào app.
    onlineAPI({action:"pull"}).then(remote=>{
      if(remote.ok&&remote.data&&remote.data.classes){
@@ -2491,8 +2491,10 @@ async function logoutGVCN(){
  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
  try{await onlineAPI({action:"logout"})}catch(e){}
  sessionStorage.removeItem(SESSION_KEY);
+ AUTHENTICATED=false;
  document.getElementById("mainLoginPass")&&(document.getElementById("mainLoginPass").value="");
- showLoginScreen();
+ hideLoginScreen();updateGuestUI();renderClassSelect();navigate("home");
+ toast("Đã đăng xuất • Chế độ chỉ xem");
 }
 document.addEventListener("keydown",e=>{
  if(e.key==="Enter"&&document.getElementById("loginScreen")?.style.display!=="none")mainLogin();
@@ -5504,16 +5506,25 @@ function downloadBlob(blob,name){const a=document.createElement("a");a.href=URL.
 function downloadCSV(rows,name){const csv=rows.map(r=>r.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n");downloadBlob(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),name)}
 
 setupCompactSidebar();
-updateAccountUI();renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");
+hideLoginScreen();
+updateAccountUI();updateGuestUI();renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");
 if(AUTHENTICATED){
  onlineAPI({action:"me"}).then(async x=>{
-  if(!x.ok||!x.authenticated){showLoginScreen();return}
+  if(!x.ok||!x.authenticated){
+   AUTHENTICATED=false;sessionStorage.removeItem(SESSION_KEY);
+   hideLoginScreen();updateGuestUI();refreshCurrentView();return;
+  }
   const u=x.user;session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
   sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));KEY=teacherDataKey(session.teacherId);
-  state=loadState();hideLoginScreen();updateAccountUI();renderClassSelect();refreshCurrentView();
+  state=loadState();hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();refreshCurrentView();
   const remote=await onlineAPI({action:"pull"});if(remote.ok&&remote.data){state=remote.data;localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView()}
- }).catch(()=>showLoginScreen());
-}else showLoginScreen();
+ }).catch(()=>{
+   AUTHENTICATED=false;sessionStorage.removeItem(SESSION_KEY);
+   hideLoginScreen();updateGuestUI();refreshCurrentView();
+ });
+}else{
+ hideLoginScreen();updateGuestUI();
+}
 </script>
 
 
