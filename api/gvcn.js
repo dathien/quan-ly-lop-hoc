@@ -233,6 +233,34 @@ export default async function handler(req,res){
       }))});
     }
 
+    if(action==="update_teacher"){
+      if(user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ quản trị hệ thống được sửa tài khoản giáo viên"});
+      const teacherId=String(body.teacherId||"").trim();
+      if(!teacherId)return json(res,400,{ok:false,message:"Thiếu mã giáo viên"});
+      const found=await sql`SELECT id,full_name,username,role FROM public.gvcn_users WHERE id=${teacherId}::uuid LIMIT 1`;
+      if(!found.length||found[0].role!=="teacher")return json(res,404,{ok:false,message:"Không tìm thấy tài khoản giáo viên"});
+      const name=body.name===undefined?null:String(body.name||"").trim();
+      const username=body.username===undefined?null:String(body.username||"").trim().toLowerCase();
+      const password=body.password===undefined?null:String(body.password||"");
+      if(name!==null&&!name)return json(res,400,{ok:false,message:"Họ tên giáo viên không được để trống"});
+      if(username!==null&&!/^[a-z0-9._-]{3,32}$/.test(username))return json(res,400,{ok:false,message:"Tên đăng nhập không hợp lệ"});
+      if(password!==null&&password.length<6)return json(res,400,{ok:false,message:"Mật khẩu cần ít nhất 6 ký tự"});
+      if(username!==null){
+        const conflict=await sql`SELECT id FROM public.gvcn_users WHERE lower(username)=${username} AND id<>${teacherId}::uuid LIMIT 1`;
+        if(conflict.length)return json(res,409,{ok:false,message:"Tên đăng nhập đã được sử dụng"});
+      }
+      if(name!==null)await sql`UPDATE public.gvcn_users SET full_name=${name},updated_at=NOW() WHERE id=${teacherId}::uuid`;
+      if(username!==null)await sql`UPDATE public.gvcn_users SET username=${username},updated_at=NOW() WHERE id=${teacherId}::uuid`;
+      if(password!==null)await sql`UPDATE public.gvcn_users SET password_hash=${hashPassword(password)},updated_at=NOW() WHERE id=${teacherId}::uuid`;
+      if(name!==null){
+        await sql`UPDATE public.gvcn_classes SET teacher_name=${name},updated_at=NOW() WHERE workspace_id IN (SELECT id FROM public.gvcn_workspaces WHERE owner_user_id=${teacherId}::uuid)`;
+        await sql`UPDATE public.gvcn_workspaces SET name=${"GVCN - "+name},updated_at=NOW() WHERE owner_user_id=${teacherId}::uuid`;
+      }
+      await sql`INSERT INTO public.gvcn_activity_logs(workspace_id,user_id,action,module,description)
+                VALUES(${user.workspace_id}::uuid,${user.id}::uuid,'UPDATE_TEACHER','admin',${"Cập nhật tài khoản giáo viên "+teacherId})`;
+      return json(res,200,{ok:true,message:"Đã cập nhật tài khoản giáo viên"});
+    }
+
     if(action==="create_teacher"){
       if(user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ quản trị được tạo giáo viên"});
       const t=body.teacher||{};
