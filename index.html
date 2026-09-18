@@ -2479,9 +2479,9 @@ async function mainLogin(){
  if(!username||!password){if(err)err.textContent="Vui lòng nhập tài khoản và mật khẩu.";return}
  if(btn){btn.disabled=true;btn.textContent="Đang đăng nhập..."}
  try{
-   const r=await fetch("/api/gvcn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"login",username,password})});
+   const r=await fetch("/api/gvcn",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify({action:"login",username,password})});
    const x=await r.json();
-   if(!r.ok||!x.ok)throw new Error(x.message||"Đăng nhập thất bại");
+   if(!r.ok||!x.ok)throw new Error(x.message||x.error||"Đăng nhập thất bại");
    const u=x.user;
    session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
    sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;
