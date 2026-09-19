@@ -52,6 +52,7 @@ async function ensureSchema(){
     ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'teacher',
     ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS google_email TEXT,
+      ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS admin_bootstrapped BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS root_admin_migration INTEGER NOT NULL DEFAULT 0`;
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS gvcn_users_username_lower_uq ON public.gvcn_users (lower(username)) WHERE username IS NOT NULL`;
@@ -68,7 +69,7 @@ async function getSession(req){
   const token=parseCookies(req)[COOKIE];
   if(!token)return null;
   const rows=await sql`
-    SELECT u.id,u.full_name,u.username,u.role,u.account_type,u.active,
+    SELECT u.id,u.full_name,u.username,u.role,u.account_type,u.active,u.is_demo,
            wm.workspace_id,wm.role AS workspace_role,w.owner_user_id,
            owner.full_name AS owner_name
     FROM public.gvcn_sessions s
@@ -192,13 +193,13 @@ export default async function handler(req,res){
       if(u.role==="admin")await ensureAdminWorkspace(u.id,u.full_name);
       await setSession(res,u.id);
       const s=(await sql`
-        SELECT u.id,u.full_name,u.username,u.role,wm.workspace_id,wm.role AS workspace_role,w.owner_user_id,owner.full_name AS owner_name
+        SELECT u.id,u.full_name,u.username,u.role,u.is_demo,wm.workspace_id,wm.role AS workspace_role,w.owner_user_id,owner.full_name AS owner_name
         FROM public.gvcn_users u
         LEFT JOIN public.gvcn_workspace_members wm ON wm.user_id=u.id AND wm.active=TRUE
         LEFT JOIN public.gvcn_workspaces w ON w.id=wm.workspace_id
         LEFT JOIN public.gvcn_users owner ON owner.id=w.owner_user_id
         WHERE u.id=${u.id}::uuid ORDER BY CASE WHEN w.owner_user_id=u.id THEN 0 ELSE 1 END, wm.created_at ASC LIMIT 1`)[0];
-      return json(res,200,{ok:true,user:{id:s.id,name:s.full_name,username:s.username,role:roleLabel(s.role),systemRole:s.role,isAdmin:s.role==="admin",workspaceId:s.workspace_id,workspaceRole:s.workspace_role,teacherId:s.owner_user_id||s.id,teacherName:s.owner_name||s.full_name}});
+      return json(res,200,{ok:true,user:{id:s.id,name:s.full_name,username:s.username,role:s.is_demo?"Demo / Đào tạo":roleLabel(s.role),systemRole:s.role,isAdmin:s.role==="admin",isDemo:!!s.is_demo,workspaceId:s.workspace_id,workspaceRole:s.workspace_role,teacherId:s.owner_user_id||s.id,teacherName:s.owner_name||s.full_name}});
     }
 
     if(action==="logout"){
@@ -210,7 +211,82 @@ export default async function handler(req,res){
     if(!user)return json(res,401,{ok:false,message:"Phiên đăng nhập đã hết hạn"});
 
     if(action==="me"){
-      return json(res,200,{ok:true,authenticated:true,user:{id:user.id,name:user.full_name,username:user.username,role:roleLabel(user.role),systemRole:user.role,isAdmin:user.role==="admin",workspaceId:user.workspace_id,workspaceRole:user.workspace_role,teacherId:user.owner_user_id||user.id,teacherName:user.owner_name||user.full_name}});
+      return json(res,200,{ok:true,authenticated:true,user:{id:user.id,name:user.full_name,username:user.username,role:user.is_demo?"Demo / Đào tạo":roleLabel(user.role),systemRole:user.role,isAdmin:user.role==="admin",isDemo:!!user.is_demo,workspaceId:user.workspace_id,workspaceRole:user.workspace_role,teacherId:user.owner_user_id||user.id,teacherName:user.owner_name||user.full_name}});
+    }
+
+
+    if(action==="demo_status"){
+      if(user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ Root Admin được quản lý tài khoản Demo"});
+      const rows=await sql`
+        SELECT u.id,u.full_name,u.username,u.active,u.updated_at,w.id AS workspace_id,w.name AS workspace_name,
+               (SELECT COUNT(*)::int FROM public.gvcn_classes c WHERE c.workspace_id=w.id AND c.name<>'__GVCN_SYNC__' AND c.active=TRUE) AS class_count
+        FROM public.gvcn_users u
+        LEFT JOIN public.gvcn_workspaces w ON w.owner_user_id=u.id AND w.active=TRUE
+        WHERE u.is_demo=TRUE ORDER BY u.created_at LIMIT 1`;
+      const d=rows[0];
+      return json(res,200,{ok:true,demo:d?{id:d.id,name:d.full_name,username:d.username,active:d.active!==false,workspaceId:d.workspace_id||"",workspaceName:d.workspace_name||"",classCount:Number(d.class_count||0),updatedAt:d.updated_at}:null});
+    }
+
+    if(action==="ensure_demo"){
+      if(user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ Root Admin được tạo tài khoản Demo"});
+      const password=String(body.password||"");
+      if(password.length<6)return json(res,400,{ok:false,message:"Mật khẩu Demo cần ít nhất 6 ký tự"});
+      let rows=await sql`SELECT id FROM public.gvcn_users WHERE is_demo=TRUE ORDER BY created_at LIMIT 1`;
+      let demoId=rows[0]?.id||crypto.randomUUID();
+      if(!rows.length){
+        const conflict=await sql`SELECT id FROM public.gvcn_users WHERE lower(username)='demo' LIMIT 1`;
+        if(conflict.length)return json(res,409,{ok:false,message:"Tên đăng nhập demo đang được tài khoản khác sử dụng"});
+        await sql`INSERT INTO public.gvcn_users(id,full_name,username,password_hash,role,account_type,active,is_demo)
+                  VALUES(${demoId}::uuid,'GVCN DEMO','demo',${hashPassword(password)},'teacher','teacher',TRUE,TRUE)`;
+      }else{
+        await sql`UPDATE public.gvcn_users SET full_name='GVCN DEMO',username='demo',password_hash=${hashPassword(password)},role='teacher',account_type='teacher',active=TRUE,is_demo=TRUE,updated_at=NOW() WHERE id=${demoId}::uuid`;
+        await sql`DELETE FROM public.gvcn_sessions WHERE user_id=${demoId}::uuid`;
+      }
+      let ws=await sql`SELECT id FROM public.gvcn_workspaces WHERE owner_user_id=${demoId}::uuid AND active=TRUE ORDER BY created_at LIMIT 1`;
+      const workspaceId=ws[0]?.id||crypto.randomUUID();
+      if(!ws.length)await sql`INSERT INTO public.gvcn_workspaces(id,owner_user_id,name,school_year,active) VALUES(${workspaceId}::uuid,${demoId}::uuid,'KHÔNG GIAN DEMO GVCN','2026–2027',TRUE)`;
+      await sql`INSERT INTO public.gvcn_workspace_members(workspace_id,user_id,role,active) VALUES(${workspaceId}::uuid,${demoId}::uuid,'teacher',TRUE)
+                ON CONFLICT(workspace_id,user_id) DO UPDATE SET role='teacher',active=TRUE,updated_at=NOW()`;
+      const classId=stableUuid("demo:class");
+      await sql`INSERT INTO public.gvcn_classes(id,workspace_id,name,school_year,teacher_name,active)
+                VALUES(${classId}::uuid,${workspaceId}::uuid,'11A1 - Lớp thực hành','2026–2027','GVCN DEMO',TRUE)
+                ON CONFLICT(id) DO UPDATE SET workspace_id=EXCLUDED.workspace_id,name=EXCLUDED.name,school_year=EXCLUDED.school_year,teacher_name=EXCLUDED.teacher_name,active=TRUE,updated_at=NOW()`;
+      if(body.initialData&&typeof body.initialData==="object"){
+        const payload=JSON.stringify(body.initialData);
+        if(Buffer.byteLength(payload,"utf8")>8_000_000)return json(res,413,{ok:false,message:"Dữ liệu Demo vượt giới hạn 8 MB"});
+        const snapId=await snapshotClassId(workspaceId);
+        await sql`INSERT INTO public.gvcn_class_data(class_id,revision,data,updated_by,updated_at)
+                  VALUES(${snapId}::uuid,1,${payload}::jsonb,${demoId}::uuid,NOW())
+                  ON CONFLICT(class_id) DO UPDATE SET revision=public.gvcn_class_data.revision+1,data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW()`;
+      }
+      await sql`INSERT INTO public.gvcn_activity_logs(workspace_id,user_id,action,module,description)
+                VALUES(${workspaceId}::uuid,${user.id}::uuid,'ENSURE_DEMO','admin','Tạo/cập nhật tài khoản Demo đào tạo')`;
+      return json(res,200,{ok:true,message:"Tài khoản Demo đã sẵn sàng",username:"demo"});
+    }
+
+    if(action==="reset_demo"){
+      if(user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ Root Admin được kết thúc/reset phiên Demo"});
+      const password=String(body.password||"");
+      if(password.length<6)return json(res,400,{ok:false,message:"Mật khẩu mới cần ít nhất 6 ký tự"});
+      const rows=await sql`SELECT id FROM public.gvcn_users WHERE is_demo=TRUE ORDER BY created_at LIMIT 1`;
+      if(!rows.length)return json(res,404,{ok:false,message:"Chưa có tài khoản Demo"});
+      const demoId=rows[0].id;
+      await sql`UPDATE public.gvcn_users SET password_hash=${hashPassword(password)},active=TRUE,updated_at=NOW() WHERE id=${demoId}::uuid`;
+      await sql`DELETE FROM public.gvcn_sessions WHERE user_id=${demoId}::uuid`;
+      const ws=await sql`SELECT id FROM public.gvcn_workspaces WHERE owner_user_id=${demoId}::uuid AND active=TRUE ORDER BY created_at LIMIT 1`;
+      if(!ws.length)return json(res,404,{ok:false,message:"Không tìm thấy workspace Demo"});
+      const workspaceId=ws[0].id;
+      if(body.resetData===true&&body.initialData&&typeof body.initialData==="object"){
+        const payload=JSON.stringify(body.initialData);
+        if(Buffer.byteLength(payload,"utf8")>8_000_000)return json(res,413,{ok:false,message:"Dữ liệu Demo vượt giới hạn 8 MB"});
+        const snapId=await snapshotClassId(workspaceId);
+        await sql`INSERT INTO public.gvcn_class_data(class_id,revision,data,updated_by,updated_at)
+                  VALUES(${snapId}::uuid,1,${payload}::jsonb,${demoId}::uuid,NOW())
+                  ON CONFLICT(class_id) DO UPDATE SET revision=public.gvcn_class_data.revision+1,data=EXCLUDED.data,updated_by=EXCLUDED.updated_by,updated_at=NOW()`;
+      }
+      await sql`INSERT INTO public.gvcn_activity_logs(workspace_id,user_id,action,module,description)
+                VALUES(${workspaceId}::uuid,${user.id}::uuid,'RESET_DEMO','admin',${body.resetData===true?'Kết thúc phiên Demo, đổi mật khẩu và khôi phục dữ liệu mẫu':'Kết thúc phiên Demo và đổi mật khẩu'})`;
+      return json(res,200,{ok:true,message:body.resetData===true?"Đã kết thúc phiên Demo, đổi mật khẩu và khôi phục dữ liệu mẫu":"Đã kết thúc phiên Demo và đổi mật khẩu"});
     }
 
     if(action==="list_teachers"){
@@ -223,7 +299,7 @@ export default async function handler(req,res){
                 ORDER BY c.created_at ASC LIMIT 1) AS class_name
         FROM public.gvcn_users u
         LEFT JOIN public.gvcn_workspaces w ON w.owner_user_id=u.id AND w.active=TRUE
-        WHERE u.role='teacher'
+        WHERE u.role='teacher' AND COALESCE(u.is_demo,FALSE)=FALSE
         ORDER BY u.created_at DESC`;
       return json(res,200,{ok:true,teachers:rows.map(x=>({
         id:x.id,name:x.full_name,username:x.username||"",phone:x.phone||"",
@@ -237,8 +313,8 @@ export default async function handler(req,res){
       if(user.role!=="admin")return json(res,403,{ok:false,message:"Chỉ quản trị hệ thống được sửa tài khoản giáo viên"});
       const teacherId=String(body.teacherId||"").trim();
       if(!teacherId)return json(res,400,{ok:false,message:"Thiếu mã giáo viên"});
-      const found=await sql`SELECT id,full_name,username,role FROM public.gvcn_users WHERE id=${teacherId}::uuid LIMIT 1`;
-      if(!found.length||found[0].role!=="teacher")return json(res,404,{ok:false,message:"Không tìm thấy tài khoản giáo viên"});
+      const found=await sql`SELECT id,full_name,username,role,is_demo FROM public.gvcn_users WHERE id=${teacherId}::uuid LIMIT 1`;
+      if(!found.length||found[0].role!=="teacher"||found[0].is_demo)return json(res,404,{ok:false,message:"Không tìm thấy tài khoản giáo viên"});
       const name=body.name===undefined?null:String(body.name||"").trim();
       const username=body.username===undefined?null:String(body.username||"").trim().toLowerCase();
       const password=body.password===undefined?null:String(body.password||"");
