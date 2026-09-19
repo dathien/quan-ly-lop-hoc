@@ -5860,6 +5860,9 @@ document.addEventListener("click",function(e){
 // Chế độ khách: xem toàn bộ giao diện, không được ghi dữ liệu.
 document.addEventListener("click",function(e){
  if(!isGuestMode())return;
+ // Màn hình đăng nhập là vùng tương tác hợp lệ của khách.
+ // Không để bộ chặn "chỉ xem" nuốt nút Đăng nhập/Google/Quên mật khẩu/Đóng.
+ if(e.target.closest("#loginScreen"))return;
  const el=e.target.closest("button,[onclick]");
  if(!el)return;
  if(el.id==="accountBtn"||el.closest("#accountBtn")){requestLogin();e.preventDefault();e.stopImmediatePropagation();return}
@@ -5872,6 +5875,7 @@ document.addEventListener("click",function(e){
 },true);
 document.addEventListener("change",function(e){
  if(!isGuestMode())return;
+ if(e.target.closest("#loginScreen"))return;
  const el=e.target;
  if(el.matches("#classSelect")||el.closest("[data-guest-view]"))return;
  const code=String(el.getAttribute("onchange")||"");
