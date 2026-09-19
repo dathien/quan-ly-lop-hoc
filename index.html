@@ -2062,7 +2062,7 @@ input,select,textarea{
       </div>
     </div>
     <div id="mainLoginError" class="gvcn-login-error"></div>
-    <button class="gvcn-login-submit" onclick="mainLogin()">Đăng nhập</button><div class="login-extra-actions" style="margin-top:10px;display:grid;gap:8px">
+    <button type="button" id="mainLoginSubmit" class="gvcn-login-submit">Đăng nhập</button><div class="login-extra-actions" style="margin-top:10px;display:grid;gap:8px">
 <button type="button" class="btn" style="width:100%" onclick="loginWithGoogleGVCN()">🔵 Đăng nhập bằng Google / Gmail</button>
 <button type="button" class="btn ghost" style="width:100%" onclick="forgotPasswordGVCN()">Quên mật khẩu?</button>
 </div>
@@ -2512,7 +2512,11 @@ async function logoutGVCN(){
  toast("Đã đăng xuất • Chế độ chỉ xem");
 }
 document.addEventListener("keydown",e=>{
- if(e.key==="Enter"&&document.getElementById("loginScreen")?.style.display!=="none")mainLogin();
+ const screen=document.getElementById("loginScreen");
+ if(e.key==="Enter"&&screen&&getComputedStyle(screen).display!=="none"){
+   e.preventDefault();
+   mainLogin();
+ }
 });
 
 function updateAccountUI(){
@@ -5856,6 +5860,15 @@ document.addEventListener("click",function(e){
     if(window.innerWidth>780)closeMenu();
   });
 })();
+
+// V38.86: đường đăng nhập độc lập, ưu tiên cao cho cả Admin và Demo.
+document.addEventListener("click",function(e){
+ const loginBtn=e.target.closest("#mainLoginSubmit");
+ if(!loginBtn)return;
+ e.preventDefault();
+ e.stopImmediatePropagation();
+ mainLogin();
+},true);
 
 // Chế độ khách: xem toàn bộ giao diện, không được ghi dữ liệu.
 document.addEventListener("click",function(e){
