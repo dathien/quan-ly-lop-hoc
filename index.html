@@ -2120,6 +2120,7 @@ input,select,textarea{
 
     <div class="group"><div class="group-title" role="button" tabindex="0">⚙️ Quản trị</div><div class="nav">
       <button data-page="teachers" id="teacherAdminNav" style="display:none"><span class="ico">👨‍🏫</span>Giáo viên</button>
+      <button data-page="demo" id="demoAdminNav" style="display:none"><span class="ico">🎓</span>Demo / Đào tạo</button>
       <button data-page="members"><span class="ico">🧑‍🤝‍🧑</span>Thành viên</button>
       <button data-page="activity"><span class="ico">🕘</span>Lịch sử</button>
       <button data-page="data"><span class="ico">💾</span>Dữ liệu & Sao lưu</button>
@@ -2411,7 +2412,7 @@ function blankTeacherState(profile){
   ...(profile.assistants||[]).map(a=>({id:a.id||uid(),name:a.name,role:a.role||"Hỗ trợ",phone:a.phone||"",password:a.password||"123456",done:a.done!==false}))];
  return b;
 }
-function isTeacherAccount(){return session.role==="Giáo viên"}
+function isTeacherAccount(){return session.role==="Giáo viên" || !!session?.isDemo}
 async function onlineAPI(body){
  const r=await fetch("/api/gvcn",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify(body)});
  let x={};try{x=await r.json()}catch(e){}
@@ -2483,7 +2484,7 @@ async function mainLogin(){
    const x=await r.json();
    if(!r.ok||!x.ok)throw new Error(x.message||"Đăng nhập thất bại");
    const u=x.user;
-   session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
+   session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,isDemo:!!u.isDemo,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
    sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;
    // Bổ sung hồ sơ chủ workspace vào registry cục bộ để app tạo trạng thái đúng khi máy mới chưa có dữ liệu.
    const reg=teacherRegistry();let t=reg.find(v=>v.id===session.teacherId);
@@ -2516,9 +2517,13 @@ document.addEventListener("keydown",e=>{
 
 function updateAccountUI(){
  const p=activeTeacher();
- const brand=document.querySelector(".brand h1");if(brand)brand.textContent=p?.name||"GVCN";
+ const brand=document.querySelector(".brand h1");if(brand)brand.textContent=session?.isDemo?"GVCN • DEMO":(p?.name||"GVCN");
  const btn=document.getElementById("accountBtn");if(btn)btn.textContent=`👤 ${session.name||p?.name||"Tài khoản"}`;
  const teacherNav=document.getElementById("teacherAdminNav");if(teacherNav)teacherNav.style.display=session?.isAdmin?"":"none";
+ const demoNav=document.getElementById("demoAdminNav");if(demoNav)demoNav.style.display=session?.isAdmin?"":"none";
+ let demoBadge=document.getElementById("demoModeBadge");
+ if(session?.isDemo&&!demoBadge){demoBadge=document.createElement("span");demoBadge.id="demoModeBadge";demoBadge.className="badge";demoBadge.textContent="🎓 Môi trường Demo";btn?.parentNode?.insertBefore(demoBadge,btn)}
+ if(demoBadge)demoBadge.style.display=session?.isDemo?"inline-flex":"none";
  document.querySelectorAll(".class-teacher-name").forEach(x=>x.textContent=p?.name||"");
 }
 function persistRegistry(arr){localStorage.setItem(TEACHERS_KEY,JSON.stringify(arr))}
@@ -2527,8 +2532,8 @@ function openAccountSwitcher(){
  const reg=raw.filter(t=>{const key=(t.id===session.teacherId||String(t.username||"").toLowerCase()==="admin")&&String(t.name||"").toUpperCase().includes("HỒ NGUYỄN ĐA THIỆN")?"ROOT_ADMIN":String(t.id||t.username||t.name);if(seen.has(key))return false;seen.add(key);return true});
  modal(`<h3>👥 Không gian đa giáo viên</h3>
  <div class=account-current><b>Đang sử dụng:</b> ${esc(session.name||"")} <span class=badge>${esc(session.role||"")}</span><div class=muted style="margin-top:4px">Không gian dữ liệu: ${esc(p?.name||"")}. Dữ liệu của từng giáo viên được tách riêng trên trình duyệt này.</div></div>
- <div class=teacher-list>${reg.map(t=>`<div class=teacher-row><div><b>${esc(t.name)}</b><small>1 giáo viên + ${(t.assistants||[]).length} bạn hỗ trợ</small></div><div class=actions><button class="btn sm" onclick="openWorkspaceLogin('${t.id}')">${t.id===session.teacherId?"Đổi người dùng":"Đăng nhập"}</button>${isTeacherAccount()&&t.id!=="teacher-thien"?`<button class="btn sm bad" onclick="deleteTeacherWorkspace('${t.id}')">Xóa GV</button>`:""}</div></div>`).join("")}</div>
- <div class=modal-foot>${isTeacherAccount()?`<button class="btn primary" onclick=openNewTeacherForm()>＋ Thêm giáo viên</button>`:""}<button class="btn bad" onclick="closeModal();logoutGVCN()">Đăng xuất</button><button class=btn onclick=closeModal()>Đóng</button></div>`);
+ <div class=teacher-list>${reg.map(t=>`<div class=teacher-row><div><b>${esc(t.name)}</b><small>1 giáo viên + ${(t.assistants||[]).length} bạn hỗ trợ</small></div><div class=actions><button class="btn sm" onclick="openWorkspaceLogin('${t.id}')">${t.id===session.teacherId?"Đổi người dùng":"Đăng nhập"}</button>${session?.isAdmin&&t.id!=="teacher-thien"?`<button class="btn sm bad" onclick="deleteTeacherWorkspace('${t.id}')">Xóa GV</button>`:""}</div></div>`).join("")}</div>
+ <div class=modal-foot>${session?.isAdmin?`<button class="btn primary" onclick=openNewTeacherForm()>＋ Thêm giáo viên</button>`:""}<button class="btn bad" onclick="closeModal();logoutGVCN()">Đăng xuất</button><button class=btn onclick=closeModal()>Đóng</button></div>`);
 }
 function openWorkspaceLogin(teacherId){
  const t=teacherRegistry().find(x=>x.id===teacherId);if(!t)return;
@@ -2655,7 +2660,7 @@ const titles={
  seats:["Chỗ ngồi","Sơ đồ chỗ ngồi theo lớp"],timetable:["Thời khóa biểu","Lịch học trong tuần"],scores:["Bảng điểm","Theo dõi điểm theo môn"],
  discipline:["Nề nếp","Điểm danh, vi phạm và điểm nề nếp"],duty:["Trực nhật","Phân công và theo dõi trực nhật"],weekly:["Kế hoạch tuần","Lập kế hoạch và theo dõi công việc"],tasks:["Công việc","Theo dõi nhiệm vụ và hạn cần nhớ"],
  finance:["Thu – chi","Quản lý các khoản thu và chi"],reports:["Báo cáo","Tổng hợp dữ liệu lớp"],comments:["Nhận xét học sinh","Ghi nhận xét theo từng học sinh"],
- parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],teachers:["Giáo viên","Quản trị tài khoản giáo viên và không gian lớp"],members:["Thành viên","Thiết lập sau khi vào app"],activity:["Lịch sử","Nhật ký hoạt động"],
+ parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],teachers:["Giáo viên","Quản trị tài khoản giáo viên và không gian lớp"],demo:["Demo / Đào tạo","Một tài khoản Demo duy nhất cho từng buổi giới thiệu"],members:["Thành viên","Thiết lập sau khi vào app"],activity:["Lịch sử","Nhật ký hoạt động"],
  data:["Dữ liệu & Sao lưu","Sao lưu và đồng bộ dữ liệu"]
 };
 
@@ -2681,6 +2686,7 @@ function areaForPage(p){
 }
 function canAccessPage(p){
  if(isGuestMode())return true;
+ if(session?.isDemo && (p==="teachers"||p==="demo"))return false;
  if(isFullAccessAccount())return true;
  const area=areaForPage(p);
  if(!area)return true;
@@ -2708,7 +2714,7 @@ function refreshCurrentView(){
 function render(){({
  classes:renderClasses,home:renderHome,students:renderStudents,seats:renderSeats,timetable:renderTimetable,scores:renderScores,
  discipline:renderDiscipline,duty:renderDuty,weekly:renderWeekly,tasks:renderTasks,finance:renderFinance,reports:renderReports,comments:renderComments,
- parentcomms:renderParentComms,situations:renderSituations,companion:renderCompanion,career:renderCareer,race:renderRace,teachers:renderTeachers,members:renderMembers,activity:renderActivity,data:renderData
+ parentcomms:renderParentComms,situations:renderSituations,companion:renderCompanion,career:renderCareer,race:renderRace,teachers:renderTeachers,demo:renderDemoAdmin,members:renderMembers,activity:renderActivity,data:renderData
 }[page]||renderHome)()}
 
 function renderClassSelect(){
@@ -5379,14 +5385,77 @@ function renderTeachers(){
  loadTeachersOnline();
 }
 
+
+function buildDemoInitialState(){
+ const d=seed();
+ d.appName="GVCN DEMO";
+ d.currentClassId="c1";
+ d.classes=(d.classes||[]).filter(c=>c.id==="c1");
+ if(d.classes[0]){
+   d.classes[0].name="11A1 - Lớp thực hành";
+   d.classes[0].teacherName="GVCN DEMO";
+   d.classes[0].school="TRƯỜNG THPT DEMO";
+   d.classes[0].year="2026–2027";
+ }
+ const allowed=new Set(["c1"]);
+ ["students","timetable","scores","attendance","incidents","positive","duty","weekly","finance","comments","messages","tasks","counseling","situations","companion","career","logs"].forEach(k=>{
+   if(Array.isArray(d[k]))d[k]=d[k].filter(x=>!x.classId||allowed.has(x.classId));
+ });
+ d.members=[{id:"demo-owner",name:"GVCN DEMO",role:"Giáo viên",phone:"",done:true}];
+ return d;
+}
+async function renderDemoAdmin(){
+ if(!session?.isAdmin){$("#content").innerHTML=`<div class=empty>Chỉ Root Admin được quản lý tài khoản Demo.</div>`;return}
+ $("#content").innerHTML=`<div class=section-head><div><h3>🎓 Demo / Đào tạo</h3><div class=muted>01 tài khoản Demo dùng luân phiên cho từng buổi giới thiệu hoặc thao giảng.</div></div></div>
+ <div class="grid g2">
+  <div class=card><h3 style="margin-top:0">Tài khoản Demo</h3><div id=demoStatus class=muted>Đang kiểm tra...</div></div>
+  <div class=card><h3 style="margin-top:0">Nguyên tắc sử dụng</h3><div class=muted>Demo được thao tác gần như giáo viên thật trong workspace riêng, nhưng không được quản trị Root Admin hoặc giáo viên khác.</div></div>
+ </div>
+ <div class=card style="margin-top:14px">
+  <h3 style="margin-top:0">Chuẩn bị / kết thúc phiên Demo</h3>
+  <div class=form-grid>
+   <div class=field><label>Mật khẩu cấp cho người sử dụng</label><div class=input-wrap><input id=demoPass type=password placeholder="Tối thiểu 6 ký tự"><button class=eye-btn type=button onclick="const x=document.getElementById('demoPass');x.type=x.type==='password'?'text':'password'">👁</button></div></div>
+   <div class=field><label>Tài khoản</label><input value="demo" disabled></div>
+  </div>
+  <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id=demoResetData type=checkbox checked> Khôi phục dữ liệu mẫu khi kết thúc phiên</label>
+  <div class=actions style="margin-top:14px"><button class="btn primary" onclick=ensureDemoAccount()>＋ Tạo / chuẩn bị Demo</button><button class="btn bad" onclick=endDemoSession()>♻️ Kết thúc phiên & cấp lại</button></div>
+  <div class=muted style="margin-top:10px">Nút Kết thúc phiên sẽ thu hồi toàn bộ phiên đăng nhập Demo cũ, đổi mật khẩu và tùy chọn đưa dữ liệu Demo về trạng thái ban đầu.</div>
+ </div>`;
+ loadDemoStatus();
+}
+async function loadDemoStatus(){
+ const box=document.getElementById("demoStatus");if(!box)return;
+ try{
+  const x=await onlineAPI({action:"demo_status"});
+  if(!x.ok)throw new Error(x.message||"Không tải được Demo");
+  if(!x.demo){box.innerHTML=`<span class=badge>Chưa tạo</span><div style="margin-top:8px">Nhập mật khẩu rồi bấm <b>Tạo / chuẩn bị Demo</b>.</div>`;return}
+  box.innerHTML=`<div><b>Username:</b> <code>${esc(x.demo.username||"demo")}</code></div><div style="margin-top:6px"><b>Workspace:</b> ${esc(x.demo.workspaceName||"KHÔNG GIAN DEMO GVCN")}</div><div style="margin-top:6px"><b>Lớp:</b> ${x.demo.classCount||0} • ${statusBadge(x.demo.active,"Đang hoạt động","Đã khóa")}</div>`;
+ }catch(e){box.textContent=e.message||"Không tải được trạng thái Demo"}
+}
+async function ensureDemoAccount(){
+ const password=val("demoPass");if(password.length<6)return toast("Mật khẩu Demo cần ít nhất 6 ký tự");
+ if(!confirm("Tạo/chuẩn bị tài khoản demo với mật khẩu vừa nhập?"))return;
+ const x=await onlineAPI({action:"ensure_demo",password,initialData:buildDemoInitialState()});
+ if(!x.ok)return toast(x.message||"Không tạo được Demo");
+ toast("Demo đã sẵn sàng • tài khoản: demo");loadDemoStatus();
+}
+async function endDemoSession(){
+ const password=val("demoPass");if(password.length<6)return toast("Nhập mật khẩu mới cho người sử dụng tiếp theo");
+ const resetData=!!document.getElementById("demoResetData")?.checked;
+ if(!confirm(`Kết thúc phiên Demo hiện tại, thu hồi đăng nhập cũ và đổi mật khẩu?${resetData?"\\nDữ liệu Demo cũng sẽ được khôi phục.":""}`))return;
+ const x=await onlineAPI({action:"reset_demo",password,resetData,initialData:resetData?buildDemoInitialState():null});
+ if(!x.ok)return toast(x.message||"Không reset được Demo");
+ toast(x.message||"Đã chuẩn bị Demo cho người tiếp theo");loadDemoStatus();
+}
+
 const MEMBER_AREAS=[
  {id:"class",label:"🏫 Lớp học",pages:["classes","home","students","seats","timetable"]},
  {id:"tracking",label:"📘 Theo dõi",pages:["grades","conduct","duty","weekly","tasks","finance","reports"]},
  {id:"support",label:"💬 Hỗ trợ GVCN",pages:["comments","parents","situations","companion","career","race"]},
- {id:"admin",label:"⚙️ Quản trị",pages:["teachers","members","activity","data","backup"]}
+ {id:"admin",label:"⚙️ Quản trị",pages:["teachers","demo","members","activity","data","backup"]}
 ];
 function isFullAccessAccount(){
- return !!session?.isAdmin || isTeacherAccount();
+ return !!session?.isAdmin || !!session?.isDemo || isTeacherAccount();
 }
 function memberAreaPermissions(x){
  const p=x?.permissions;
@@ -5677,7 +5746,7 @@ if(AUTHENTICATED){
    AUTHENTICATED=false;sessionStorage.removeItem(SESSION_KEY);
    hideLoginScreen();updateGuestUI();refreshCurrentView();return;
   }
-  const u=x.user;session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
+  const u=x.user;session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,isDemo:!!u.isDemo,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
   sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));KEY=teacherDataKey(session.teacherId);
   state=loadState();hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();refreshCurrentView();
   const remote=await onlineAPI({action:"pull"});if(remote.ok&&remote.data){state=remote.data;localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView()}
