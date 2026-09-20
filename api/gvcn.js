@@ -44,6 +44,12 @@ function roleLabel(role){
   const m={admin:"Quản trị",teacher:"Giáo viên",class_monitor:"Lớp trưởng",secretary:"Bí thư",treasurer:"Thủ quỹ",vice_monitor:"Lớp phó",assistant:"Hỗ trợ"};
   return m[role]||"Hỗ trợ";
 }
+const MEMBER_PERMISSION_AREAS=new Set(["class","tracking","support","admin"]);
+function validateMemberPermissions(input){
+  if(!Array.isArray(input)||input.length>MEMBER_PERMISSION_AREAS.size)return null;
+  if(input.some(v=>typeof v!=="string"||!MEMBER_PERMISSION_AREAS.has(v)))return null;
+  return [...new Set(input)];
+}
 async function ensureSchema(){
   if(schemaReady)return;
   await sql`ALTER TABLE public.gvcn_users
@@ -69,7 +75,7 @@ async function getSession(req){
   const token=parseCookies(req)[COOKIE];
   if(!token)return null;
   const rows=await sql`
-    SELECT u.id,u.full_name,u.username,u.role,u.account_type,u.active,u.is_demo,
+    SELECT u.id,u.full_name,u.username,u.role,u.account_type,u.active,u.is_demo,u.permissions,
            wm.workspace_id,wm.role AS workspace_role,w.owner_user_id,
            owner.full_name AS owner_name
     FROM public.gvcn_sessions s
@@ -402,7 +408,7 @@ export default async function handler(req,res){
         ORDER BY CASE WHEN u.role='admin' THEN -1 WHEN wm.role='teacher' THEN 0 ELSE 1 END, wm.created_at`;
       return json(res,200,{ok:true,members:rows.map(m=>({
         id:m.id,name:m.full_name,username:m.username||"",phone:m.phone||"",active:m.active!==false,
-        systemRole:m.system_role,workspaceRole:m.workspace_role,role:roleLabel(m.workspace_role)
+        systemRole:m.system_role,workspaceRole:m.workspace_role,role:roleLabel(m.workspace_role),permissions:Array.isArray(m.permissions)?m.permissions:[]
       }))});
     }
 
@@ -417,9 +423,11 @@ export default async function handler(req,res){
       if(!/^[a-z0-9._-]{3,32}$/.test(username))return json(res,400,{ok:false,message:"Tài khoản không hợp lệ"});
       const exists=await sql`SELECT id FROM public.gvcn_users WHERE lower(username)=${username} LIMIT 1`;
       if(exists.length)return json(res,409,{ok:false,message:"Tài khoản đã tồn tại"});
+      const permissions=validateMemberPermissions(m.permissions);
+      if(!permissions)return json(res,400,{ok:false,message:"Danh sách quyền không hợp lệ"});
       const id=crypto.randomUUID();
-      await sql`INSERT INTO public.gvcn_users(id,full_name,username,password_hash,phone,role,account_type,active)
-                VALUES(${id}::uuid,${name},${username},${hashPassword(password)},${phone},'assistant','assistant',TRUE)`;
+      await sql`INSERT INTO public.gvcn_users(id,full_name,username,password_hash,phone,role,account_type,active,permissions)
+                VALUES(${id}::uuid,${name},${username},${hashPassword(password)},${phone},'assistant','assistant',TRUE,${JSON.stringify(permissions)}::jsonb)`;
       await sql`INSERT INTO public.gvcn_workspace_members(workspace_id,user_id,role,active)
                 VALUES(${user.workspace_id}::uuid,${id}::uuid,${wr},TRUE)`;
       return json(res,200,{ok:true,message:"Đã thêm thành viên"});
@@ -438,10 +446,13 @@ export default async function handler(req,res){
       if(!name||!username)return json(res,400,{ok:false,message:"Nhập họ tên và tài khoản"});
       const dup=await sql`SELECT id FROM public.gvcn_users WHERE lower(username)=${username} AND id<>${id}::uuid LIMIT 1`;
       if(dup.length)return json(res,409,{ok:false,message:"Tài khoản đã tồn tại"});
+      if(target.workspace_role==="teacher"||target.system_role==="admin")return json(res,403,{ok:false,message:"Không được sửa quyền tài khoản chính tại mục Thành viên"});
+      const permissions=validateMemberPermissions(m.permissions);
+      if(!permissions)return json(res,400,{ok:false,message:"Danh sách quyền không hợp lệ"});
       if(password){
-        await sql`UPDATE public.gvcn_users SET full_name=${name},username=${username},phone=${phone},password_hash=${hashPassword(password)},updated_at=NOW() WHERE id=${id}::uuid`;
+        await sql`UPDATE public.gvcn_users SET full_name=${name},username=${username},phone=${phone},password_hash=${hashPassword(password)},permissions=${JSON.stringify(permissions)}::jsonb,updated_at=NOW() WHERE id=${id}::uuid`;
       }else{
-        await sql`UPDATE public.gvcn_users SET full_name=${name},username=${username},phone=${phone},updated_at=NOW() WHERE id=${id}::uuid`;
+        await sql`UPDATE public.gvcn_users SET full_name=${name},username=${username},phone=${phone},permissions=${JSON.stringify(permissions)}::jsonb,updated_at=NOW() WHERE id=${id}::uuid`;
       }
       if(target.workspace_role!=="teacher"){
         await sql`UPDATE public.gvcn_workspace_members SET role=${roleDb(String(m.role||""))},updated_at=NOW()
@@ -492,6 +503,7 @@ export default async function handler(req,res){
       return json(res,200,{ok:true,data:rows[0]?.data||null,revision:rows[0]?.revision||0,updatedAt:rows[0]?.updated_at||null});
     }
     if(action==="push"){
+      if(user.role!=="admin"&&user.role!=="teacher")return json(res,403,{ok:false,message:"Tài khoản hỗ trợ chưa được phép ghi dữ liệu tổng hợp. Vui lòng dùng tài khoản giáo viên."});
       if(!body.data||typeof body.data!=="object")return json(res,400,{ok:false,message:"Thiếu dữ liệu đồng bộ"});
       const payload=JSON.stringify(body.data);
       if(Buffer.byteLength(payload,"utf8")>8_000_000)return json(res,413,{ok:false,message:"Dữ liệu vượt giới hạn 8 MB"});
