@@ -2121,6 +2121,7 @@ input,select,textarea{
     <div class="group"><div class="group-title" role="button" tabindex="0">⚙️ Quản trị</div><div class="nav">
       <button data-page="teachers" id="teacherAdminNav" style="display:none"><span class="ico">👨‍🏫</span>Giáo viên</button>
       <button data-page="demo" id="demoAdminNav" style="display:none"><span class="ico">🎓</span>Demo / Đào tạo</button>
+      <button data-page="menuManager" id="menuManagerNav" style="display:none"><span class="ico">🗂️</span>Quản lý menu</button>
       <button data-page="members"><span class="ico">🧑‍🤝‍🧑</span>Thành viên</button>
       <button data-page="activity"><span class="ico">🕘</span>Lịch sử</button>
       <button data-page="data"><span class="ico">💾</span>Dữ liệu & Sao lưu</button>
@@ -2525,6 +2526,8 @@ function updateAccountUI(){
  const btn=document.getElementById("accountBtn");if(btn)btn.textContent=`👤 ${session.name||p?.name||"Tài khoản"}`;
  const teacherNav=document.getElementById("teacherAdminNav");if(teacherNav)teacherNav.style.display=session?.isAdmin?"":"none";
  const demoNav=document.getElementById("demoAdminNav");if(demoNav)demoNav.style.display=session?.isAdmin?"":"none";
+ const menuNav=document.getElementById("menuManagerNav");if(menuNav)menuNav.style.display=session?.isAdmin?"":"none";
+ applyAdminMenuSettings();
  let demoBadge=document.getElementById("demoModeBadge");
  if(session?.isDemo&&!demoBadge){demoBadge=document.createElement("span");demoBadge.id="demoModeBadge";demoBadge.className="badge";demoBadge.textContent="🎓 Môi trường Demo";btn?.parentNode?.insertBefore(demoBadge,btn)}
  if(demoBadge)demoBadge.style.display=session?.isDemo?"inline-flex":"none";
@@ -2699,7 +2702,69 @@ function canAccessPage(p){
  return list.includes(area);
 }
 
+/* Quản lý menu: tùy chỉnh hiển thị trên trình duyệt hiện tại; không sửa quyền API. */
+const MENU_CONFIG_KEY="GVCN_ADMIN_MENU_CONFIG_V1";
+function menuConfig(){try{return JSON.parse(localStorage.getItem(MENU_CONFIG_KEY)||"{}")||{}}catch{return {}}}
+function menuItems(){return [...document.querySelectorAll(".sidebar .nav button[data-page]:not([data-menu-custom])")].filter(b=>b.dataset.page!=="menuManager")}
+function applyAdminMenuSettings(){
+ const config=menuConfig();
+ menuItems().forEach(b=>{
+  const x=config[b.dataset.page]||{};
+  if(x.label){let t=[...b.childNodes].find(n=>n.nodeType===3);if(t)t.textContent=x.label;}
+  if(x.hidden||x.removed)b.style.setProperty("display","none","important");
+  else b.style.removeProperty("display");
+ });
+ document.querySelectorAll(".sidebar [data-menu-custom]").forEach(b=>b.remove());
+ (config.custom||[]).forEach(x=>{
+  const target=document.querySelector('.sidebar .nav button[data-page="'+x.target+'"]');
+  if(!target||x.hidden)return;
+  const b=document.createElement("button");b.dataset.menuCustom=x.id;b.innerHTML='<span class="ico">🔗</span>';
+  b.appendChild(document.createTextNode(x.label));b.onclick=()=>navigate(x.target);
+  target.parentElement.appendChild(b);
+ });
+ const m=document.getElementById("menuManagerNav");if(m)m.style.display=session?.isAdmin?"":"none";
+}
+function saveMenuConfig(c){localStorage.setItem(MENU_CONFIG_KEY,JSON.stringify(c));applyAdminMenuSettings();renderMenuManager()}
+function menuEdit(id,kind){
+ if(!session?.isAdmin)return;
+ const c=menuConfig(),x=c[id]||{};
+ if(kind==="rename"){
+  const label=prompt("Tên menu mới:",x.label||menuItems().find(b=>b.dataset.page===id)?.textContent.trim()||"");
+  if(label===null)return;if(!label.trim())return toast("Tên menu không được trống");x.label=label.trim().slice(0,70);
+ }else if(kind==="hide")x.hidden=!x.hidden;
+ else if(kind==="remove"){
+  if(!confirm("Gỡ menu này khỏi thanh điều hướng? Chức năng và dữ liệu không bị xóa."))return;x.removed=true;
+ }else if(kind==="restore"){x.removed=false;x.hidden=false;}
+ c[id]=x;saveMenuConfig(c);
+}
+function addMenuShortcut(){
+ if(!session?.isAdmin)return;
+ const label=prompt("Tên menu liên kết mới:");if(label===null)return;
+ if(!label.trim())return toast("Nhập tên menu");
+ const target=prompt("Nhập mã trang hiện có để liên kết (ví dụ: home, students, demo):","home");if(target===null)return;
+ if(!menuItems().some(b=>b.dataset.page===target))return toast("Trang liên kết không tồn tại");
+ const c=menuConfig();c.custom=c.custom||[];c.custom.push({id:String(Date.now())+Math.random().toString(36).slice(2),label:label.trim().slice(0,70),target});saveMenuConfig(c);
+}
+function editMenuShortcut(id,kind){
+ if(!session?.isAdmin)return;
+ const c=menuConfig(),x=(c.custom||[]).find(v=>v.id===id);if(!x)return;
+ if(kind==="rename"){const name=prompt("Tên mới:",x.label);if(name===null)return;if(!name.trim())return toast("Tên không được trống");x.label=name.trim().slice(0,70)}
+ if(kind==="hide")x.hidden=!x.hidden;
+ if(kind==="remove"){if(!confirm("Xóa liên kết menu này?"))return;c.custom=c.custom.filter(v=>v.id!==id)}
+ saveMenuConfig(c);
+}
+function renderMenuManager(){
+ if(!session?.isAdmin){document.getElementById("content").innerHTML='<div class="empty">Chỉ Admin được quản lý menu.</div>';return}
+ const c=menuConfig();
+ const rows=menuItems().map(b=>{
+  const id=b.dataset.page,x=c[id]||{},label=x.label||b.textContent.trim();
+  return `<tr><td>${esc(label)}</td><td>${esc(id)}</td><td>${x.removed?"Đã gỡ":x.hidden?"Đang ẩn":"Đang hiện"}</td><td><div class="actions"><button class="btn sm" onclick="menuEdit('${id}','rename')">Sửa tên</button><button class="btn sm" onclick="menuEdit('${id}','${x.hidden?'restore':'hide'}')">${x.hidden?'Hiện':'Ẩn'}</button><button class="btn sm ${x.removed?'':'bad'}" onclick="menuEdit('${id}','${x.removed?'restore':'remove'}')">${x.removed?'Khôi phục':'Gỡ'}</button></div></td></tr>`;
+ }).join("");
+ const custom=(c.custom||[]).map(x=>`<tr><td>${esc(x.label)}</td><td>Liên kết → ${esc(x.target)}</td><td>${x.hidden?'Đang ẩn':'Đang hiện'}</td><td><div class="actions"><button class="btn sm" onclick="editMenuShortcut('${x.id}','rename')">Sửa tên</button><button class="btn sm" onclick="editMenuShortcut('${x.id}','hide')">${x.hidden?'Hiện':'Ẩn'}</button><button class="btn sm bad" onclick="editMenuShortcut('${x.id}','remove')">Xóa</button></div></td></tr>`).join("");
+ document.getElementById("content").innerHTML=`<div class="section-head"><div><h3>🗂️ Quản lý menu</h3><div class="muted">Ẩn, hiện, đổi tên, gỡ và khôi phục menu. Thêm liên kết tới trang đã có.</div></div><button class="btn primary" onclick="addMenuShortcut()">+ Thêm menu</button></div><div class="notice">Cấu hình menu của bản cập nhật này lưu trên trình duyệt đang dùng, chưa đồng bộ Neon giữa các thiết bị. Gỡ menu không xóa chức năng hoặc dữ liệu. Quản lý menu luôn được giữ lại.</div><div class="table-wrap"><table><thead><tr><th>Menu</th><th>Trang</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${rows}${custom}</tbody></table></div>`;
+}
 function navigate(p){
+  if(p==="menuManager"&&!session?.isAdmin){toast("Chỉ Admin được quản lý menu");return}
   if(!canAccessPage(p)){toast("Tài khoản này chưa được giáo viên cấp quyền vào khu vực này");return}
   page=p; sessionStorage.setItem("GVCN_CURRENT_PAGE",p); $$(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===p));
   $("#pageTitle").textContent=titles[p]?.[0]||"GVCN Pro";$("#pageSub").textContent=titles[p]?.[1]||"";
@@ -2718,7 +2783,7 @@ function refreshCurrentView(){
 function render(){({
  classes:renderClasses,home:renderHome,students:renderStudents,seats:renderSeats,timetable:renderTimetable,scores:renderScores,
  discipline:renderDiscipline,duty:renderDuty,weekly:renderWeekly,tasks:renderTasks,finance:renderFinance,reports:renderReports,comments:renderComments,
- parentcomms:renderParentComms,situations:renderSituations,companion:renderCompanion,career:renderCareer,race:renderRace,teachers:renderTeachers,demo:renderDemoAdmin,members:renderMembers,activity:renderActivity,data:renderData
+ parentcomms:renderParentComms,situations:renderSituations,companion:renderCompanion,career:renderCareer,race:renderRace,teachers:renderTeachers,demo:renderDemoAdmin,members:renderMembers,activity:renderActivity,data:renderData,menuManager:renderMenuManager
 }[page]||renderHome)()}
 
 function renderClassSelect(){
