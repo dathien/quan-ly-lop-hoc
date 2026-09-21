@@ -2419,6 +2419,7 @@ async function onlineAPI(body){
  let x={};try{x=await r.json()}catch(e){}
  if(r.status===401&&body.action!=="login"){sessionStorage.removeItem(SESSION_KEY);AUTHENTICATED=false;updateGuestUI()}
  if(!r.ok&&!x.message)x.message="Không kết nối được máy chủ";
+ if(!r.ok&&body.action==="push"&&r.status===403&&!window.__gvcnPermissionNotice){window.__gvcnPermissionNotice=true;toast(x.message||"Không có quyền lưu dữ liệu");}
  return x;
 }
 function allLoginUsers(){
@@ -5443,14 +5444,39 @@ async function loadTeachersOnline(){
   if(page!=="teachers")return;
   const count=document.getElementById("teacherCount");if(count)count.textContent=`👨‍🏫 ${onlineTeachersCache.length} giáo viên`;
   const rows=document.getElementById("teacherRows");
-  if(rows)rows.innerHTML=onlineTeachersCache.map(v=>`<tr><td><b>${esc(v.name)}</b></td><td><code>${esc(v.username)}</code></td><td>${esc(v.className||"—")}</td><td>${esc(v.schoolYear||"—")}</td><td>${statusBadge(v.active,"Đang hoạt động","Đã khóa")}</td><td><span class=badge>Toàn quyền workspace</span></td></tr>`).join("")||`<tr><td colspan=6 class=empty>Chưa có giáo viên.</td></tr>`;
+  if(rows)rows.innerHTML=onlineTeachersCache.map(v=>`<tr><td><b>${esc(v.name)}</b></td><td><code>${esc(v.username)}</code></td><td>${esc(v.className||"—")}</td><td>${esc(v.schoolYear||"—")}</td><td>${statusBadge(v.active,"Đang hoạt động","Đã khóa")}</td><td><span class=badge>Toàn quyền workspace</span></td><td><button class="btn" onclick="viewTeacherOnline(${JSON.stringify(v.id).replace(/"/g,"&quot;")})">Xem</button> <button class="btn" onclick="editTeacherOnline(${JSON.stringify(v.id).replace(/"/g,"&quot;")})">Sửa</button> <button class="btn bad" onclick="removeTeacherOnline(${JSON.stringify(v.id).replace(/"/g,"&quot;")})">Xóa</button></td></tr>`).join("")||`<tr><td colspan=7 class=empty>Chưa có giáo viên.</td></tr>`;
  }catch(e){if(body)body.innerHTML=`<tr><td colspan=6 class=empty>${esc(e.message)}</td></tr>`;else toast(e.message)}
+}
+function teacherByIdOnline(id){return onlineTeachersCache.find(t=>t.id===id)}
+function viewTeacherOnline(id){
+ if(!session?.isAdmin)return toast("Chỉ Admin được xem giáo viên");
+ const t=teacherByIdOnline(id);if(!t)return toast("Không tìm thấy giáo viên");
+ modal(`<h3>👨‍🏫 Thông tin giáo viên</h3><div class=field><b>Họ tên:</b> ${esc(t.name)}</div><div class=field><b>Tài khoản:</b> ${esc(t.username)}</div><div class=field><b>Lớp ban đầu:</b> ${esc(t.className||"—")}</div><div class=field><b>Năm học:</b> ${esc(t.schoolYear||"—")}</div><div class=field><b>Trạng thái:</b> ${t.active?"Đang hoạt động":"Đã khóa"}</div><div class=modal-foot><button class=btn onclick=closeModal()>Đóng</button><button class="btn primary" onclick="editTeacherOnline('${id}')">Sửa</button></div>`);
+}
+function editTeacherOnline(id){
+ if(!session?.isAdmin)return toast("Chỉ Admin được sửa giáo viên");
+ const t=teacherByIdOnline(id);if(!t)return toast("Không tìm thấy giáo viên");
+ modal(`<h3>✏️ Sửa giáo viên</h3><div class=form-grid><div class=field><label>Họ tên</label><input id=editTeacherName value="${esc(t.name)}"></div><div class=field><label>Tài khoản</label><input id=editTeacherUser value="${esc(t.username)}"></div><div class=field><label>Mật khẩu mới (để trống nếu không đổi)</label><input id=editTeacherPass type=password autocomplete=new-password></div></div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" id=saveTeacherEditBtn onclick="saveTeacherOnline('${id}')">Lưu thay đổi</button></div>`);
+}
+async function saveTeacherOnline(id){
+ if(!session?.isAdmin)return toast("Chỉ Admin được sửa giáo viên");
+ const name=val("editTeacherName").trim(),username=val("editTeacherUser").trim().toLowerCase(),password=val("editTeacherPass");
+ if(!name||!/^[a-z0-9._-]{3,32}$/.test(username))return toast("Nhập họ tên và tài khoản hợp lệ");
+ if(password&&password.length<6)return toast("Mật khẩu mới cần ít nhất 6 ký tự");
+ const btn=document.getElementById("saveTeacherEditBtn");if(btn)btn.disabled=true;
+ try{const x=await onlineAPI({action:"update_teacher",teacherId:id,name,username,...(password?{password}:{})});if(!x.ok)throw Error(x.message||"Không sửa được giáo viên");closeModal();await loadTeachersOnline();toast("Đã lưu thay đổi giáo viên")}catch(e){toast(e.message||"Không sửa được giáo viên")}finally{if(btn)btn.disabled=false}
+}
+async function removeTeacherOnline(id){
+ if(!session?.isAdmin)return toast("Chỉ Admin được xóa giáo viên");
+ const t=teacherByIdOnline(id);if(!t)return toast("Không tìm thấy giáo viên");
+ if(!confirm(`Xóa tài khoản giáo viên ${t.name}? Tài khoản sẽ bị khóa và ẩn khỏi danh sách, dữ liệu lớp được giữ lại để khôi phục khi cần.`))return;
+ try{const x=await onlineAPI({action:"delete_teacher",teacherId:id});if(!x.ok)throw Error(x.message||"Không xóa được giáo viên");await loadTeachersOnline();toast("Đã khóa tài khoản và ẩn giáo viên khỏi danh sách; dữ liệu lớp được giữ lại")}catch(e){toast(e.message||"Không xóa được giáo viên")}
 }
 function renderTeachers(){
  if(!session?.isAdmin){$("#content").innerHTML=`<div class=empty>Chỉ quản trị hệ thống được quản lý giáo viên.</div>`;return}
  $("#content").innerHTML=`<div class=section-head><div><h3>👨‍🏫 Giáo viên</h3><div class=muted>Admin tạo tài khoản giáo viên và không gian lớp độc lập.</div></div><button class="btn primary" onclick=openNewTeacherForm()>＋ Thêm giáo viên</button></div>
  <div class=card style="margin-bottom:14px"><b id=teacherCount>👨‍🏫 … giáo viên</b><div class=muted style="margin-top:4px">Giáo viên luôn có quyền sử dụng toàn bộ chức năng trong workspace của mình.</div></div>
- <div class=table-wrap><table><thead><tr><th>Giáo viên</th><th>Tài khoản</th><th>Lớp ban đầu</th><th>Năm học</th><th>Trạng thái</th><th>Quyền</th></tr></thead><tbody id=teacherRows><tr><td colspan=6 class=empty>Đang tải danh sách giáo viên...</td></tr></tbody></table></div>`;
+ <div class=table-wrap><table><thead><tr><th>Giáo viên</th><th>Tài khoản</th><th>Lớp ban đầu</th><th>Năm học</th><th>Trạng thái</th><th>Quyền</th><th>Thao tác</th></tr></thead><tbody id=teacherRows><tr><td colspan=7 class=empty>Đang tải danh sách giáo viên...</td></tr></tbody></table></div>`;
  loadTeachersOnline();
 }
 
