@@ -3646,7 +3646,12 @@ let timetablePeriodTimes={
   2:"07:45 - 08:30",
   3:"08:55 - 09:40",
   4:"09:40 - 10:25",
-  5:"10:25 - 11:10"
+  5:"10:25 - 11:10",
+  6:"13:00 - 13:45",
+  7:"13:45 - 14:30",
+  8:"14:45 - 15:30",
+  9:"15:30 - 16:15",
+  10:"16:15 - 17:00"
 };
 
 function subjectTone(subject){
@@ -3672,7 +3677,7 @@ function timetableDays(){
 
 function timetablePeriods(){
   const rows=byClass(state.timetable);
-  const max=Math.max(5,...rows.map(x=>Number(x.period||0)));
+  const max=Math.max(10,...rows.map(x=>Number(x.period||0)));
   return Array.from({length:max},(_,i)=>i+1);
 }
 
@@ -3686,6 +3691,8 @@ function renderTimetable(){
   $("#content").innerHTML=`
   <style id="gvcn-v3815-timetable">
     .tt-page{display:flex;flex-direction:column;gap:16px}
+    .tt-session-row td{background:#eff6ff!important;color:#1d4e89;font-weight:800;text-align:left;padding:10px 14px;border-top:2px solid #bfd5f1}
+    .tt-session-afternoon td{background:#fff7e9!important;color:#8b531b;border-top-color:#f0d3a0}
     .tt-toolbar-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px 18px;box-shadow:var(--shadow)}
     .tt-toolbar-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
     .tt-toolbar-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -3775,6 +3782,7 @@ function renderTimetable(){
           </thead>
           <tbody>
             ${periods.map(p=>`
+              ${p===1?`<tr class="tt-session-row"><td colspan="${days.length+1}">☀️ BUỔI SÁNG — TIẾT 1–5</td></tr>`:p===6?`<tr class="tt-session-row tt-session-afternoon"><td colspan="${days.length+1}">🌤️ BUỔI CHIỀU — TIẾT 6–10</td></tr>`:""}
               <tr>
                 <td class=tt-period-col>
                   <div class=tt-period>
@@ -3807,7 +3815,7 @@ function renderTimetable(){
       </div>
 
       <div class=tt-bottom-note>
-        <span>Buổi sáng: Tiết 1 đến Tiết ${periods[periods.length-1]||5}</span>
+        <span>Buổi sáng: Tiết 1–5 · Buổi chiều: Tiết 6–10. Thầy có thể sửa thời gian từng tiết theo lịch của trường.</span>
       </div>
 
       <div class=tt-summary>
@@ -3827,7 +3835,7 @@ function openLessonForm(id="",prefDay="",prefPeriod=""){
   modal(`<h3>${id?"✏️ Sửa tiết học":"＋ Thêm tiết học"}</h3>
     <div class=form-grid>
       <div class=field><label>Thứ</label><select id=lDay>${timetableDays().map(d=>`<option ${day===d?"selected":""}>${d}</option>`).join("")}</select></div>
-      <div class=field><label>Tiết</label><select id=lPeriod>${Array.from({length:10},(_,i)=>i+1).map(n=>`<option value="${n}" ${period===n?"selected":""}>Tiết ${n}</option>`).join("")}</select></div>
+      <div class=field><label>Tiết</label><select id=lPeriod>${Array.from({length:10},(_,i)=>i+1).map(n=>`<option value="${n}" ${period===n?"selected":""}>Tiết ${n} — ${n<=5?"Sáng":"Chiều"}</option>`).join("")}</select></div>
       <div class=field><label>Môn học</label><input id=lSubject value="${esc(x.subject||"")}" placeholder="Ví dụ: Tin học"></div>
       <div class=field><label>Giáo viên</label><input id=lTeacher value="${esc(x.teacher||"")}" placeholder="Họ tên giáo viên"></div>
       <div class=field><label>Phòng học</label><input id=lRoom value="${esc(x.room||"")}" placeholder="Ví dụ: Phòng máy"></div>
