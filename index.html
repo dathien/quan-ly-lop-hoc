@@ -3140,8 +3140,15 @@ function openBirthdayMessage(id){
   const s=state.students.find(x=>x.id===id);if(!s)return;
   openMessageForm("",id,"Chúc mừng sinh nhật",birthdayWishText(s));
 }
+let studentDisplayMode="table";
+let studentGroupFilter="all";
+let studentSearchTerm="";
+function setStudentDisplayMode(mode){studentDisplayMode=mode;renderStudents()}
+function setStudentGroupFilter(group){studentGroupFilter=group;renderStudents()}
+function setStudentSearchTerm(term){studentSearchTerm=String(term||"");renderStudents();const el=document.getElementById("studentQuickSearch");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}}
 function renderStudents(){
- const ss=classStudents();
+ const allStudents=classStudents();
+ const ss=allStudents.filter(s=>(studentGroupFilter==="all"||s.group===studentGroupFilter)&&(!studentSearchTerm||[s.name,s.group,s.id].some(v=>String(v||"").toLocaleLowerCase("vi").includes(studentSearchTerm.toLocaleLowerCase("vi")))));
  $("#content").innerHTML=`${birthdayPanel()}<div class=section-head><div><h3>Danh sách học sinh</h3><div class=muted>${ss.length} học sinh</div></div><div class=actions>
   <button class="btn primary" onclick=openStudentForm()>＋ Thêm học sinh</button>
   <button class=btn onclick=importStudentsExcel()>📥 Tải Excel lên</button>
@@ -3152,9 +3159,31 @@ function renderStudents(){
   <b>📥 Nhập danh sách học sinh từ Excel</b>
   <div class=muted style="margin-top:4px;font-size:12px">Dùng file .xlsx hoặc .csv. Cột bắt buộc: <b>Họ và tên</b>. Có thể thêm: Giới tính, Ngày sinh, Tổ, SĐT cha, SĐT mẹ. Tên trùng trong cùng lớp sẽ được bỏ qua.</div>
  </div>
-<div class=table-wrap><table><thead><tr><th>STT</th><th>Họ tên</th><th>Giới tính</th><th>Ngày sinh</th><th>Tổ</th><th>SĐT cha</th><th>SĐT mẹ</th><th>Thao tác</th></tr></thead><tbody>
+<style>
+ .student-view-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;padding:12px;background:#fff;border:1px solid var(--line);border-radius:14px}
+ .student-view-tools input{min-width:190px;flex:1;max-width:370px;padding:10px;border:1px solid var(--line);border-radius:9px}
+ .student-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:13px}
+ .student-profile-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow);min-width:0}
+ .student-profile-card .student-avatar{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:#eff6ff;font-size:24px}
+ .student-profile-card .student-name{font-size:16px;font-weight:900;overflow-wrap:anywhere}
+ .student-profile-card .student-detail{margin:8px 0;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+ .student-profile-card .actions{margin-top:12px}
+</style>
+<div class=student-view-tools>
+ <input id=studentQuickSearch aria-label="Tìm học sinh" placeholder="🔎 Tìm tên, tổ hoặc mã học sinh" value="${esc(studentSearchTerm)}" oninput="setStudentSearchTerm(this.value)">
+ <button class="btn ${studentGroupFilter==='all'?'primary':''}" onclick="setStudentGroupFilter('all')">Tất cả (${allStudents.length})</button>
+ ${Array.from(new Set([...['Tổ 1','Tổ 2','Tổ 3','Tổ 4'],...allStudents.map(s=>s.group).filter(Boolean)])).map(g=>`<button class="btn ${studentGroupFilter===g?'primary':''}" onclick="setStudentGroupFilter(decodeURIComponent('${encodeURIComponent(g)}'))">${esc(g)} (${allStudents.filter(s=>s.group===g).length})</button>`).join('')}
+ <button class="btn ${studentDisplayMode==='table'?'primary':''}" onclick="setStudentDisplayMode('table')">☷ Danh sách</button>
+ <button class="btn ${studentDisplayMode==='cards'?'primary':''}" onclick="setStudentDisplayMode('cards')">▦ Thẻ học sinh</button>
+</div>
+${studentDisplayMode==='cards'?`<div class=student-cards>${ss.map(s=>`<article class=student-profile-card>
+ <div style="display:flex;align-items:center;gap:10px"><div class=student-avatar>🎓</div><div><div class=student-name>${esc(s.name)}</div><div class=muted>${esc(s.group||'Chưa phân tổ')}</div></div></div>
+ <div class=student-detail>🎂 ${esc(fmtDate(s.dob)||'Chưa có ngày sinh')} · ${esc(s.gender||'')}</div>
+ <div class=student-detail>🪑 ${esc(s.seat?'Chỗ '+s.seat:'Chưa xếp chỗ')} · ${s.profileDone?'✓ Hồ sơ đầy đủ':'Hồ sơ chưa đầy đủ'}</div>
+ <div class=actions><button class="btn sm" onclick="openStudentForm('${s.id}')">✏️ Xem / Sửa hồ sơ</button><button class="btn sm bad" onclick="deleteStudent('${s.id}')">Xóa</button></div>
+ </article>`).join('')||'<div class=empty>Không tìm thấy học sinh phù hợp.</div>'}</div>`:`<div class=table-wrap><table><thead><tr><th>STT</th><th>Họ tên</th><th>Giới tính</th><th>Ngày sinh</th><th>Tổ</th><th>SĐT cha</th><th>SĐT mẹ</th><th>Thao tác</th></tr></thead><tbody>
  ${ss.map((s,i)=>{const b=birthdayInfo(s);return `<tr><td>${i+1}</td><td><b>${esc(s.name)}</b>${b&&b.days===0?` <span class="badge good">🎂 Sinh nhật hôm nay</span>`:""}</td><td>${esc(s.gender||"")}</td><td>${fmtDate(s.dob)}${b&&b.days>0&&b.days<=7?`<div class=muted>🎂 Còn ${b.days} ngày</div>`:""}</td><td>${esc(s.group||"")}</td><td>${esc(s.phoneFather||"")}</td><td>${esc(s.phoneMother||"")}</td><td><div style="margin-bottom:5px">${statusBadge(!!s.profileDone,"Hồ sơ đầy đủ","Hồ sơ chưa đầy đủ")}</div><div class=actions><button class="btn sm" onclick="openStudentForm('${s.id}')">Sửa</button><button class="btn sm" onclick="copyBirthdayWish('${s.id}')">🎂 Chúc mừng</button><button class="btn sm ${s.profileDone?"":"good"}" onclick="toggleStudentProfile('${s.id}')">${s.profileDone?"Bỏ hoàn thành":"✓ Hoàn thành"}</button><button class="btn sm bad" onclick="deleteStudent('${s.id}')">Xóa</button></div></td></tr>`}).join("")||`<tr><td colspan=8 class=empty>Chưa có học sinh.</td></tr>`}
- </tbody></table></div>`;
+ </tbody></table></div>`}`;
 }
 function openStudentForm(id=""){const s=state.students.find(x=>x.id===id)||{};modal(`<h3>${id?"Sửa":"Thêm"} học sinh</h3><div class=form-grid>
  <div class=field><label>Họ và tên</label><input id=sName value="${esc(s.name||"")}"></div><div class=field><label>Giới tính</label><select id=sGender><option></option><option ${s.gender==="Nam"?"selected":""}>Nam</option><option ${s.gender==="Nữ"?"selected":""}>Nữ</option></select></div>
