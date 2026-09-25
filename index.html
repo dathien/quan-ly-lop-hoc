@@ -2087,7 +2087,7 @@ input,select,textarea{
 <div class="sidebar-quick no-print">
       <button title="Tổng quan" onclick="navigate('home')">🏠</button>
       <button title="Học sinh" onclick="navigate('students')">👥</button>
-      <button title="Nề nếp" onclick="navigate('discipline')">✅</button>
+      <button title="Thi đua/nề nếp" onclick="navigate('discipline')">✅</button>
       <button title="Đường đua" onclick="navigate('race')">🏁</button>
     </div>
 
@@ -2101,7 +2101,7 @@ input,select,textarea{
 
     <div class="group"><div class="group-title" role="button" tabindex="0">📘 Theo dõi</div><div class="nav">
       <button data-page="scores"><span class="ico">📊</span>Bảng điểm</button>
-      <button data-page="discipline"><span class="ico">✅</span>Nề nếp</button>
+      <button data-page="discipline"><span class="ico">✅</span>Thi đua/nề nếp</button>
       <button data-page="duty"><span class="ico">🧹</span>Trực nhật</button>
       <button data-page="weekly"><span class="ico">📝</span>Kế hoạch tuần</button>
       <button data-page="tasks"><span class="ico">☑️</span>Công việc</button>
@@ -2666,7 +2666,7 @@ function currentYearLabel(){return curClass()?.year||""}
 const titles={
  classes:["Quản lý lớp","Tạo và quản lý nhiều lớp độc lập"],home:["Tổng quan","Thông tin nhanh lớp chủ nhiệm"],students:["Học sinh","Danh sách và hồ sơ học sinh"],
  seats:["Chỗ ngồi","Sơ đồ chỗ ngồi theo lớp"],timetable:["Thời khóa biểu","Lịch học trong tuần"],scores:["Bảng điểm","Theo dõi điểm theo môn"],
- discipline:["Nề nếp","Điểm danh, vi phạm và điểm nề nếp"],duty:["Trực nhật","Phân công và theo dõi trực nhật"],weekly:["Kế hoạch tuần","Lập kế hoạch và theo dõi công việc"],tasks:["Công việc","Theo dõi nhiệm vụ và hạn cần nhớ"],
+ discipline:["Thi đua/nề nếp","Điểm danh, vi phạm và điểm nề nếp"],duty:["Trực nhật","Phân công và theo dõi trực nhật"],weekly:["Kế hoạch tuần","Lập kế hoạch và theo dõi công việc"],tasks:["Công việc","Theo dõi nhiệm vụ và hạn cần nhớ"],
  finance:["Thu – chi","Quản lý các khoản thu và chi"],reports:["Báo cáo","Tổng hợp dữ liệu lớp"],comments:["Nhận xét học sinh","Ghi nhận xét theo từng học sinh"],
  parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],teachers:["Giáo viên","Quản trị tài khoản giáo viên và không gian lớp"],demo:["Demo / Đào tạo","Một tài khoản Demo duy nhất cho từng buổi giới thiệu"],members:["Thành viên","Thiết lập sau khi vào app"],activity:["Lịch sử","Nhật ký hoạt động"],
  data:["Dữ liệu & Sao lưu","Sao lưu và đồng bộ dữ liệu"]
@@ -4147,7 +4147,7 @@ function renderDiscipline(){
   ];
   $("#content").innerHTML=`
   <div class=section-head>
-    <div><h3>Nề nếp lớp</h3><div class=muted>Theo dõi chuyên cần, vi phạm và điểm tích cực.</div></div>
+    <div><h3>Thi đua/nề nếp lớp</h3><div class=muted>Theo dõi chuyên cần, vi phạm và điểm tích cực.</div></div>
     <div class=actions><button class=btn onclick=openRules()>⚙️ Thang điểm</button></div>
   </div>
   <div class=tabs>${labels.map(([k,l])=>`<button class="${disciplineTab===k?"active":""}" onclick="disciplineTab='${k}';renderDiscipline()">${l}${k==="concern"?` <span class="badge bad" style="margin-left:5px">${concernStudents().length}</span>`:""}</button>`).join("")}</div>
