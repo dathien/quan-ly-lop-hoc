@@ -6039,6 +6039,124 @@ function enforceGuestView(){
 window.addEventListener("load",()=>setTimeout(enforceGuestView,50));
 
 
+
+/* ===== V38.80 Seating UX upgrade 26/09/2026 ===== */
+let seatUndoStack=[];
+let seatSwapFirstId="";
+function seatSnapshot(){
+  seatUndoStack.push(classStudents().map(s=>({id:s.id,seat:String(s.seat||"")})));
+  if(seatUndoStack.length>20)seatUndoStack.shift();
+}
+function undoSeats(){
+  if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
+  const snap=seatUndoStack.pop();
+  if(!snap){toast("Chưa có thao tác để hoàn tác.");return}
+  snap.forEach(x=>{const s=state.students.find(v=>v.id===x.id);if(s)s.seat=x.seat});
+  localStorage.setItem(KEY,JSON.stringify(state));renderSeats();toast("Đã hoàn tác thay đổi chỗ ngồi");
+}
+function autoSeats(){
+  if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
+  seatSnapshot();
+  const cap=seatCapacity();
+  const students=[...classStudents()].sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"vi"));
+  students.forEach((s,i)=>s.seat=i<cap?String(i+1):"");
+  save("Đã xếp chỗ tự động");renderSeats();
+}
+function beginSeatSwap(){
+  if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
+  seatSwapFirstId="";toast("Chọn học sinh thứ nhất, sau đó chọn học sinh thứ hai.");
+}
+function seatClickSwap(studentId){
+  if(!studentId||curClass().seatDone)return;
+  if(!seatSwapFirstId){seatSwapFirstId=studentId;renderSeats();toast("Đã chọn học sinh thứ nhất. Chọn học sinh cần đổi chỗ.");return}
+  if(seatSwapFirstId===studentId){seatSwapFirstId="";renderSeats();return}
+  const a=state.students.find(s=>s.id===seatSwapFirstId),b=state.students.find(s=>s.id===studentId);
+  if(!a||!b){seatSwapFirstId="";return}
+  seatSnapshot();[a.seat,b.seat]=[b.seat,a.seat];seatSwapFirstId="";
+  save("Đã đổi chỗ hai học sinh");renderSeats();
+}
+function renderSeats(){
+  const cfg=seatConfig(),cap=seatCapacity(),students=classStudents();
+  const assigned=students.filter(s=>{const n=Number(s.seat||0);return n>=1&&n<=cap});
+  const unassigned=students.filter(s=>!s.seat||Number(s.seat)>cap);
+  const free=Math.max(0,cap-assigned.length);
+  $("#content").innerHTML=`
+  <style id="seat-v3880-style">
+    .seat-toolbar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+    .seat-toolbar .btn{white-space:nowrap}
+    .seat-info-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:13px 0;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:13px;color:#64748b;font-size:13px}
+    .seat-info-bar b{font-size:16px;color:#102a43}.seat-info-dot{color:#c4cfda}
+    .classroom-wrap{background:#eef4fb;border:1px solid var(--line);border-radius:18px;padding:16px;overflow:auto}
+    .board-front{width:min(560px,72%);margin:0 auto 12px;background:#183a5d;color:#fff;text-align:center;padding:10px 16px;border-radius:10px;font-weight:900;letter-spacing:.06em;box-shadow:0 6px 16px rgba(15,35,65,.14)}
+    .teacher-row{display:flex;justify-content:center;margin:0 auto 16px}.teacher-desk{width:200px;border:1.5px solid #9fb2c7;background:#fff;border-radius:11px;padding:9px;text-align:center;font-weight:800;color:#526071}
+    .seat-groups{display:grid;grid-template-columns:repeat(${cfg.groups},minmax(0,1fr));gap:16px;width:100%;min-width:0}
+    .seat-group{background:#fff;border:1px solid #dce6f0;border-radius:15px;padding:10px;box-shadow:0 4px 14px rgba(30,64,100,.04)}
+    .seat-group:nth-child(4n+1){border-top:4px solid #3b82f6}.seat-group:nth-child(4n+2){border-top:4px solid #10b981}.seat-group:nth-child(4n+3){border-top:4px solid #8b5cf6}.seat-group:nth-child(4n){border-top:4px solid #f59e0b}
+    .seat-group-title{text-align:center;font-weight:900;margin:0 0 8px;color:#173457}
+    .desk{margin:7px 0;border:1px solid #cbd9e7;border-radius:11px;overflow:hidden;background:#f8fbfe;padding:0}
+    .desk-label{text-align:center;font-size:10.5px;color:#738197;padding:4px 0 2px;font-weight:700;margin:0}
+    .desk-seats{display:grid;grid-template-columns:repeat(${cfg.seatsPerTable},minmax(0,1fr));gap:1px;background:#dce7f1}
+    .seat-slot{min-height:55px;border:0;background:#fff;padding:6px;display:flex;align-items:center;gap:6px;justify-content:flex-start;text-align:left;font-size:11.5px;font-weight:800;cursor:grab;user-select:none;overflow:hidden}
+    .seat-slot.empty{color:#9aa7b6;font-weight:600;justify-content:center;background:#fbfcfe;cursor:default}.seat-slot.drag-over{outline:3px solid #60a5fa;outline-offset:-3px;background:#eff6ff}.seat-slot.swap-selected{outline:3px solid #f59e0b;outline-offset:-3px;background:#fffbeb}
+    .seat-avatar{width:26px;height:26px;border-radius:50%;background:#e8f0f8;color:#315270;display:grid;place-items:center;flex:0 0 26px;font-size:10px}.seat-name{line-height:1.15;overflow-wrap:anywhere}
+    .unassigned-box{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px}.unassigned-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}.student-chip{padding:7px 9px;border-radius:999px;background:#edf3f8;border:1px solid #dbe4ee;font-weight:800;font-size:12px;cursor:grab}
+    @media(max-width:1100px){.seat-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:700px){.seat-groups{grid-template-columns:1fr}.board-front{width:90%}.seat-toolbar{justify-content:flex-start}}
+  </style>
+  <div class=section-head>
+    <div><h3>Sơ đồ chỗ ngồi</h3><div class=muted>Sắp xếp chỗ ngồi cho lớp ${esc(curClass().name)}.</div></div>
+    <div class=seat-toolbar>
+      <button class=btn onclick=openSeatConfig() ${curClass().seatDone?"disabled":""}>⚙️ Cấu hình</button>
+      <button class=btn onclick=autoSeats() ${curClass().seatDone?"disabled":""}>✨ Xếp tự động</button>
+      <button class=btn onclick=randomSeats() ${curClass().seatDone?"disabled":""}>🔀 Xáo trộn</button>
+      <button class=btn onclick=beginSeatSwap() ${curClass().seatDone?"disabled":""}>⇄ Đổi chỗ</button>
+      <button class=btn onclick=undoSeats() ${curClass().seatDone?"disabled":""}>↶ Hoàn tác</button>
+      <button class="btn ${curClass().seatDone?"warn":"good"}" onclick=toggleSeatDone()>${curClass().seatDone?"Chỉnh sửa sơ đồ":"✓ Lưu sơ đồ"}</button>
+      <button class="btn primary" onclick=exportSeatingWord()>📄 Xuất Word A4</button>
+    </div>
+  </div>
+  <div class=seat-info-bar>
+    <span><b>${students.length}</b> học sinh</span><span class=seat-info-dot>•</span>
+    <span><b>${cap}</b> chỗ</span><span class=seat-info-dot>•</span>
+    <span>🟢 Đã xếp <b>${assigned.length}</b></span><span class=seat-info-dot>•</span>
+    <span>HS chưa xếp <b>${unassigned.length}</b></span><span class=seat-info-dot>•</span>
+    <span>Còn trống <b>${free}</b> chỗ</span>
+  </div>
+  <div class=classroom-wrap>
+    <div class=board-front>BẢNG</div>
+    ${cfg.teacherDesk?`<div class=teacher-row><div class=teacher-desk>🧑‍🏫 BÀN GIÁO VIÊN</div></div>`:""}
+    <div class=seat-groups>
+      ${Array.from({length:cfg.groups},(_,g)=>`<div class=seat-group><div class=seat-group-title>TỔ ${g+1}</div>
+        ${Array.from({length:cfg.tablesPerGroup},(_,t)=>`<div class=desk><div class=desk-label>Bàn ${t+1}</div><div class=desk-seats>
+          ${Array.from({length:cfg.seatsPerTable},(_,si)=>{const no=seatNo(g,t,si),stu=seatStudentByNo(no);const ini=stu?String(stu.name||"").trim().split(/\s+/).slice(-2).map(x=>x[0]).join("").toUpperCase():"";return `<div class="seat-slot ${stu?"":"empty"} ${stu&&seatSwapFirstId===stu.id?"swap-selected":""}" draggable="${stu&&!curClass().seatDone}" data-seat="${no}" data-student="${stu?stu.id:""}" ondragstart="seatDragStart(event)" ondragover="seatDragOver(event)" ondragleave="seatDragLeave(event)" ondrop="seatDrop(event)" onclick="seatClickSwap('${stu?stu.id:""}')">${stu?`<span class=seat-avatar>${esc(ini)}</span><span class=seat-name>${esc(stu.name)}</span>`:`<span>+ Trống</span>`}</div>`}).join("")}
+        </div></div>`).join("")}</div>`).join("")}
+    </div>
+    <div class=unassigned-box><b>Học sinh chưa xếp chỗ</b><div class=unassigned-list>${unassigned.map(s=>`<div class=student-chip draggable="${!curClass().seatDone}" data-student="${s.id}" ondragstart="seatDragStart(event)">${esc(s.name)}</div>`).join("")||`<span class="badge good">Tất cả học sinh đã có chỗ</span>`}</div></div>
+  </div>`;
+  requestAnimationFrame(()=>fitSeatLayoutFull());
+}
+function randomSeats(){
+  if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
+  seatSnapshot();const students=[...classStudents()],cap=seatCapacity();
+  const seats=Array.from({length:cap},(_,i)=>String(i+1));
+  for(let i=seats.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[seats[i],seats[j]]=[seats[j],seats[i]]}
+  for(let i=students.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[students[i],students[j]]=[students[j],students[i]]}
+  students.forEach((s,i)=>s.seat=seats[i]||"");save("Đã xáo trộn chỗ ngồi");renderSeats();
+}
+function clearSeats(){
+  if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
+  if(!confirm("Đưa toàn bộ học sinh về trạng thái chưa xếp chỗ?"))return;
+  seatSnapshot();classStudents().forEach(s=>s.seat="");save("Đã làm lại sơ đồ chỗ ngồi");renderSeats();
+}
+function seatDrop(e){
+  if(curClass().seatDone){toast("Sơ đồ đã hoàn thành. Hãy mở lại để chỉnh sửa.");return}
+  e.preventDefault();e.currentTarget.classList.remove("drag-over");let data=seatDragData;
+  try{if(e.dataTransfer?.getData("text/plain"))data=JSON.parse(e.dataTransfer.getData("text/plain"))}catch(_){}
+  if(!data?.studentId)return;const targetSeat=e.currentTarget.dataset.seat,targetStudentId=e.currentTarget.dataset.student||"",moving=state.students.find(s=>s.id===data.studentId);if(!moving)return;
+  seatSnapshot();const fromSeat=String(moving.seat||"");if(targetStudentId&&targetStudentId!==moving.id){const other=state.students.find(s=>s.id===targetStudentId);if(other)other.seat=fromSeat||""}moving.seat=String(targetSeat);
+  localStorage.setItem(KEY,JSON.stringify(state));log("Đã đổi chỗ ngồi");renderSeats();toast("Đã cập nhật chỗ ngồi");
+}
+
 </script>
 
 </body>
