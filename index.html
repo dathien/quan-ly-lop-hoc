@@ -2933,11 +2933,48 @@ function removeCover(){
   toast("Đã bỏ ảnh lớp");
 }
 let homeWeekOffset=0;
-function homeMonday(offset=homeWeekOffset){const d=new Date();d.setHours(12,0,0,0);const day=d.getDay()||7;d.setDate(d.getDate()-day+1+offset*7);return d}
 function homeDateISO(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
-function homeWeekInfo(){const a=homeMonday(),b=new Date(a);b.setDate(a.getDate()+5);const jan1=new Date(a.getFullYear(),0,1),days=Math.floor((a-jan1)/86400000),week=Math.ceil((days+jan1.getDay()+1)/7);return {from:homeDateISO(a),to:homeDateISO(b),week}}
+function mondayOfDate(d){const x=new Date(d);x.setHours(12,0,0,0);const day=x.getDay()||7;x.setDate(x.getDate()-day+1);return x}
+function schoolYearStartYear(){
+ const c=curClass(),raw=String(c?.year||"");
+ const m=raw.match(/(20\d{2})/);if(m)return +m[1];
+ const now=new Date();return now.getMonth()+1>=8?now.getFullYear():now.getFullYear()-1
+}
+function semesterConfigForDate(date=new Date()){
+ const c=curClass()||{},y=schoolYearStartYear();
+ // Cho phép cấu hình chính xác theo từng lớp. Mặc định HK1 = tuần chứa 01/09.
+ const hk1=c.semester1Start||homeDateISO(mondayOfDate(new Date(y,8,1)));
+ // HK2 là giá trị có thể cấu hình; mặc định chỉ dùng khi đã qua giữa tháng 1.
+ const hk2=c.semester2Start||homeDateISO(mondayOfDate(new Date(y+1,0,19)));
+ const d=homeDateISO(date),use2=d>=hk2;
+ return {semester:use2?2:1,start:use2?hk2:hk1,hk1,hk2}
+}
+function semesterWeekInfo(offset=homeWeekOffset){
+ const now=new Date(),base=mondayOfDate(now);base.setDate(base.getDate()+offset*7);
+ const cfg=semesterConfigForDate(base),start=mondayOfDate(new Date(cfg.start+"T12:00:00"));
+ const week=Math.max(1,Math.floor((base-start)/604800000)+1);
+ const end=new Date(base);end.setDate(base.getDate()+5);
+ return {from:homeDateISO(base),to:homeDateISO(end),week,semester:cfg.semester,start:homeDateISO(start)}
+}
+function homeMonday(offset=homeWeekOffset){return new Date(semesterWeekInfo(offset).from+"T12:00:00")}
+function homeWeekInfo(){return semesterWeekInfo(homeWeekOffset)}
 function changeHomeWeek(delta){homeWeekOffset+=delta;renderHome()}
-function homeWeekCommand(){const w=homeWeekInfo(),c=curClass(),count=classStudents().length;return `<div class=week-command><div class=week-command-main><div class=week-command-nav><button onclick="changeHomeWeek(-1)">‹</button><span class=week-command-label>📅 TUẦN ${w.week} | ${fmtDate(w.from)} – ${fmtDate(w.to)}</span><button onclick="changeHomeWeek(1)">›</button></div><span class=week-command-date>${new Date().toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})}</span></div><div class=week-command-actions><div style="position:relative"><button class="btn week-quick" onclick=toggleHomeQuickMenu()>⚡ THAO TÁC NHANH ▾</button><div id=homeQuickMenu style="display:none" class=week-quick-menu><button onclick="navigate('attendance')">✓ Điểm danh hôm nay</button><button onclick="navigate('discipline')">⭐ Ghi nhận nề nếp</button><button onclick="navigate('exams')">📚 Thêm lịch kiểm tra</button><button onclick="navigate('weekly')">📅 Kế hoạch tuần</button><button onclick="navigate('finance')">💰 Ghi thu / chi</button><button onclick="navigate('comments')">💬 Nhận xét học sinh</button></div></div><button class="btn week-students" onclick="navigate('students')">👥 ${count} HỌC SINH</button><span class=sync-chip>✓ Đã lưu trên thiết bị</span></div></div>`}
+function openSemesterWeekSetup(){
+ const c=curClass(),cfg=semesterConfigForDate(new Date());
+ modal(`<h3>📅 Thiết lập tuần học kỳ</h3>
+ <div class=muted style="margin-bottom:12px">Tuần 1 được tính từ tuần bắt đầu học thực tế của học kỳ, không dùng số tuần của năm.</div>
+ <div class=form-grid>
+  <div class=field><label>Ngày bắt đầu Tuần 1 - Học kỳ I</label><input id=sem1Start type=date value="${esc(c?.semester1Start||cfg.hk1)}"></div>
+  <div class=field><label>Ngày bắt đầu Tuần 1 - Học kỳ II</label><input id=sem2Start type=date value="${esc(c?.semester2Start||cfg.hk2)}"></div>
+ </div>
+ <div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick=saveSemesterWeekSetup()>Lưu thiết lập</button></div>`)
+}
+function saveSemesterWeekSetup(){
+ const c=curClass();if(!c)return;
+ c.semester1Start=val("sem1Start");c.semester2Start=val("sem2Start");
+ homeWeekOffset=0;examWeekOffset=0;closeModal();save("Đã cập nhật mốc tuần học kỳ");renderHome()
+}
+function homeWeekCommand(){const w=homeWeekInfo(),c=curClass(),count=classStudents().length;return `<div class=week-command><div class=week-command-main><div class=week-command-nav><button onclick="changeHomeWeek(-1)">‹</button><span class=week-command-label onclick=openSemesterWeekSetup() title="Bấm để thiết lập mốc Tuần 1">📅 HK${w.semester} · TUẦN ${w.week} | ${fmtDate(w.from)} – ${fmtDate(w.to)}</span><button onclick="changeHomeWeek(1)">›</button></div><span class=week-command-date>${new Date().toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})}</span></div><div class=week-command-actions><div style="position:relative"><button class="btn week-quick" onclick=toggleHomeQuickMenu()>⚡ THAO TÁC NHANH ▾</button><div id=homeQuickMenu style="display:none" class=week-quick-menu><button onclick="navigate('attendance')">✓ Điểm danh hôm nay</button><button onclick="navigate('discipline')">⭐ Ghi nhận nề nếp</button><button onclick="navigate('exams')">📚 Thêm lịch kiểm tra</button><button onclick="navigate('weekly')">📅 Kế hoạch tuần</button><button onclick="navigate('finance')">💰 Ghi thu / chi</button><button onclick="navigate('comments')">💬 Nhận xét học sinh</button></div></div><button class="btn week-students" onclick="navigate('students')">👥 ${count} HỌC SINH</button><span class=sync-chip>✓ Đã lưu trên thiết bị</span></div></div>`}
 function toggleHomeQuickMenu(){const x=document.getElementById("homeQuickMenu");if(x)x.style.display=x.style.display==="none"?"block":"none"}
 function homeExamSchedule(){const w=homeWeekInfo(),rows=(state.examSchedules||[]).filter(x=>x.classId===state.currentClassId&&String(x.date||"")>=w.from&&String(x.date||"")<=w.to).sort((a,b)=>String(a.date).localeCompare(String(b.date))).slice(0,4);if(!rows.length)return `<div class=home-exam-empty>Tuần ${w.week} chưa có lịch kiểm tra.</div>`;return `<div class=home-exam-list>${rows.map(x=>{const st=typeof examStatus==="function"?examStatus(x.date):{text:"Sắp tới"};return `<div class=home-exam-row><div class=home-exam-date>${fmtDate(x.date)}</div><div><div class=home-exam-name>${esc(x.subject||"Môn học")}</div><div class=home-exam-meta>${esc(x.type||"")}${x.period?" • "+esc(x.period):""}</div></div><span class=home-exam-status>${esc(st.text)}</span></div>`}).join("")}</div>`}
 function latestWeekly(){const x=byClass(state.weekly).sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];return x?`<b>${esc(x.title)}</b><div class=muted>${fmtDate(x.date)}</div><p>${esc(x.content)}</p>`:`<div class=empty>Chưa có kế hoạch tuần.</div>`}
@@ -5075,13 +5112,12 @@ let examWeekOffset=0;
 let examTypeFilter="all";
 function examRows(){if(!Array.isArray(state.examSchedules))state.examSchedules=[];return state.examSchedules}
 function mondayOfWeek(offset=0){
- const d=new Date();d.setHours(12,0,0,0);const day=d.getDay()||7;d.setDate(d.getDate()-day+1+offset*7);return d
+ return new Date(semesterWeekInfo(offset).from+"T12:00:00")
 }
 function dateISOlocal(d){const x=new Date(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`}
-function examWeekRange(){const a=mondayOfWeek(examWeekOffset),b=new Date(a);b.setDate(a.getDate()+5);return [dateISOlocal(a),dateISOlocal(b)]}
-function examWeekNumber(d=mondayOfWeek(examWeekOffset)){
- const x=new Date(d),jan1=new Date(x.getFullYear(),0,1),days=Math.floor((x-jan1)/86400000);return Math.ceil((days+jan1.getDay()+1)/7)
-}
+function examWeekRange(){const w=semesterWeekInfo(examWeekOffset);return [w.from,w.to]}
+function examWeekNumber(){return semesterWeekInfo(examWeekOffset).week}
+function examSemesterNumber(){return semesterWeekInfo(examWeekOffset).semester}
 function setExamWeek(delta){examWeekOffset+=delta;renderExams()}
 function setExamTypeFilter(v){examTypeFilter=v;renderExams()}
 function examTypeLabel(t){return t||"Kiểm tra thường xuyên"}
@@ -5123,9 +5159,9 @@ function renderExams(){
  </style>
  <section class=exam-hero>
   <div class=exam-hero-top><div><h3 class=exam-title>📚 LỊCH KIỂM TRA TRONG TUẦN</h3><span class=exam-class-pill>${esc(c?.name||"Lớp")}</span>
-   <div class=exam-range><span>▣ <b>Tuần ${examWeekNumber()}</b></span><span>•</span><span>Từ ngày <b>${fmtDate(from)}</b> đến ngày <b>${fmtDate(to)}</b></span></div>
+   <div class=exam-range><span>▣ <b>HK${examSemesterNumber()} · Tuần ${examWeekNumber()}</b></span><span>•</span><span>Từ ngày <b>${fmtDate(from)}</b> đến ngày <b>${fmtDate(to)}</b></span></div>
    <div class=exam-desc>Ban cán sự lớp theo dõi, cập nhật lịch kiểm tra thường xuyên, giữa kỳ và cuối kỳ theo từng tuần để nhắc nhở cả lớp chủ động ôn tập trọng tâm.</div></div>
-   <div class=exam-head-actions><div class=exam-week-nav><button onclick=setExamWeek(-1)>‹</button><b>Tuần ${examWeekNumber()}</b><button onclick=setExamWeek(1)>›</button></div>
+   <div class=exam-head-actions><div class=exam-week-nav><button onclick=setExamWeek(-1)>‹</button><b>HK${examSemesterNumber()} · Tuần ${examWeekNumber()}</b><button onclick=setExamWeek(1)>›</button></div>
    <button class="btn exam-copy" onclick=copyExamWeek()>Sao chép<br>gửi Zalo</button><button class="btn exam-add" onclick=openExamForm()>＋ THÊM<br>LỊCH KIỂM TRA</button></div></div>
   <div class=exam-filters><b style="font-size:11px;color:#66788e">Phân loại:</b>
    ${[["all",`Tất cả (${counts.all})`],["tx",`Thường xuyên (${counts.tx})`],["gk",`Giữa kỳ (${counts.gk})`],["ck",`Cuối kỳ (${counts.ck})`]].map(([k,l])=>`<button class="exam-filter ${examTypeFilter===k?'active':''}" onclick="setExamTypeFilter('${k}')">${l}</button>`).join("")}
