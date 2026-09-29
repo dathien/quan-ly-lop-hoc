@@ -3140,63 +3140,178 @@ function openBirthdayMessage(id){
   const s=state.students.find(x=>x.id===id);if(!s)return;
   openMessageForm("",id,"Chúc mừng sinh nhật",birthdayWishText(s));
 }
-let studentDisplayMode="table";
+let studentDisplayMode="cards";
 let studentGroupFilter="all";
+let studentRoleFilter="all";
+let studentSpecialOnly=false;
 let studentSearchTerm="";
+
 function setStudentDisplayMode(mode){studentDisplayMode=mode;renderStudents()}
 function setStudentGroupFilter(group){studentGroupFilter=group;renderStudents()}
-function setStudentSearchTerm(term){studentSearchTerm=String(term||"");renderStudents();const el=document.getElementById("studentQuickSearch");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}}
+function setStudentRoleFilter(role){studentRoleFilter=role;renderStudents()}
+function toggleStudentSpecial(){studentSpecialOnly=!studentSpecialOnly;renderStudents()}
+function setStudentSearchTerm(term){
+  studentSearchTerm=String(term||"");
+  renderStudents();
+  const el=document.getElementById("studentQuickSearch");
+  if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}
+}
+function studentRole(s){
+  const m=(state.members||[]).find(x=>String(x.name||"").trim().toLocaleLowerCase("vi")===String(s.name||"").trim().toLocaleLowerCase("vi"));
+  return s.role||m?.role||"";
+}
+function studentNeedsAttention(s){
+  const incidents=byClass(state.incidents||[]).filter(x=>x.studentId===s.id);
+  const attendance=byClass(state.attendance||[]).filter(x=>x.studentId===s.id);
+  return !!s.specialAttention ||
+    incidents.some(x=>!x.resolved && ["Cần lưu ý","Nghiêm trọng","Cần quan tâm"].includes(x.level)) ||
+    attendance.some(x=>["Vắng không phép","Đi trễ"].includes(x.status));
+}
+function studentParentName(s){return s.parentName||s.parent||s.fatherName||s.motherName||"Chưa cập nhật"}
+function studentPhone(s){return s.phone||s.phoneFather||s.phoneMother||""}
+function studentAddress(s){return s.address||s.diaChi||"Chưa cập nhật địa chỉ"}
+function studentNote(s){
+  if(s.note)return s.note;
+  const latest=byClass(state.comments||[]).filter(x=>x.studentId===s.id).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")))[0];
+  return latest?.text||"";
+}
+function callStudent(id){
+  const s=state.students.find(x=>x.id===id),p=studentPhone(s);
+  if(!p)return toast("Học sinh chưa có số điện thoại liên hệ.");
+  location.href="tel:"+String(p).replace(/\s+/g,"");
+}
+function zaloStudent(id){
+  const s=state.students.find(x=>x.id===id),p=studentPhone(s);
+  if(!p)return toast("Học sinh chưa có số điện thoại để mở Zalo.");
+  window.open("https://zalo.me/"+String(p).replace(/\D/g,""),"_blank","noopener");
+}
 function renderStudents(){
  const allStudents=classStudents();
- const ss=allStudents.filter(s=>(studentGroupFilter==="all"||s.group===studentGroupFilter)&&(!studentSearchTerm||[s.name,s.group,s.id].some(v=>String(v||"").toLocaleLowerCase("vi").includes(studentSearchTerm.toLocaleLowerCase("vi")))));
- $("#content").innerHTML=`${birthdayPanel()}<div class=section-head><div><h3>Danh sách học sinh</h3><div class=muted>${ss.length} học sinh</div></div><div class=actions>
-  <button class="btn primary" onclick=openStudentForm()>＋ Thêm học sinh</button>
-  <button class=btn onclick=importStudentsExcel()>📥 Tải Excel lên</button>
-  <button class=btn onclick=downloadStudentTemplate()>📄 Tải file mẫu</button>
-  <button class=btn onclick=exportStudentsCSV()>📤 Xuất Excel</button>
-</div></div>
- <div class=card style="margin-bottom:14px;padding:13px 15px">
-  <b>📥 Nhập danh sách học sinh từ Excel</b>
-  <div class=muted style="margin-top:4px;font-size:12px">Dùng file .xlsx hoặc .csv. Cột bắt buộc: <b>Họ và tên</b>. Có thể thêm: Giới tính, Ngày sinh, Tổ, SĐT cha, SĐT mẹ. Tên trùng trong cùng lớp sẽ được bỏ qua.</div>
+ const roles=Array.from(new Set(allStudents.map(studentRole).filter(Boolean))).sort((a,b)=>a.localeCompare(b,"vi"));
+ const specialCount=allStudents.filter(studentNeedsAttention).length;
+ const term=studentSearchTerm.toLocaleLowerCase("vi");
+ const ss=allStudents.filter(s=>
+   (studentGroupFilter==="all"||s.group===studentGroupFilter) &&
+   (studentRoleFilter==="all"||studentRole(s)===studentRoleFilter) &&
+   (!studentSpecialOnly||studentNeedsAttention(s)) &&
+   (!term||[s.name,s.group,s.id,studentRole(s),studentPhone(s),studentParentName(s),studentAddress(s)].some(v=>String(v||"").toLocaleLowerCase("vi").includes(term)))
+ );
+ $("#content").innerHTML=`<style>
+ .student-toolbar{background:#fff;border:1px solid var(--line);border-radius:17px;padding:15px 16px;margin-bottom:18px;box-shadow:var(--shadow)}
+ .student-toolbar-top{display:grid;grid-template-columns:minmax(220px,1fr) auto auto;gap:10px;align-items:center}
+ .student-search{position:relative}.student-search input{height:44px;padding-left:40px;border-radius:12px}
+ .student-search span{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#86a0bd}
+ .student-update-btn{height:44px;padding:0 20px;font-size:14px;border-radius:11px;box-shadow:0 5px 12px rgba(37,99,235,.2)}
+ .student-add-btn{height:44px;padding:0 18px;background:#08a36d!important;border-color:#08a36d!important;box-shadow:0 5px 12px rgba(5,150,105,.2)!important}
+ .student-view-switch{display:inline-flex;background:#eef3f8;border:1px solid #dce5ef;border-radius:11px;padding:3px}
+ .student-view-switch .btn{border:0;background:transparent;box-shadow:none;min-height:36px;padding:7px 10px}
+ .student-view-switch .btn.active{background:#fff;color:#2458d8;box-shadow:0 2px 7px rgba(24,50,82,.09)}
+ .student-filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:12px;margin-top:12px;border-top:1px solid #edf1f5}
+ .student-filter-label{font-size:12px;color:#66788e;white-space:nowrap}
+ .student-filter-row select{width:auto;min-width:160px;height:39px;padding:7px 34px 7px 11px}
+ .student-special{height:39px;border:1px solid #f5cf73;background:#fffaf0;color:#a96800;border-radius:9px;padding:0 12px;font-weight:750}
+ .student-special.active{background:#fff0c7;border-color:#f2b93d}
+ .student-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+ .student-profile-card{background:#fff;border:1px solid #dce5ef;border-radius:16px;box-shadow:0 5px 18px rgba(27,54,87,.055);overflow:hidden;min-width:0;transition:.18s ease}
+ .student-profile-card:hover{transform:translateY(-2px);box-shadow:0 9px 24px rgba(27,54,87,.09)}
+ .student-card-body{padding:17px 17px 15px;min-height:235px}
+ .student-card-head{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:10px;align-items:start}
+ .student-avatar-new{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;background:linear-gradient(135deg,#347df5,#1e63e9);color:#fff;font-weight:900;font-size:17px}
+ .student-profile-card:nth-child(3n+2) .student-avatar-new{background:linear-gradient(135deg,#7657ff,#5848f4)}
+ .student-profile-card:nth-child(3n) .student-avatar-new{background:linear-gradient(135deg,#08a8df,#0494cf)}
+ .student-name-new{font-size:15px;font-weight:900;line-height:1.25;color:#0f172a;margin:1px 0 7px;overflow-wrap:anywhere}
+ .student-gender{font-size:9px;padding:3px 7px;border-radius:6px;background:#edf7ff;color:#1474b8;margin-left:6px;vertical-align:2px}
+ .student-gender.female{background:#fff0f6;color:#d14b82}
+ .student-star{border:0;background:transparent;color:#bfd0e1;font-size:20px;padding:0;line-height:1}
+ .student-tags{display:flex;gap:6px;flex-wrap:wrap}.student-tag{display:inline-flex;padding:3px 8px;border-radius:6px;background:#eef4ff;color:#315fc6;font-size:11px}
+ .student-tag.role{background:#f3f6fb;color:#46627f;border:1px solid #dce6f0}.student-tag.special{background:#fff1f2;color:#d13b4d}
+ .student-info{display:grid;gap:7px;margin-top:14px;color:#5f7186;font-size:12px}.student-info b{color:#25364a}
+ .student-note{margin-top:10px;background:#f7f9fc;border:1px solid #edf1f5;border-radius:8px;padding:9px 10px;color:#60738a;font-size:11.5px;font-style:italic;line-height:1.4;min-height:42px}
+ .student-card-actions{display:flex;align-items:center;gap:7px;padding:11px 16px;border-top:1px solid #edf1f5;background:#fff}
+ .student-card-actions .phone{color:#008e64;background:#ecfff7;border-color:#a9efd5;font-weight:800}.student-card-actions .zalo{color:#1763db;background:#f2f7ff;border-color:#b9d2ff}
+ .student-icon-btn{margin-left:auto;border:0;background:transparent;color:#5f7389;padding:6px;font-size:15px}.student-icon-btn.delete{margin-left:0}
+ .student-table-card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:auto}
+ @media(max-width:1150px){.student-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.student-toolbar-top{grid-template-columns:1fr auto}.student-view-switch{grid-column:1/-1;justify-self:end}}
+ @media(max-width:720px){.student-toolbar-top{grid-template-columns:1fr}.student-update-btn,.student-add-btn{width:100%}.student-view-switch{justify-self:stretch}.student-view-switch .btn{flex:1}.student-cards{grid-template-columns:1fr}.student-filter-row select{width:100%}.student-special{width:100%}}
+ </style>
+ <div class=student-toolbar>
+   <div class=student-toolbar-top>
+     <div class=student-search><span>⌕</span><input id=studentQuickSearch placeholder="Tìm kiếm theo họ tên, SĐT" value="${esc(studentSearchTerm)}" oninput="setStudentSearchTerm(this.value)"></div>
+     <button class="btn primary student-update-btn" onclick=importStudentsExcel()>✎ CẬP NHẬT DANH SÁCH HỌC SINH</button>
+     <div class=actions style="flex-wrap:nowrap">
+       <button class="btn good student-add-btn" onclick=openStudentForm()>♙ Thêm học sinh</button>
+       <div class=student-view-switch>
+         <button class="btn ${studentDisplayMode==='cards'?'active':''}" onclick="setStudentDisplayMode('cards')">▦ Thẻ</button>
+         <button class="btn ${studentDisplayMode==='table'?'active':''}" onclick="setStudentDisplayMode('table')">☷ Bảng</button>
+       </div>
+     </div>
+   </div>
+   <div class=student-filter-row>
+     <span class=student-filter-label>▽ Lọc nhanh:</span>
+     <select onchange="setStudentGroupFilter(this.value)"><option value=all ${studentGroupFilter==='all'?'selected':''}>Tất cả các tổ</option>${Array.from(new Set(allStudents.map(s=>s.group).filter(Boolean))).sort().map(g=>`<option ${studentGroupFilter===g?'selected':''}>${esc(g)}</option>`).join('')}</select>
+     <select onchange="setStudentRoleFilter(this.value)"><option value=all ${studentRoleFilter==='all'?'selected':''}>Tất cả chức vụ</option>${roles.map(r=>`<option ${studentRoleFilter===r?'selected':''}>${esc(r)}</option>`).join('')}</select>
+     <button class="student-special ${studentSpecialOnly?'active':''}" onclick=toggleStudentSpecial()>★ Cần quan tâm đặc biệt (${specialCount})</button>
+     <span class=muted style="margin-left:auto;font-size:12px">${ss.length}/${allStudents.length} học sinh</span>
+   </div>
  </div>
-<style>
- .student-view-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0;padding:12px;background:#fff;border:1px solid var(--line);border-radius:14px}
- .student-view-tools input{min-width:190px;flex:1;max-width:370px;padding:10px;border:1px solid var(--line);border-radius:9px}
- .student-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:13px}
- .student-profile-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow);min-width:0}
- .student-profile-card .student-avatar{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:#eff6ff;font-size:24px}
- .student-profile-card .student-name{font-size:16px;font-weight:900;overflow-wrap:anywhere}
- .student-profile-card .student-detail{margin:8px 0;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
- .student-profile-card .actions{margin-top:12px}
-</style>
-<div class=student-view-tools>
- <input id=studentQuickSearch aria-label="Tìm học sinh" placeholder="🔎 Tìm tên, tổ hoặc mã học sinh" value="${esc(studentSearchTerm)}" oninput="setStudentSearchTerm(this.value)">
- <button class="btn ${studentGroupFilter==='all'?'primary':''}" onclick="setStudentGroupFilter('all')">Tất cả (${allStudents.length})</button>
- ${Array.from(new Set([...['Tổ 1','Tổ 2','Tổ 3','Tổ 4'],...allStudents.map(s=>s.group).filter(Boolean)])).map(g=>`<button class="btn ${studentGroupFilter===g?'primary':''}" onclick="setStudentGroupFilter(decodeURIComponent('${encodeURIComponent(g)}'))">${esc(g)} (${allStudents.filter(s=>s.group===g).length})</button>`).join('')}
- <button class="btn ${studentDisplayMode==='table'?'primary':''}" onclick="setStudentDisplayMode('table')">☷ Danh sách</button>
- <button class="btn ${studentDisplayMode==='cards'?'primary':''}" onclick="setStudentDisplayMode('cards')">▦ Thẻ học sinh</button>
-</div>
-${studentDisplayMode==='cards'?`<div class=student-cards>${ss.map(s=>`<article class=student-profile-card>
- <div style="display:flex;align-items:center;gap:10px"><div class=student-avatar>🎓</div><div><div class=student-name>${esc(s.name)}</div><div class=muted>${esc(s.group||'Chưa phân tổ')}</div></div></div>
- <div class=student-detail>🎂 ${esc(fmtDate(s.dob)||'Chưa có ngày sinh')} · ${esc(s.gender||'')}</div>
- <div class=student-detail>🪑 ${esc(s.seat?'Chỗ '+s.seat:'Chưa xếp chỗ')} · ${s.profileDone?'✓ Hồ sơ đầy đủ':'Hồ sơ chưa đầy đủ'}</div>
- <div class=actions><button class="btn sm" onclick="openStudentForm('${s.id}')">✏️ Xem / Sửa hồ sơ</button><button class="btn sm bad" onclick="deleteStudent('${s.id}')">Xóa</button></div>
- </article>`).join('')||'<div class=empty>Không tìm thấy học sinh phù hợp.</div>'}</div>`:`<div class=table-wrap><table><thead><tr><th>STT</th><th>Họ tên</th><th>Giới tính</th><th>Ngày sinh</th><th>Tổ</th><th>SĐT cha</th><th>SĐT mẹ</th><th>Thao tác</th></tr></thead><tbody>
- ${ss.map((s,i)=>{const b=birthdayInfo(s);return `<tr><td>${i+1}</td><td><b>${esc(s.name)}</b>${b&&b.days===0?` <span class="badge good">🎂 Sinh nhật hôm nay</span>`:""}</td><td>${esc(s.gender||"")}</td><td>${fmtDate(s.dob)}${b&&b.days>0&&b.days<=7?`<div class=muted>🎂 Còn ${b.days} ngày</div>`:""}</td><td>${esc(s.group||"")}</td><td>${esc(s.phoneFather||"")}</td><td>${esc(s.phoneMother||"")}</td><td><div style="margin-bottom:5px">${statusBadge(!!s.profileDone,"Hồ sơ đầy đủ","Hồ sơ chưa đầy đủ")}</div><div class=actions><button class="btn sm" onclick="openStudentForm('${s.id}')">Sửa</button><button class="btn sm" onclick="copyBirthdayWish('${s.id}')">🎂 Chúc mừng</button><button class="btn sm ${s.profileDone?"":"good"}" onclick="toggleStudentProfile('${s.id}')">${s.profileDone?"Bỏ hoàn thành":"✓ Hoàn thành"}</button><button class="btn sm bad" onclick="deleteStudent('${s.id}')">Xóa</button></div></td></tr>`}).join("")||`<tr><td colspan=8 class=empty>Chưa có học sinh.</td></tr>`}
+ ${studentDisplayMode==='cards'?`<div class=student-cards>${ss.map(s=>{
+   const role=studentRole(s), special=studentNeedsAttention(s), phone=studentPhone(s), note=studentNote(s);
+   return `<article class=student-profile-card>
+    <div class=student-card-body>
+      <div class=student-card-head>
+        <div class=student-avatar-new>${esc(initials(s.name)||"HS")}</div>
+        <div>
+          <div class=student-name-new>${esc(s.name)} <span class="student-gender ${s.gender==='Nữ'?'female':''}">${esc(s.gender||"")}</span></div>
+          <div class=student-tags><span class=student-tag>${esc(s.group||"Chưa phân tổ")}</span>${role?`<span class="student-tag role">${esc(role)}</span>`:""}${special?`<span class="student-tag special">Cần quan tâm</span>`:""}</div>
+        </div>
+        <button class=student-star title="Đánh dấu quan tâm" onclick="event.stopPropagation();toggleStudentSpecialFlag('${s.id}')">${special?"★":"☆"}</button>
+      </div>
+      <div class=student-info>
+        <div>▣ Sinh ngày: <b>${esc(fmtDate(s.dob)||"Chưa cập nhật")}</b></div>
+        <div>♡ Phụ huynh: <b>${esc(studentParentName(s))}</b></div>
+        <div>⌖ ${esc(studentAddress(s))}</div>
+      </div>
+      ${note?`<div class=student-note>"${esc(note)}"</div>`:`<div class=student-note>Chưa có ghi chú hồ sơ.</div>`}
+    </div>
+    <div class=student-card-actions>
+      <button class="btn sm phone" onclick="callStudent('${s.id}')">☎ ${esc(phone||"Chưa có SĐT")}</button>
+      <button class="btn sm zalo" onclick="zaloStudent('${s.id}')">◯ Zalo</button>
+      <button class=student-icon-btn title="Sửa hồ sơ" onclick="openStudentForm('${s.id}')">✎</button>
+      <button class="student-icon-btn delete" title="Xóa" onclick="deleteStudent('${s.id}')">♲</button>
+    </div>
+   </article>`}).join('')||'<div class=empty>Không tìm thấy học sinh phù hợp.</div>'}</div>`:
+ `<div class=student-table-card><table><thead><tr><th>STT</th><th>Họ tên</th><th>Giới tính</th><th>Ngày sinh</th><th>Tổ</th><th>Chức vụ</th><th>Liên hệ</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+ ${ss.map((s,i)=>`<tr><td>${i+1}</td><td><b>${esc(s.name)}</b></td><td>${esc(s.gender||"")}</td><td>${fmtDate(s.dob)}</td><td>${esc(s.group||"")}</td><td>${esc(studentRole(s)||"—")}</td><td>${esc(studentPhone(s)||"—")}</td><td>${studentNeedsAttention(s)?'<span class="badge warn">★ Cần quan tâm</span>':'<span class="badge good">Ổn định</span>'}</td><td><div class=actions><button class="btn sm" onclick="openStudentForm('${s.id}')">Sửa</button><button class="btn sm bad" onclick="deleteStudent('${s.id}')">Xóa</button></div></td></tr>`).join("")||`<tr><td colspan=9 class=empty>Chưa có học sinh.</td></tr>`}
  </tbody></table></div>`}`;
 }
-function openStudentForm(id=""){const s=state.students.find(x=>x.id===id)||{};modal(`<h3>${id?"Sửa":"Thêm"} học sinh</h3><div class=form-grid>
- <div class=field><label>Họ và tên</label><input id=sName value="${esc(s.name||"")}"></div><div class=field><label>Giới tính</label><select id=sGender><option></option><option ${s.gender==="Nam"?"selected":""}>Nam</option><option ${s.gender==="Nữ"?"selected":""}>Nữ</option></select></div>
- <div class=field><label>Ngày sinh</label><input id=sDob type=date value="${esc(s.dob||"")}"></div><div class=field><label>Tổ</label><input id=sGroup value="${esc(s.group||"")}"></div>
- <div class=field><label>SĐT cha</label><input id=sFather value="${esc(s.phoneFather||"")}"></div><div class=field><label>SĐT mẹ</label><input id=sMother value="${esc(s.phoneMother||"")}"></div>
- </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveStudent('${id}')">Lưu</button></div>`)}
-function saveStudent(id){const name=val("sName").trim();if(!name)return toast("Nhập họ tên");
- const data={name,gender:val("sGender"),dob:val("sDob"),group:val("sGroup"),phoneFather:val("sFather"),phoneMother:val("sMother")};
+function toggleStudentSpecialFlag(id){
+ const s=state.students.find(x=>x.id===id);if(!s)return;
+ s.specialAttention=!s.specialAttention;
+ localStorage.setItem(KEY,JSON.stringify(state));renderStudents();toast(s.specialAttention?"Đã đánh dấu cần quan tâm":"Đã bỏ đánh dấu quan tâm");
+}
+function openStudentForm(id=""){
+ const s=state.students.find(x=>x.id===id)||{};
+ modal(`<h3>${id?"Cập nhật":"Thêm"} hồ sơ học sinh</h3><div class=form-grid>
+ <div class=field><label>Họ và tên</label><input id=sName value="${esc(s.name||"")}"></div>
+ <div class=field><label>Giới tính</label><select id=sGender><option></option><option ${s.gender==="Nam"?"selected":""}>Nam</option><option ${s.gender==="Nữ"?"selected":""}>Nữ</option></select></div>
+ <div class=field><label>Ngày sinh</label><input id=sDob type=date value="${esc(s.dob||"")}"></div>
+ <div class=field><label>Tổ</label><input id=sGroup value="${esc(s.group||"")}"></div>
+ <div class=field><label>Họ tên phụ huynh</label><input id=sParent value="${esc(s.parentName||"")}"></div>
+ <div class=field><label>SĐT liên hệ chính</label><input id=sPhone value="${esc(s.phone||s.phoneFather||s.phoneMother||"")}"></div>
+ <div class=field><label>SĐT cha</label><input id=sFather value="${esc(s.phoneFather||"")}"></div>
+ <div class=field><label>SĐT mẹ</label><input id=sMother value="${esc(s.phoneMother||"")}"></div>
+ <div class=field style="grid-column:1/-1"><label>Địa chỉ</label><input id=sAddress value="${esc(s.address||"")}"></div>
+ <div class=field style="grid-column:1/-1"><label>Ghi chú hồ sơ</label><textarea id=sNote>${esc(s.note||"")}</textarea></div>
+ </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveStudent('${id}')">Lưu hồ sơ</button></div>`)
+}
+function saveStudent(id){
+ const name=val("sName").trim();if(!name)return toast("Nhập họ tên");
+ const data={name,gender:val("sGender"),dob:val("sDob"),group:val("sGroup"),parentName:val("sParent"),phone:val("sPhone"),phoneFather:val("sFather"),phoneMother:val("sMother"),address:val("sAddress"),note:val("sNote")};
  if(id)Object.assign(state.students.find(x=>x.id===id),data);else state.students.push({id:uid(),classId:state.currentClassId,...data});
- closeModal();save("Đã lưu học sinh");renderStudents()}
-function toggleStudentProfile(id){const s=state.students.find(x=>x.id===id);if(!s)return;s.profileDone=!s.profileDone;localStorage.setItem(KEY,JSON.stringify(state));log("Đã cập nhật trạng thái hồ sơ");localStorage.setItem(KEY,JSON.stringify(state));refreshCurrentView();toast("Đã cập nhật hồ sơ")}
+ closeModal();save("Đã lưu hồ sơ học sinh");renderStudents()
+}
+function toggleStudentProfile(id){const s=state.students.find(x=>x.id===id);if(!s)return;s.profileDone=!s.profileDone;localStorage.setItem(KEY,JSON.stringify(state));log("Đã cập nhật trạng thái hồ sơ");refreshCurrentView();toast("Đã cập nhật hồ sơ")}
 function deleteStudent(id){if(!confirm("Xóa học sinh này?"))return;state.students=state.students.filter(x=>x.id!==id);save("Đã xóa học sinh");renderStudents()}
-
 
 function normalizeExcelHeader(v){
   return String(v??"").trim().toLowerCase()
