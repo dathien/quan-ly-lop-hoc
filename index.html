@@ -88,6 +88,11 @@ body.guest-mode .edit-only{opacity:.55}.guest-view-note{display:none}body.guest-
 .gvcn-login-card{position:relative!important}
 .gvcn-login-close{position:absolute;right:12px;top:12px;width:36px;height:36px;border:0;border-radius:10px;background:#eef2f7;color:#475569;font-size:22px;line-height:1;cursor:pointer}
 .gvcn-login-close:hover{background:#e2e8f0}
+
+/* ===== TRUNG TÂM ĐIỀU HÀNH TUẦN - TỔNG QUAN ===== */
+.week-command{margin:12px 0 16px;background:#fff;border:1px solid #dce5ef;border-radius:16px;padding:13px 15px;box-shadow:0 5px 18px rgba(24,50,82,.06);display:grid;grid-template-columns:minmax(320px,1fr) auto;gap:12px;align-items:center}
+.week-command-main{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.week-command-nav{display:flex;align-items:center;background:#fff7e8;border:1px solid #ffd17b;border-radius:12px;overflow:hidden;min-height:42px}.week-command-nav button{width:38px;height:40px;border:0;background:transparent;font-size:20px;font-weight:900;color:#865500;cursor:pointer}.week-command-label{padding:0 10px;font-size:12px;font-weight:900;color:#704500;white-space:nowrap}.week-command-date{font-size:12px;color:#66788e;font-weight:700}.week-command-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.week-quick{background:#fff4e5!important;border-color:#ffc86a!important;color:#a45c00!important;font-weight:900}.week-students{background:#eff6ff!important;border-color:#bfd6ff!important;color:#2458c6!important;font-weight:850}.sync-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #a7e7cb;background:#effdf7;color:#087a55;border-radius:10px;padding:9px 11px;font-size:11px;font-weight:850}.week-quick-menu{position:absolute;z-index:40;background:#fff;border:1px solid #dce5ef;border-radius:12px;box-shadow:0 16px 35px rgba(17,36,62,.16);padding:7px;min-width:220px;margin-top:5px}.week-quick-menu button{display:block;width:100%;border:0;background:#fff;text-align:left;padding:9px 10px;border-radius:8px;cursor:pointer;color:#29415d}.week-quick-menu button:hover{background:#f2f7fd}.home-week-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:15px;margin-top:15px}.home-exam-list{display:grid;gap:8px}.home-exam-row{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid #e2eaf3;background:#f9fbfe;border-radius:10px;padding:10px}.home-exam-date{font-size:11px;font-weight:900;color:#2458c6}.home-exam-name{font-size:12px;font-weight:900;color:#172b45}.home-exam-meta{font-size:10.5px;color:#718198;margin-top:2px}.home-exam-status{font-size:10px;font-weight:900;border-radius:999px;padding:5px 8px;background:#fff5df;color:#a36300;border:1px solid #f5ce77}.home-exam-empty{padding:16px;text-align:center;color:#7a8ba0;font-size:12px;background:#f8fafc;border-radius:10px}
+@media(max-width:900px){.week-command{grid-template-columns:1fr}.week-command-actions{justify-content:flex-start}.home-week-grid{grid-template-columns:1fr}.week-command-nav{width:100%;justify-content:space-between}.week-command-label{white-space:normal;text-align:center}}
 </style>
 
 <style id="gvcnpro-v371-ui-refine">
@@ -2846,6 +2851,8 @@ function renderHome(){
    </button>
  </div>
 
+ ${homeWeekCommand()}
+
  <div class="overview-kpi-grid">
    ${overviewCard("students","👥",ss.length,"SĨ SỐ LỚP","Học sinh")}
    ${overviewCard("present","🗓️",`${present}/${ss.length}`,"CÓ MẶT HÔM NAY",present===ss.length&&ss.length?"Đi học đầy đủ":"Theo dõi chuyên cần")}
@@ -2854,9 +2861,13 @@ function renderHome(){
  </div>
  ${concernHomeCard()}
  ${rankBoard()}
+ <div class="home-week-grid">
+  <div class=card><div class=section-head><div><h3>📚 Lịch kiểm tra tuần</h3><div class=muted>Những bài kiểm tra cần nhắc lớp chuẩn bị.</div></div><button class=btn onclick="navigate('exams')">Xem tất cả</button></div>${homeExamSchedule()}</div>
+  <div class=card><div class=section-head><div><h3>☑️ Công việc sắp tới</h3><div class=muted>Nhắc việc cần xử lý trong thời gian tới.</div></div><button class=btn onclick="navigate('tasks')">Xem tất cả</button></div>${upcomingTasksHome()}</div>
+ </div>
  <div class="grid g2" style="margin-top:15px">
   <div class=card><div class=section-head><div><h3>📅 Kế hoạch gần nhất</h3></div><button class=btn onclick="navigate('weekly')">Mở</button></div>${latestWeekly()}</div>
-  <div class=card><div class=section-head><div><h3>☑️ Công việc sắp tới</h3><div class=muted>Nhắc việc cần xử lý trong thời gian tới.</div></div><button class=btn onclick="navigate('tasks')">Xem tất cả</button></div>${upcomingTasksHome()}</div>
+  <div class=card><div class=section-head><div><h3>💰 Thu chi lớp</h3><div class=muted>Truy cập nhanh báo cáo quỹ lớp.</div></div><button class=btn onclick="navigate('finance')">Mở thu chi</button></div><div style="font-size:25px;font-weight:900;margin-top:12px">${money(bal)}</div><div class=muted>Số dư hiện tại</div></div>
  </div>`;
 
  requestAnimationFrame(()=>{fitCurrentBanner();syncHeroToImage()});
@@ -2921,6 +2932,14 @@ function removeCover(){
   requestAnimationFrame(()=>{try{renderHome()}catch(err){console.error(err)}});
   toast("Đã bỏ ảnh lớp");
 }
+let homeWeekOffset=0;
+function homeMonday(offset=homeWeekOffset){const d=new Date();d.setHours(12,0,0,0);const day=d.getDay()||7;d.setDate(d.getDate()-day+1+offset*7);return d}
+function homeDateISO(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
+function homeWeekInfo(){const a=homeMonday(),b=new Date(a);b.setDate(a.getDate()+5);const jan1=new Date(a.getFullYear(),0,1),days=Math.floor((a-jan1)/86400000),week=Math.ceil((days+jan1.getDay()+1)/7);return {from:homeDateISO(a),to:homeDateISO(b),week}}
+function changeHomeWeek(delta){homeWeekOffset+=delta;renderHome()}
+function homeWeekCommand(){const w=homeWeekInfo(),c=curClass(),count=classStudents().length;return `<div class=week-command><div class=week-command-main><div class=week-command-nav><button onclick="changeHomeWeek(-1)">‹</button><span class=week-command-label>📅 TUẦN ${w.week} | ${fmtDate(w.from)} – ${fmtDate(w.to)}</span><button onclick="changeHomeWeek(1)">›</button></div><span class=week-command-date>${new Date().toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})}</span></div><div class=week-command-actions><div style="position:relative"><button class="btn week-quick" onclick=toggleHomeQuickMenu()>⚡ THAO TÁC NHANH ▾</button><div id=homeQuickMenu style="display:none" class=week-quick-menu><button onclick="navigate('attendance')">✓ Điểm danh hôm nay</button><button onclick="navigate('discipline')">⭐ Ghi nhận nề nếp</button><button onclick="navigate('exams')">📚 Thêm lịch kiểm tra</button><button onclick="navigate('weekly')">📅 Kế hoạch tuần</button><button onclick="navigate('finance')">💰 Ghi thu / chi</button><button onclick="navigate('comments')">💬 Nhận xét học sinh</button></div></div><button class="btn week-students" onclick="navigate('students')">👥 ${count} HỌC SINH</button><span class=sync-chip>✓ Đã lưu trên thiết bị</span></div></div>`}
+function toggleHomeQuickMenu(){const x=document.getElementById("homeQuickMenu");if(x)x.style.display=x.style.display==="none"?"block":"none"}
+function homeExamSchedule(){const w=homeWeekInfo(),rows=(state.examSchedules||[]).filter(x=>x.classId===state.currentClassId&&String(x.date||"")>=w.from&&String(x.date||"")<=w.to).sort((a,b)=>String(a.date).localeCompare(String(b.date))).slice(0,4);if(!rows.length)return `<div class=home-exam-empty>Tuần ${w.week} chưa có lịch kiểm tra.</div>`;return `<div class=home-exam-list>${rows.map(x=>{const st=typeof examStatus==="function"?examStatus(x.date):{text:"Sắp tới"};return `<div class=home-exam-row><div class=home-exam-date>${fmtDate(x.date)}</div><div><div class=home-exam-name>${esc(x.subject||"Môn học")}</div><div class=home-exam-meta>${esc(x.type||"")}${x.period?" • "+esc(x.period):""}</div></div><span class=home-exam-status>${esc(st.text)}</span></div>`}).join("")}</div>`}
 function latestWeekly(){const x=byClass(state.weekly).sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];return x?`<b>${esc(x.title)}</b><div class=muted>${fmtDate(x.date)}</div><p>${esc(x.content)}</p>`:`<div class=empty>Chưa có kế hoạch tuần.</div>`}
 
 function getRankRange(){
