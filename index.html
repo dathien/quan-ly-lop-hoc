@@ -2104,6 +2104,7 @@ input,select,textarea{
       <button data-page="discipline"><span class="ico">✅</span>Thi đua/nề nếp</button>
       <button data-page="duty"><span class="ico">🧹</span>Trực nhật</button>
       <button data-page="weekly"><span class="ico">📝</span>Kế hoạch tuần</button>
+      <button data-page="exams"><span class="ico">📚</span>Lịch kiểm tra</button>
       <button data-page="tasks"><span class="ico">☑️</span>Công việc</button>
       <button data-page="finance"><span class="ico">💰</span>Thu – chi</button>
       <button data-page="reports"><span class="ico">📑</span>Báo cáo</button>
@@ -2313,7 +2314,7 @@ function seed(){
 }
 
 function ensureDemoClassData(s){
-  ["students","timetable","scores","attendance","incidents","positive","duty","weekly","finance","comments","messages","tasks"].forEach(k=>{if(!Array.isArray(s[k]))s[k]=[]});
+  ["students","timetable","scores","attendance","incidents","positive","duty","weekly","finance","comments","messages","tasks","examSchedules"].forEach(k=>{if(!Array.isArray(s[k]))s[k]=[]});
   const demoNames10=[
     ["Nguyễn Gia An","Nữ"],["Trần Minh Anh","Nữ"],["Lê Quốc Bảo","Nam"],["Phạm Đức Bình","Nam"],["Võ Ngọc Châu","Nữ"],["Đặng Thành Công","Nam"],
     ["Bùi Khánh Duy","Nam"],["Hoàng Ngọc Diệp","Nữ"],["Nguyễn Tiến Dũng","Nam"],["Trần Anh Đức","Nam"],["Lê Hà Giang","Nữ"],["Phạm Thu Hà","Nữ"],
@@ -2408,7 +2409,7 @@ function blankTeacherState(profile){
  b.appName=profile.name;
  b.currentClassId="c1";
  b.classes=[{id:"c1",name:"10A1",school:"",year:"2026–2027",motto:"Đoàn kết • Chủ động • Tiến bộ",teacherName:profile.name,cover:"",seatConfig:{groups:4,tablesPerGroup:5,seatsPerTable:2,teacherDesk:true}}];
- ["students","timetable","scores","attendance","incidents","positive","duty","weekly","finance","comments","messages","tasks","counseling","situations","companion","career","logs"].forEach(k=>b[k]=[]);
+ ["students","timetable","scores","attendance","incidents","positive","duty","weekly","finance","comments","messages","tasks","examSchedules","counseling","situations","companion","career","logs"].forEach(k=>b[k]=[]);
  b.members=[{id:`gv-${profile.id}`,name:profile.name,role:"Giáo viên",phone:"",password:profile.password||"123456",done:true},
   ...(profile.assistants||[]).map(a=>({id:a.id||uid(),name:a.name,role:a.role||"Hỗ trợ",phone:a.phone||"",password:a.password||"123456",done:a.done!==false}))];
  return b;
@@ -2666,7 +2667,7 @@ function currentYearLabel(){return curClass()?.year||""}
 const titles={
  classes:["Quản lý lớp","Tạo và quản lý nhiều lớp độc lập"],home:["Tổng quan","Thông tin nhanh lớp chủ nhiệm"],students:["Học sinh","Danh sách và hồ sơ học sinh"],
  seats:["Chỗ ngồi","Sơ đồ chỗ ngồi theo lớp"],timetable:["Thời khóa biểu","Lịch học trong tuần"],scores:["Bảng điểm","Theo dõi điểm theo môn"],
- discipline:["Thi đua/nề nếp","Điểm danh, vi phạm và điểm nề nếp"],duty:["Trực nhật","Phân công và theo dõi trực nhật"],weekly:["Kế hoạch tuần","Lập kế hoạch và theo dõi công việc"],tasks:["Công việc","Theo dõi nhiệm vụ và hạn cần nhớ"],
+ discipline:["Thi đua/nề nếp","Điểm danh, vi phạm và điểm nề nếp"],duty:["Trực nhật","Phân công và theo dõi trực nhật"],weekly:["Kế hoạch tuần","Lập kế hoạch và theo dõi công việc"],exams:["Lịch kiểm tra","Theo dõi lịch kiểm tra trong tuần"],tasks:["Công việc","Theo dõi nhiệm vụ và hạn cần nhớ"],
  finance:["Thu – chi","Quản lý các khoản thu và chi"],reports:["Báo cáo","Tổng hợp dữ liệu lớp"],comments:["Nhận xét học sinh","Ghi nhận xét theo từng học sinh"],
  parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],teachers:["Giáo viên","Quản trị tài khoản giáo viên và không gian lớp"],demo:["Demo / Đào tạo","Một tài khoản Demo duy nhất cho từng buổi giới thiệu"],members:["Thành viên","Thiết lập sau khi vào app"],activity:["Lịch sử","Nhật ký hoạt động"],
  data:["Dữ liệu & Sao lưu","Sao lưu và đồng bộ dữ liệu"]
@@ -2783,7 +2784,7 @@ function refreshCurrentView(){
 }
 function render(){({
  classes:renderClasses,home:renderHome,students:renderStudents,seats:renderSeats,timetable:renderTimetable,scores:renderScores,
- discipline:renderDiscipline,duty:renderDuty,weekly:renderWeekly,tasks:renderTasks,finance:renderFinance,reports:renderReports,comments:renderComments,
+ discipline:renderDiscipline,duty:renderDuty,weekly:renderWeekly,exams:renderExams,tasks:renderTasks,finance:renderFinance,reports:renderReports,comments:renderComments,
  parentcomms:renderParentComms,situations:renderSituations,companion:renderCompanion,career:renderCareer,race:renderRace,teachers:renderTeachers,demo:renderDemoAdmin,members:renderMembers,activity:renderActivity,data:renderData,menuManager:renderMenuManager
 }[page]||renderHome)()}
 
@@ -5048,6 +5049,104 @@ function openMessageForm(id="",studentId="",title="",text=""){
  <div class=modal-foot>${id?`<button class="btn bad" onclick="closeModal();delItem('messages','${id}',renderParentComms)">Xóa</button>`:""}<button class=btn onclick=closeModal()>Hủy</button><button class=btn onclick="copyTextSafe(val('mText'))">📋 Sao chép</button><button class="btn primary" onclick="saveMessage('${id}')">Lưu</button></div>`);
 }
 function saveMessage(id=""){const data={studentId:val("mStudent"),title:val("mTitle"),date:val("mDate"),text:val("mText")};if(!data.text.trim())return toast("Nhập nội dung tin nhắn");if(id){const x=state.messages.find(v=>v.id===id);if(x)Object.assign(x,data)}else state.messages.push({id:uid(),classId:state.currentClassId,done:false,...data});closeModal();save(id?"Đã sửa tin nhắn":"Đã lưu tin nhắn");renderParentComms()}
+
+
+/* ===== LỊCH KIỂM TRA ===== */
+let examWeekOffset=0;
+let examTypeFilter="all";
+function examRows(){if(!Array.isArray(state.examSchedules))state.examSchedules=[];return state.examSchedules}
+function mondayOfWeek(offset=0){
+ const d=new Date();d.setHours(12,0,0,0);const day=d.getDay()||7;d.setDate(d.getDate()-day+1+offset*7);return d
+}
+function dateISOlocal(d){const x=new Date(d);return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`}
+function examWeekRange(){const a=mondayOfWeek(examWeekOffset),b=new Date(a);b.setDate(a.getDate()+5);return [dateISOlocal(a),dateISOlocal(b)]}
+function examWeekNumber(d=mondayOfWeek(examWeekOffset)){
+ const x=new Date(d),jan1=new Date(x.getFullYear(),0,1),days=Math.floor((x-jan1)/86400000);return Math.ceil((days+jan1.getDay()+1)/7)
+}
+function setExamWeek(delta){examWeekOffset+=delta;renderExams()}
+function setExamTypeFilter(v){examTypeFilter=v;renderExams()}
+function examTypeLabel(t){return t||"Kiểm tra thường xuyên"}
+function examStatus(date){
+ const a=new Date(date+"T12:00:00"),now=new Date();now.setHours(12,0,0,0);const n=Math.round((a-now)/86400000);
+ if(n<0)return {text:"Đã qua",cls:"past"};if(n===0)return {text:"Hôm nay",cls:"today"};return {text:`Còn ${n} ngày`,cls:"soon"}
+}
+function examSubjectClass(subject){
+ const s=String(subject||"").toLowerCase();
+ if(s.includes("toán"))return "math";if(s.includes("vật")||s.includes("hóa")||s.includes("sinh"))return "science";if(s.includes("anh"))return "english";return "other"
+}
+function renderExams(){
+ const [from,to]=examWeekRange(),all=examRows().filter(x=>x.classId===state.currentClassId);
+ const weekly=all.filter(x=>String(x.date||"")>=from&&String(x.date||"")<=to);
+ const counts={all:weekly.length,tx:weekly.filter(x=>String(x.type||"").includes("thường")).length,gk:weekly.filter(x=>String(x.type||"").includes("giữa")).length,ck:weekly.filter(x=>String(x.type||"").includes("cuối")).length};
+ const shown=weekly.filter(x=>examTypeFilter==="all"||(examTypeFilter==="tx"&&String(x.type||"").includes("thường"))||(examTypeFilter==="gk"&&String(x.type||"").includes("giữa"))||(examTypeFilter==="ck"&&String(x.type||"").includes("cuối"))).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+ const c=curClass();
+ $("#content").innerHTML=`<style>
+ .exam-hero{background:#fff;border:1px solid #dce5ef;border-left:3px solid #78b5ff;border-radius:0 0 16px 16px;padding:18px 22px;box-shadow:0 5px 16px rgba(26,58,95,.07);margin-bottom:22px}
+ .exam-hero-top{display:grid;grid-template-columns:1fr auto;gap:18px}.exam-title{font-size:22px;font-weight:950;color:#0f172a;margin:0 0 9px}
+ .exam-class-pill{display:inline-flex;background:#e8f2ff;color:#2257ba;border:1px solid #c9dcff;border-radius:999px;padding:5px 12px;font-weight:850;font-size:12px}
+ .exam-range{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:13px}.exam-range b{color:#111827}
+ .exam-desc{color:#61758e;font-size:12px;max-width:760px;line-height:1.55;margin-top:10px}
+ .exam-head-actions{display:flex;align-items:center;gap:10px}.exam-week-nav{display:flex;align-items:center;border:1px solid #dce5ef;border-radius:12px;background:#f7faff;overflow:hidden;height:44px}
+ .exam-week-nav button{border:0;background:transparent;width:38px;height:100%;font-size:20px;color:#536b85}.exam-week-nav b{padding:0 9px;white-space:nowrap;font-size:12px}
+ .exam-copy{height:62px;line-height:1.15}.exam-add{height:62px;background:#2d5cff!important;border-color:#2d5cff!important;color:#fff!important;font-weight:900}
+ .exam-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid #edf1f5}
+ .exam-filter{border:1px solid #dce5ef;background:#f9fbfd;border-radius:999px;padding:8px 13px;font-size:12px;font-weight:800;color:#42566e}.exam-filter.active{background:#245cf5;color:#fff;border-color:#245cf5}
+ .exam-showing{margin-left:auto;color:#61758e;font-size:12px}.exam-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+ .exam-card{background:#fff;border:1px solid #dce5ef;border-radius:16px;padding:18px 20px;box-shadow:0 4px 16px rgba(25,54,88,.05);position:relative}.exam-card.math{border-color:#8da8ff}
+ .exam-card-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.exam-subject{display:inline-flex;background:#2460f5;color:#fff;border-radius:10px;padding:8px 12px;font-weight:900;font-size:13px}
+ .exam-type{display:inline-flex;border:1px solid #7de5bc;background:#effff8;color:#00845a;border-radius:999px;padding:5px 9px;font-weight:800;font-size:10px}.exam-type.mid{border-color:#8cb8ff;background:#eff6ff;color:#2163d5}.exam-type.final{border-color:#d7b0ff;background:#faf3ff;color:#8446c6}
+ .exam-status{margin-left:auto;border:1px solid #f2c64d;background:#fffaf0;color:#9a6400;border-radius:999px;padding:5px 10px;font-weight:900;font-size:11px}.exam-status.past{border:0;background:#eef5f7;color:#678}.exam-status.today{background:#fff0e9;color:#c54b16;border-color:#ffc5a7}
+ .exam-meta{margin-top:12px;display:flex;gap:9px;flex-wrap:wrap;background:#f8fbff;border:1px solid #e1e9f3;border-radius:10px;padding:9px 11px;font-size:11.5px;color:#536b85}.exam-meta b{color:#2254c5}
+ .exam-box{margin-top:12px;border:1px solid #dbe7f5;background:#f8fbff;border-radius:10px;padding:11px 12px;font-size:12px;line-height:1.5}.exam-box strong{display:block;color:#17458b;font-size:10px;margin-bottom:4px}
+ .exam-note{margin-top:12px;border:1px solid #f7d47a;background:#fffaf0;border-radius:10px;padding:11px 12px;font-size:12px;line-height:1.5;color:#925700}.exam-note strong{display:block;font-size:10px;margin-bottom:4px}
+ .exam-card-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:12px}
+ @media(max-width:900px){.exam-hero-top{grid-template-columns:1fr}.exam-head-actions{flex-wrap:wrap}.exam-grid{grid-template-columns:1fr}.exam-showing{width:100%;margin-left:0}}
+ </style>
+ <section class=exam-hero>
+  <div class=exam-hero-top><div><h3 class=exam-title>📚 LỊCH KIỂM TRA TRONG TUẦN</h3><span class=exam-class-pill>${esc(c?.name||"Lớp")}</span>
+   <div class=exam-range><span>▣ <b>Tuần ${examWeekNumber()}</b></span><span>•</span><span>Từ ngày <b>${fmtDate(from)}</b> đến ngày <b>${fmtDate(to)}</b></span></div>
+   <div class=exam-desc>Ban cán sự lớp theo dõi, cập nhật lịch kiểm tra thường xuyên, giữa kỳ và cuối kỳ theo từng tuần để nhắc nhở cả lớp chủ động ôn tập trọng tâm.</div></div>
+   <div class=exam-head-actions><div class=exam-week-nav><button onclick=setExamWeek(-1)>‹</button><b>Tuần ${examWeekNumber()}</b><button onclick=setExamWeek(1)>›</button></div>
+   <button class="btn exam-copy" onclick=copyExamWeek()>Sao chép<br>gửi Zalo</button><button class="btn exam-add" onclick=openExamForm()>＋ THÊM<br>LỊCH KIỂM TRA</button></div></div>
+  <div class=exam-filters><b style="font-size:11px;color:#66788e">Phân loại:</b>
+   ${[["all",`Tất cả (${counts.all})`],["tx",`Thường xuyên (${counts.tx})`],["gk",`Giữa kỳ (${counts.gk})`],["ck",`Cuối kỳ (${counts.ck})`]].map(([k,l])=>`<button class="exam-filter ${examTypeFilter===k?'active':''}" onclick="setExamTypeFilter('${k}')">${l}</button>`).join("")}
+   <span class=exam-showing>ⓘ Đang hiển thị lịch kiểm tra của <b>Tuần ${examWeekNumber()}</b></span>
+  </div>
+ </section>
+ <div class=exam-grid>${shown.map(x=>{const st=examStatus(x.date),typ=String(x.type||"");return `<article class="exam-card ${examSubjectClass(x.subject)}">
+  <div class=exam-card-head><span class=exam-subject>▣ ${esc(x.subject||"Môn học")}</span><span class="exam-type ${typ.includes('giữa')?'mid':typ.includes('cuối')?'final':''}">● ${esc(examTypeLabel(typ))}</span><span class="exam-status ${st.cls}">${st.text}</span></div>
+  <div class=exam-meta><b>▣ ${esc(x.dayLabel||fmtDate(x.date))}</b><span>•</span><b>◷ ${esc(x.period||"Chưa nhập tiết")}</b><span>•</span><span>⌖ ${esc(x.room||"Chưa nhập phòng")}</span></div>
+  <div class=exam-box><strong>▣ NỘI DUNG / PHẠM VI ÔN TẬP:</strong>${esc(x.content||"Chưa cập nhật nội dung ôn tập.")}</div>
+  ${x.note?`<div class=exam-note><strong>ⓘ GHI CHÚ NHẮC NHỞ:</strong>${esc(x.note)}</div>`:""}
+  <div class=exam-card-actions><button class="btn sm" onclick="openExamForm('${x.id}')">Sửa</button><button class="btn sm bad" onclick="deleteExam('${x.id}')">Xóa</button></div>
+ </article>`}).join("")||`<div class=card style="grid-column:1/-1"><div class=empty>Tuần này chưa có lịch kiểm tra. Bấm “＋ THÊM LỊCH KIỂM TRA” để cập nhật.</div></div>`}</div>`;
+}
+function openExamForm(id=""){
+ const x=examRows().find(v=>v.id===id)||{},[from]=examWeekRange();
+ modal(`<h3>${id?"Cập nhật":"Thêm"} lịch kiểm tra</h3><div class=form-grid>
+ <div class=field><label>Môn học</label><input id=exSubject value="${esc(x.subject||"")}" placeholder="Ví dụ: Toán học"></div>
+ <div class=field><label>Phân loại</label><select id=exType><option ${x.type==="Kiểm tra thường xuyên"?"selected":""}>Kiểm tra thường xuyên</option><option ${x.type==="Kiểm tra giữa kỳ"?"selected":""}>Kiểm tra giữa kỳ</option><option ${x.type==="Kiểm tra cuối kỳ"?"selected":""}>Kiểm tra cuối kỳ</option></select></div>
+ <div class=field><label>Ngày kiểm tra</label><input id=exDate type=date value="${esc(x.date||from)}"></div>
+ <div class=field><label>Tiết</label><input id=exPeriod value="${esc(x.period||"")}" placeholder="Ví dụ: Tiết 3-4"></div>
+ <div class=field><label>Phòng</label><input id=exRoom value="${esc(x.room||"")}" placeholder="Ví dụ: Phòng học 11A4"></div>
+ <div class=field style="grid-column:1/-1"><label>Nội dung / phạm vi ôn tập</label><textarea id=exContent>${esc(x.content||"")}</textarea></div>
+ <div class=field style="grid-column:1/-1"><label>Ghi chú nhắc nhở</label><textarea id=exNote>${esc(x.note||"")}</textarea></div>
+ </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveExam('${id}')">Lưu lịch kiểm tra</button></div>`);
+}
+function saveExam(id=""){
+ const data={subject:val("exSubject").trim(),type:val("exType"),date:val("exDate"),period:val("exPeriod").trim(),room:val("exRoom").trim(),content:val("exContent").trim(),note:val("exNote").trim()};
+ if(!data.subject||!data.date)return toast("Cần nhập môn học và ngày kiểm tra.");
+ if(id){const x=examRows().find(v=>v.id===id);if(x)Object.assign(x,data)}else examRows().push({id:uid(),classId:state.currentClassId,...data});
+ closeModal();save(id?"Đã cập nhật lịch kiểm tra":"Đã thêm lịch kiểm tra");renderExams()
+}
+function deleteExam(id){if(!confirm("Xóa lịch kiểm tra này?"))return;state.examSchedules=examRows().filter(x=>x.id!==id);save("Đã xóa lịch kiểm tra");renderExams()}
+function copyExamWeek(){
+ const [from,to]=examWeekRange(),rows=examRows().filter(x=>x.classId===state.currentClassId&&String(x.date)>=from&&String(x.date)<=to).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+ if(!rows.length)return toast("Tuần này chưa có lịch kiểm tra để sao chép.");
+ const c=curClass(),lines=[`LỊCH KIỂM TRA ${c?.name||""} - TUẦN ${examWeekNumber()}`,`${fmtDate(from)} - ${fmtDate(to)}`,""];
+ rows.forEach(x=>{lines.push(`• ${fmtDate(x.date)} | ${x.subject} | ${x.type}${x.period?" | "+x.period:""}`);if(x.content)lines.push(`  Ôn tập: ${x.content}`);if(x.note)lines.push(`  Nhắc: ${x.note}`)});
+ copyTextSafe(lines.join("\n"));toast("Đã sao chép lịch kiểm tra để gửi Zalo.");
+}
 
 /* ===== TÌNH HUỐNG CHỦ NHIỆM ===== */
 const SITUATION_BANK=[
