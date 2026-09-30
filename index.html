@@ -2449,12 +2449,19 @@ async function sha256Browser(s){
 }
 async function cloudLogin(username,password){
  const h=await sha256Browser(password);
- const u=GVCN_APPS_SCRIPT_URL+"?action=loginHash&username="+encodeURIComponent(username)+"&passwordHash="+encodeURIComponent(h)+"&device="+encodeURIComponent(navigator.userAgent);
- const r=await fetch(u,{method:"GET",redirect:"follow"});
- const txt=await r.text();
- let x;try{x=JSON.parse(txt)}catch(e){throw new Error("API trả về HTML thay vì JSON")}
- if(!x.ok)throw new Error(x.error||"LOGIN_FAILED");
- return x
+ return await new Promise((resolve,reject)=>{
+   const cb="__gvcnLogin_"+Date.now()+"_"+Math.random().toString(36).slice(2);
+   const timer=setTimeout(()=>cleanup(new Error("Không nhận được phản hồi từ API")),15000);
+   const script=document.createElement("script");
+   function cleanup(err,data){
+     clearTimeout(timer);try{delete window[cb]}catch(e){};script.remove();
+     err?reject(err):resolve(data);
+   }
+   window[cb]=(x)=>{if(!x||!x.ok)return cleanup(new Error(x?.error||"LOGIN_FAILED"));cleanup(null,x)};
+   script.onerror=()=>cleanup(new Error("Không kết nối được Apps Script"));
+   script.src=GVCN_APPS_SCRIPT_URL+"?action=loginHash&callback="+encodeURIComponent(cb)+"&username="+encodeURIComponent(username)+"&passwordHash="+encodeURIComponent(h)+"&device="+encodeURIComponent(navigator.userAgent)+"&_="+Date.now();
+   document.head.appendChild(script);
+ });
 }
 function currentCloudToken(){try{return JSON.parse(sessionStorage.getItem("GVCN_CLOUD_SESSION")||"{}").token||""}catch(e){return ""}}
 function setCloudSession(x){sessionStorage.setItem("GVCN_CLOUD_SESSION",JSON.stringify({token:x.token,expiresAt:x.expiresAt,user:x.user}))}
@@ -2538,6 +2545,76 @@ async function sendForgotPasswordGVCN(){
   finally{if(btn){btn.disabled=false;btn.textContent="Tiếp tục"}}
 }
 
+
+function extractBannerCandidates(value,source,out,path="root"){
+ try{
+   if(value==null)return;
+   if(Array.isArray(value)){value.forEach((v,i)=>extractBannerCandidates(v,source,out,`${path}[${i}]`));return}
+   if(typeof value==="object"){
+     if(typeof value.cover==="string" && /^data:image\//.test(value.cover)){
+       out.push({source,path,classId:String(value.id||value.classId||""),className:String(value.name||value.className||""),cover:value.cover,coverRatio:value.coverRatio||null});
+     }
+     Object.keys(value).forEach(k=>extractBannerCandidates(value[k],source,out,`${path}.${k}`));
+     return;
+   }
+   if(typeof value==="string" && value.length>20 && (value[0]==="{"||value[0]==="[")){
+     try{extractBannerCandidates(JSON.parse(value),source,out,path+"#json")}catch(e){}
+   }
+ }catch(e){}
+}
+function scanBrowserForBanners(){
+ const out=[];
+ for(const store of [localStorage,sessionStorage]){
+   for(let i=0;i<store.length;i++){
+     const k=store.key(i),raw=store.getItem(k);
+     if(!raw)continue;
+     try{extractBannerCandidates(JSON.parse(raw),`${store===localStorage?"local":"session"}:${k}`,out)}catch(e){}
+   }
+ }
+ const seen=new Set();
+ return out.filter(x=>{const k=x.cover.slice(0,120)+"|"+x.cover.length;if(seen.has(k))return false;seen.add(k);return true});
+}
+function applyRecoveredBanners(candidates){
+ if(!Array.isArray(candidates)||!candidates.length)return 0;
+ let changed=0;
+ const classes=state.classes||[];
+ for(const c of classes){
+   if(c.cover)continue;
+   let hit=candidates.find(x=>x.classId && String(x.classId)===String(c.id));
+   if(!hit)hit=candidates.find(x=>x.className && String(x.className).trim().toLowerCase()===String(c.name||"").trim().toLowerCase());
+   if(!hit && candidates.length===classes.filter(z=>!z.cover).length){
+     const idx=classes.filter(z=>!z.cover).indexOf(c);hit=candidates[idx];
+   }
+   if(hit?.cover){c.cover=hit.cover;if(hit.coverRatio)c.coverRatio=hit.coverRatio;changed++}
+ }
+ if(changed){
+   const backupKey="GVCN_RECOVERY_BACKUP_"+Date.now();
+   try{localStorage.setItem(backupKey,JSON.stringify(state))}catch(e){}
+   localStorage.setItem(KEY,JSON.stringify(state));
+   renderClassSelect();refreshCurrentView();
+ }
+ return changed;
+}
+async function recoverLostBanners(showResult=true){
+ const local=scanBrowserForBanners();
+ let all=[...local],serverCount=0;
+ try{
+   if(currentCloudToken()){
+     const r=await fetch(GVCN_APPS_SCRIPT_URL+"?action=recoverBanners&token="+encodeURIComponent(currentCloudToken()),{method:"GET",redirect:"follow"});
+     const txt=await r.text(),x=JSON.parse(txt);
+     if(x.ok&&Array.isArray(x.banners)){serverCount=x.banners.length;all.push(...x.banners)}
+   }
+ }catch(e){}
+ const seen=new Set();
+ all=all.filter(x=>{const k=x.cover.slice(0,120)+"|"+x.cover.length;if(seen.has(k))return false;seen.add(k);return true});
+ const restored=applyRecoveredBanners(all);
+ if(showResult){
+   if(restored)toast(`✓ Đã khôi phục ${restored} banner cũ`);
+   else toast(`Đã quét ${local.length} ảnh cục bộ + ${serverCount} ảnh trên dữ liệu máy chủ; chưa tìm thấy banner cũ`);
+ }
+ return {restored,localCount:local.length,serverCount,total:all.length};
+}
+
 function mergeRemoteStateSafely(remote,local){
  if(!remote||typeof remote!=="object")return local||state;
  const merged={...(local||{}),...remote};
@@ -2579,6 +2656,7 @@ async function mainLogin(){
        localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();
      }
      CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
+   if((state.classes||[]).some(c=>!c.cover))setTimeout(()=>recoverLostBanners(false),300);
    }).catch(()=>{CLOUD_SYNC_STATE="error";updateCloudSyncChip()});
  }catch(e){if(err)err.textContent=(e.message==="LOGIN_FAILED"?"Sai tài khoản hoặc mật khẩu.":e.message)||"Không thể đăng nhập"}
  finally{if(btn){btn.disabled=false;btn.textContent="Đăng nhập"}}
@@ -3053,7 +3131,7 @@ function saveSemesterWeekSetup(){
  c.semester1Start=val("sem1Start");c.semester2Start=val("sem2Start");
  homeWeekOffset=0;examWeekOffset=0;closeModal();save("Đã cập nhật mốc tuần học kỳ");renderHome()
 }
-function homeWeekCommand(){const w=homeWeekInfo(),c=curClass(),count=classStudents().length;return `<div class=week-command><div class=week-command-main><div class=week-command-nav><button onclick="changeHomeWeek(-1)">‹</button><span class=week-command-label onclick=openSemesterWeekSetup() title="Bấm để thiết lập mốc Tuần 1">📅 HK${w.semester} · TUẦN ${w.week} | ${fmtDate(w.from)} – ${fmtDate(w.to)}</span><button onclick="changeHomeWeek(1)">›</button></div><span class=week-command-date>${new Date().toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})}</span></div><div class=week-command-actions><div style="position:relative"><button class="btn week-quick" onclick=toggleHomeQuickMenu()>⚡ THAO TÁC NHANH ▾</button><div id=homeQuickMenu style="display:none" class=week-quick-menu><button onclick="navigate('attendance')">✓ Điểm danh hôm nay</button><button onclick="navigate('discipline')">⭐ Ghi nhận nề nếp</button><button onclick="navigate('exams')">📚 Thêm lịch kiểm tra</button><button onclick="navigate('weekly')">📅 Kế hoạch tuần</button><button onclick="navigate('finance')">💰 Ghi thu / chi</button><button onclick="navigate('comments')">💬 Nhận xét học sinh</button></div></div><button class="btn week-students" onclick="navigate('students')">👥 ${count} HỌC SINH</button><button class="sync-chip" onclick="testCloudSync()" title="Bấm để kiểm tra đồng bộ Google Sheets">✓ Đã lưu trên thiết bị</button></div></div>`}
+function homeWeekCommand(){const w=homeWeekInfo(),c=curClass(),count=classStudents().length;return `<div class=week-command><div class=week-command-main><div class=week-command-nav><button onclick="changeHomeWeek(-1)">‹</button><span class=week-command-label onclick=openSemesterWeekSetup() title="Bấm để thiết lập mốc Tuần 1">📅 HK${w.semester} · TUẦN ${w.week} | ${fmtDate(w.from)} – ${fmtDate(w.to)}</span><button onclick="changeHomeWeek(1)">›</button></div><span class=week-command-date>${new Date().toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})}</span></div><div class=week-command-actions><div style="position:relative"><button class="btn week-quick" onclick=toggleHomeQuickMenu()>⚡ THAO TÁC NHANH ▾</button><div id=homeQuickMenu style="display:none" class=week-quick-menu><button onclick="navigate('attendance')">✓ Điểm danh hôm nay</button><button onclick="navigate('discipline')">⭐ Ghi nhận nề nếp</button><button onclick="navigate('exams')">📚 Thêm lịch kiểm tra</button><button onclick="navigate('weekly')">📅 Kế hoạch tuần</button><button onclick="navigate('finance')">💰 Ghi thu / chi</button><button onclick="navigate('comments')">💬 Nhận xét học sinh</button></div></div><button class="btn week-students" onclick="navigate('students')">👥 ${count} HỌC SINH</button><button class="sync-chip" onclick="testCloudSync()" title="Bấm để kiểm tra đồng bộ Google Sheets">✓ Đã lưu trên thiết bị</button><button class="btn sm" onclick="recoverLostBanners()" title="Quét dữ liệu cũ trên trình duyệt và Google Sheets để phục hồi ảnh lớp">↺ Khôi phục banner</button></div></div>`}
 function toggleHomeQuickMenu(){const x=document.getElementById("homeQuickMenu");if(x)x.style.display=x.style.display==="none"?"block":"none"}
 function homeExamSchedule(){const w=homeWeekInfo(),rows=(state.examSchedules||[]).filter(x=>x.classId===state.currentClassId&&String(x.date||"")>=w.from&&String(x.date||"")<=w.to).sort((a,b)=>String(a.date).localeCompare(String(b.date))).slice(0,4);if(!rows.length)return `<div class=home-exam-empty>Tuần ${w.week} chưa có lịch kiểm tra.</div>`;return `<div class=home-exam-list>${rows.map(x=>{const st=typeof examStatus==="function"?examStatus(x.date):{text:"Sắp tới"};return `<div class=home-exam-row><div class=home-exam-date>${fmtDate(x.date)}</div><div><div class=home-exam-name>${esc(x.subject||"Môn học")}</div><div class=home-exam-meta>${esc(x.type||"")}${x.period?" • "+esc(x.period):""}</div></div><span class=home-exam-status>${esc(st.text)}</span></div>`}).join("")}</div>`}
 function latestWeekly(){const x=byClass(state.weekly).sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];return x?`<b>${esc(x.title)}</b><div class=muted>${fmtDate(x.date)}</div><p>${esc(x.content)}</p>`:`<div class=empty>Chưa có kế hoạch tuần.</div>`}
