@@ -2421,47 +2421,23 @@ function blankTeacherState(profile){
 }
 function isTeacherAccount(){return session.role==="Giáo viên" || !!session?.isDemo}
 const GVCN_APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbyWvkLnEt1YhPZMNN96hiKRcy35zXz8u2UKHYHTv3fAl-R0QUL0chgjyhlkDRYjyxca/exec";
+const GVCN_API_PROXY="/api/gvcn";
 let CLOUD_SYNC_STATE="local", CLOUD_SYNC_TIME="";
 async function onlineAPI(body){
- const action=String(body?.action||"");
- try{
-   if(action==="health"){
-     const r=await fetch(GVCN_APPS_SCRIPT_URL+"?action=health",{method:"GET",redirect:"follow"});
-     const x=await r.json(); if(!x.ok)throw new Error(x.error||"API_ERROR"); return x;
-   }
-   if(action==="pull"){
-     const token=currentCloudToken();
-     if(!token)return {ok:false,error:"SESSION_INVALID"};
-     const r=await fetch(GVCN_APPS_SCRIPT_URL+"?action=pull&token="+encodeURIComponent(token),{method:"GET",redirect:"follow"});
-     const x=await r.json(); if(!x.ok)throw new Error(x.error||"PULL_FAILED"); return x;
-   }
-   const payload={...body};
-   if(action!=="login"&&!payload.token)payload.token=currentCloudToken();
-   const r=await fetch(GVCN_APPS_SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),redirect:"follow"});
-   const x=await r.json(); if(!x.ok)throw new Error(x.error||x.message||"API_ERROR"); return x;
- }catch(e){
-   CLOUD_SYNC_STATE="error"; updateCloudSyncChip(); throw e;
- }
+ const r=await fetch(GVCN_API_PROXY,{
+   method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify(body),cache:"no-store"
+ });
+ const x=await r.json();
+ if(!r.ok||!x.ok)throw new Error(x.error||x.message||"API_ERROR");
+ return x;
 }
 async function sha256Browser(s){
  const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(s)));
  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("")
 }
 async function cloudLogin(username,password){
- const h=await sha256Browser(password);
- return await new Promise((resolve,reject)=>{
-   const cb="__gvcnLogin_"+Date.now()+"_"+Math.random().toString(36).slice(2);
-   const timer=setTimeout(()=>cleanup(new Error("Không nhận được phản hồi từ API")),15000);
-   const script=document.createElement("script");
-   function cleanup(err,data){
-     clearTimeout(timer);try{delete window[cb]}catch(e){};script.remove();
-     err?reject(err):resolve(data);
-   }
-   window[cb]=(x)=>{if(!x||!x.ok)return cleanup(new Error(x?.error||"LOGIN_FAILED"));cleanup(null,x)};
-   script.onerror=()=>cleanup(new Error("Không kết nối được Apps Script"));
-   script.src=GVCN_APPS_SCRIPT_URL+"?action=loginHash&callback="+encodeURIComponent(cb)+"&username="+encodeURIComponent(username)+"&passwordHash="+encodeURIComponent(h)+"&device="+encodeURIComponent(navigator.userAgent)+"&_="+Date.now();
-   document.head.appendChild(script);
- });
+ return await onlineAPI({action:"login",username,password,device:navigator.userAgent});
 }
 function currentCloudToken(){try{return JSON.parse(sessionStorage.getItem("GVCN_CLOUD_SESSION")||"{}").token||""}catch(e){return ""}}
 function setCloudSession(x){sessionStorage.setItem("GVCN_CLOUD_SESSION",JSON.stringify({token:x.token,expiresAt:x.expiresAt,user:x.user}))}
@@ -2600,7 +2576,7 @@ async function recoverLostBanners(showResult=true){
  let all=[...local],serverCount=0;
  try{
    if(currentCloudToken()){
-     const r=await fetch(GVCN_APPS_SCRIPT_URL+"?action=recoverBanners&token="+encodeURIComponent(currentCloudToken()),{method:"GET",redirect:"follow"});
+     const r=await fetch(GVCN_API_PROXY+"?action=recoverBanners&token="+encodeURIComponent(currentCloudToken()),{method:"GET",redirect:"follow"});
      const txt=await r.text(),x=JSON.parse(txt);
      if(x.ok&&Array.isArray(x.banners)){serverCount=x.banners.length;all.push(...x.banners)}
    }
