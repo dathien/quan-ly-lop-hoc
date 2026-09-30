@@ -2443,6 +2443,19 @@ async function onlineAPI(body){
    CLOUD_SYNC_STATE="error"; updateCloudSyncChip(); throw e;
  }
 }
+async function sha256Browser(s){
+ const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(s)));
+ return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("")
+}
+async function cloudLogin(username,password){
+ const h=await sha256Browser(password);
+ const u=GVCN_APPS_SCRIPT_URL+"?action=loginHash&username="+encodeURIComponent(username)+"&passwordHash="+encodeURIComponent(h)+"&device="+encodeURIComponent(navigator.userAgent);
+ const r=await fetch(u,{method:"GET",redirect:"follow"});
+ const txt=await r.text();
+ let x;try{x=JSON.parse(txt)}catch(e){throw new Error("API trả về HTML thay vì JSON")}
+ if(!x.ok)throw new Error(x.error||"LOGIN_FAILED");
+ return x
+}
 function currentCloudToken(){try{return JSON.parse(sessionStorage.getItem("GVCN_CLOUD_SESSION")||"{}").token||""}catch(e){return ""}}
 function setCloudSession(x){sessionStorage.setItem("GVCN_CLOUD_SESSION",JSON.stringify({token:x.token,expiresAt:x.expiresAt,user:x.user}))}
 function clearCloudSession(){sessionStorage.removeItem("GVCN_CLOUD_SESSION")}
@@ -2525,6 +2538,22 @@ async function sendForgotPasswordGVCN(){
   finally{if(btn){btn.disabled=false;btn.textContent="Tiếp tục"}}
 }
 
+function mergeRemoteStateSafely(remote,local){
+ if(!remote||typeof remote!=="object")return local||state;
+ const merged={...(local||{}),...remote};
+ // Banner là dữ liệu giao diện dung lượng lớn, ưu tiên bản cục bộ nếu cloud thiếu/rỗng.
+ const lc=Array.isArray(local?.classes)?local.classes:[];
+ const rc=Array.isArray(remote?.classes)?remote.classes:[];
+ if(rc.length){
+   merged.classes=rc.map(r=>{
+     const l=lc.find(x=>String(x.id||"")===String(r.id||""))||lc.find(x=>String(x.name||"")===String(r.name||""));
+     return {...r,cover:(r.cover||l?.cover||"")};
+   });
+   // Giữ lớp chỉ có ở máy nhưng chưa có trên cloud.
+   lc.forEach(l=>{if(!merged.classes.some(r=>String(r.id||"")===String(l.id||"")||String(r.name||"")===String(l.name||"")))merged.classes.push(l)});
+ }
+ return merged
+}
 async function mainLogin(){
  const username=(document.getElementById("mainLoginUser")?.value||"").trim().toLowerCase();
  const password=document.getElementById("mainLoginPass")?.value||"";
@@ -2532,7 +2561,7 @@ async function mainLogin(){
  if(!username||!password){if(err)err.textContent="Vui lòng nhập tài khoản và mật khẩu.";return}
  if(btn){btn.disabled=true;btn.textContent="Đang đăng nhập..."}
  try{
-   const x=await onlineAPI({action:"login",username,password,device:navigator.userAgent});
+   const x=await cloudLogin(username,password);
    setCloudSession(x);
    const u=x.user||{};
    session={teacherId:u.UserID||u.userId||"teacher-thien",userId:u.UserID||u.userId||"teacher-thien",role:(u.VaiTro||u.role||"ADMIN")==="ADMIN"?"Giáo viên":(u.VaiTro||u.role||"Giáo viên"),name:u.HoTen||u.name||"HỒ NGUYỄN ĐA THIỆN",isAdmin:(u.VaiTro||u.role)==="ADMIN",username:u.Username||u.username||username};
@@ -2545,7 +2574,9 @@ async function mainLogin(){
    CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
    onlineAPI({action:"pull"}).then(remote=>{
      if(remote.ok&&remote.data&&remote.data.classes){
-       state=remote.data;localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();
+       const localBeforePull=state;
+       state=mergeRemoteStateSafely(remote.data,localBeforePull);
+       localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();
      }
      CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
    }).catch(()=>{CLOUD_SYNC_STATE="error";updateCloudSyncChip()});
