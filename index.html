@@ -2458,6 +2458,20 @@ async function cloudHealthCheck(){
  try{const x=await onlineAPI({action:"health"});if(x.ok){CLOUD_SYNC_STATE="ready";return true}}catch(e){}return false
 }
 
+async function testCloudSync(){
+ if(!currentCloudToken()){toast("⚠ Chưa có phiên đăng nhập Apps Script");return}
+ CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();toast("Đang kiểm tra đồng bộ Google Sheets...");
+ try{
+   const pushed=await onlineAPI({action:"push",data:state});
+   if(!pushed.ok)throw new Error(pushed.error||"PUSH_FAILED");
+   const pulled=await onlineAPI({action:"pull"});
+   if(!pulled.ok)throw new Error(pulled.error||"PULL_FAILED");
+   CLOUD_SYNC_STATE="synced";
+   CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});
+   updateCloudSyncChip();toast("✓ Kiểm tra đồng bộ thành công");
+ }catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip();toast("⚠ Đồng bộ lỗi: "+(e.message||"Không xác định"))}
+}
+
 function allLoginUsers(){
  const out=[];
  teacherRegistry().forEach(t=>{
@@ -3008,7 +3022,7 @@ function saveSemesterWeekSetup(){
  c.semester1Start=val("sem1Start");c.semester2Start=val("sem2Start");
  homeWeekOffset=0;examWeekOffset=0;closeModal();save("Đã cập nhật mốc tuần học kỳ");renderHome()
 }
-function homeWeekCommand(){const w=homeWeekInfo(),c=curClass(),count=classStudents().length;return `<div class=week-command><div class=week-command-main><div class=week-command-nav><button onclick="changeHomeWeek(-1)">‹</button><span class=week-command-label onclick=openSemesterWeekSetup() title="Bấm để thiết lập mốc Tuần 1">📅 HK${w.semester} · TUẦN ${w.week} | ${fmtDate(w.from)} – ${fmtDate(w.to)}</span><button onclick="changeHomeWeek(1)">›</button></div><span class=week-command-date>${new Date().toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})}</span></div><div class=week-command-actions><div style="position:relative"><button class="btn week-quick" onclick=toggleHomeQuickMenu()>⚡ THAO TÁC NHANH ▾</button><div id=homeQuickMenu style="display:none" class=week-quick-menu><button onclick="navigate('attendance')">✓ Điểm danh hôm nay</button><button onclick="navigate('discipline')">⭐ Ghi nhận nề nếp</button><button onclick="navigate('exams')">📚 Thêm lịch kiểm tra</button><button onclick="navigate('weekly')">📅 Kế hoạch tuần</button><button onclick="navigate('finance')">💰 Ghi thu / chi</button><button onclick="navigate('comments')">💬 Nhận xét học sinh</button></div></div><button class="btn week-students" onclick="navigate('students')">👥 ${count} HỌC SINH</button><span class=sync-chip>✓ Đã lưu trên thiết bị</span></div></div>`}
+function homeWeekCommand(){const w=homeWeekInfo(),c=curClass(),count=classStudents().length;return `<div class=week-command><div class=week-command-main><div class=week-command-nav><button onclick="changeHomeWeek(-1)">‹</button><span class=week-command-label onclick=openSemesterWeekSetup() title="Bấm để thiết lập mốc Tuần 1">📅 HK${w.semester} · TUẦN ${w.week} | ${fmtDate(w.from)} – ${fmtDate(w.to)}</span><button onclick="changeHomeWeek(1)">›</button></div><span class=week-command-date>${new Date().toLocaleDateString("vi-VN",{weekday:"long",day:"2-digit",month:"2-digit",year:"numeric"})}</span></div><div class=week-command-actions><div style="position:relative"><button class="btn week-quick" onclick=toggleHomeQuickMenu()>⚡ THAO TÁC NHANH ▾</button><div id=homeQuickMenu style="display:none" class=week-quick-menu><button onclick="navigate('attendance')">✓ Điểm danh hôm nay</button><button onclick="navigate('discipline')">⭐ Ghi nhận nề nếp</button><button onclick="navigate('exams')">📚 Thêm lịch kiểm tra</button><button onclick="navigate('weekly')">📅 Kế hoạch tuần</button><button onclick="navigate('finance')">💰 Ghi thu / chi</button><button onclick="navigate('comments')">💬 Nhận xét học sinh</button></div></div><button class="btn week-students" onclick="navigate('students')">👥 ${count} HỌC SINH</button><button class="sync-chip" onclick="testCloudSync()" title="Bấm để kiểm tra đồng bộ Google Sheets">✓ Đã lưu trên thiết bị</button></div></div>`}
 function toggleHomeQuickMenu(){const x=document.getElementById("homeQuickMenu");if(x)x.style.display=x.style.display==="none"?"block":"none"}
 function homeExamSchedule(){const w=homeWeekInfo(),rows=(state.examSchedules||[]).filter(x=>x.classId===state.currentClassId&&String(x.date||"")>=w.from&&String(x.date||"")<=w.to).sort((a,b)=>String(a.date).localeCompare(String(b.date))).slice(0,4);if(!rows.length)return `<div class=home-exam-empty>Tuần ${w.week} chưa có lịch kiểm tra.</div>`;return `<div class=home-exam-list>${rows.map(x=>{const st=typeof examStatus==="function"?examStatus(x.date):{text:"Sắp tới"};return `<div class=home-exam-row><div class=home-exam-date>${fmtDate(x.date)}</div><div><div class=home-exam-name>${esc(x.subject||"Môn học")}</div><div class=home-exam-meta>${esc(x.type||"")}${x.period?" • "+esc(x.period):""}</div></div><span class=home-exam-status>${esc(st.text)}</span></div>`}).join("")}</div>`}
 function latestWeekly(){const x=byClass(state.weekly).sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];return x?`<b>${esc(x.title)}</b><div class=muted>${fmtDate(x.date)}</div><p>${esc(x.content)}</p>`:`<div class=empty>Chưa có kế hoạch tuần.</div>`}
