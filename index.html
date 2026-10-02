@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2768,7 +2768,7 @@ const titles={
  seats:["Chỗ ngồi","Sơ đồ chỗ ngồi theo lớp"],timetable:["Thời khóa biểu","Lịch học trong tuần"],scores:["Bảng điểm","Theo dõi điểm theo môn"],
  discipline:["Thi đua/nề nếp","Điểm danh, vi phạm và điểm nề nếp"],duty:["Trực nhật","Phân công và theo dõi trực nhật"],weekly:["Kế hoạch tuần","Lập kế hoạch và theo dõi công việc"],tasks:["Công việc","Theo dõi nhiệm vụ và hạn cần nhớ"],
  finance:["Thu – chi","Quản lý các khoản thu và chi"],reports:["Báo cáo","Tổng hợp dữ liệu lớp"],comments:["Nhận xét học sinh","Ghi nhận xét theo từng học sinh"],
- parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],teachers:["Giáo viên","Quản trị tài khoản giáo viên và không gian lớp"],demo:["Demo / Đào tạo","Một tài khoản Demo duy nhất cho từng buổi giới thiệu"],members:["Thành viên","Thiết lập sau khi vào app"],activity:["Lịch sử","Nhật ký hoạt động"],
+ parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],teachers:["Giáo viên","Quản trị tài khoản giáo viên và không gian lớp"],demo:["Demo / Đào tạo","Một tài khoản Demo duy nhất cho từng buổi giới thiệu"],members:["Thành viên","Thiết lập tài khoản hỗ trợ · V36"],activity:["Lịch sử","Nhật ký hoạt động"],
  data:["Dữ liệu & Sao lưu","Sao lưu và đồng bộ dữ liệu"]
 };
 
@@ -5797,7 +5797,7 @@ function openMemberForm(id=""){
  ${(!isGV&&!isRoot)?`<div class=field style="grid-column:1/-1"><label>Quyền theo vai trò</label><div id=memberRoleHint class=notice></div></div>`:`<div class=field style="grid-column:1/-1"><label>Quyền truy cập</label><div class=notice>✓ Giáo viên/Quản trị luôn được truy cập toàn bộ ứng dụng.</div></div>`}
  </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" id=saveMemberBtn onclick="saveOnlineMember('${id}')">💾 ${id?"Lưu thay đổi":"Thêm thành viên"}</button></div>`);
  setTimeout(updateMemberRoleHint,0);
-} 
+}
 function updateMemberRoleHint(){
  const r=val("mbRole");const box=document.getElementById("memberRoleHint");if(!box)return;
  const m={"Lớp trưởng":"Được cập nhật: Thi đua/Nề nếp, Trực nhật, Kế hoạch tuần, Công việc.","Bí thư":"Được cập nhật: Kế hoạch tuần và Công việc.","Thủ quỹ":"Được cập nhật: Thu – chi."};
