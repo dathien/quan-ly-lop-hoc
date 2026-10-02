@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- GVCN PRO V35.9 MEMBER FIX -->
 <html lang="vi">
 <head>
 <meta charset="utf-8">
@@ -5806,11 +5807,11 @@ async function saveOnlineMember(id=""){
  if(!canManageOnlineMembers())return;
  const old=onlineMembersCache.find(v=>v.id===id);
  const member={name:val("mbName").trim(),username:(old?.systemRole==="admin"?"admin":val("mbUsername").trim().toLowerCase()),role:(old?.systemRole==="admin"?"Quản trị hệ thống":val("mbRole")),classId:(old?.systemRole==="admin"||old?.workspaceRole==="teacher")?(old?.classId||""):val("mbClass"),phone:val("mbPhone").trim(),password:val("mbPassword")};
- if(!member.name||!member.username||(!id&&!member.password))return toast("Nhập đủ họ tên, tài khoản và mật khẩu");
+ if(!member.name||!member.username||(!id&&!member.password)||(!old?.systemRole&&!old?.workspaceRole&&!member.classId))return toast("Nhập đủ họ tên, tài khoản, mật khẩu và lớp được phân công");
  const btn=document.getElementById("saveMemberBtn");if(btn){btn.disabled=true;btn.textContent="Đang lưu..."}
  try{
   const x=await onlineAPI({action:id?"update_member":"create_member",id,member});
-  if(!x.ok)throw new Error(x.message||"Không lưu được thành viên");
+  if(!x.ok)throw new Error(x.message||x.error||"Không lưu được thành viên");
   closeModal();
   await reloadMembersOnly();
   toast(x.message||"Đã lưu thành viên");
