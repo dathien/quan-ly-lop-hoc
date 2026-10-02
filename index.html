@@ -2533,16 +2533,29 @@ async function mainLogin(){
  try{
   const x=await cloudLogin(username,password);setCloudSession(x);const u=x.user||{};
   const uidCloud=String(u.UserID||u.userId||"teacher-thien");
-  session={teacherId:uidCloud,userId:uidCloud,role:String(u.VaiTro||u.role||"GVCN").toUpperCase()==="ADMIN"?"Giáo viên":(u.VaiTro||u.role||"Giáo viên"),name:u.HoTen||u.name||"HỒ NGUYỄN ĐA THIỆN",isAdmin:String(u.VaiTro||u.role||"").toUpperCase()==="ADMIN",username:u.Username||u.username||username};
+  const cloudRole=String(u.VaiTro||u.role||"GVCN").toUpperCase();
+  // Tài khoản ADMIN/GVCN chính phải tiếp tục dùng kho LEGACY đang chứa dữ liệu + banner.
+  // Không tạo GVCN_TEACHER_U001 vì sẽ nhân đôi toàn bộ ảnh base64 và làm đầy quota LocalStorage.
+  const localTeacherId=(cloudRole==="ADMIN"||cloudRole==="GVCN")?"teacher-thien":uidCloud;
+  session={teacherId:localTeacherId,userId:uidCloud,role:cloudRole==="ADMIN"?"Giáo viên":(u.VaiTro||u.role||"Giáo viên"),name:u.HoTen||u.name||"HỒ NGUYỄN ĐA THIỆN",isAdmin:cloudRole==="ADMIN",username:u.Username||u.username||username};
   sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;
 
   // Chuyển sang kho dữ liệu của tài khoản nhưng GHÉP với state trước đăng nhập trước khi render.
   KEY=teacherDataKey(session.teacherId);
+  // Dọn khóa U001 do bản lỗi trước tạo ra. Chỉ xóa khóa trùng của chính tài khoản cloud hiện tại,
+  // không đụng các kho giáo viên/lớp khác. State/banner hiện tại vẫn đang ở trong RAM và LEGACY_KEY.
+  const accidentalKey=`GVCN_TEACHER_${uidCloud}`;
+  if(KEY===LEGACY_KEY && accidentalKey!==KEY){try{localStorage.removeItem(accidentalKey)}catch(_){}}
   const accountLocal=loadState();
   backupStateBeforeCloud("account_before_pull");
   state=mergeRemoteStateSafely(accountLocal,preLoginState,collectLocalBannerCandidates());
   if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
-  localStorage.setItem(KEY,JSON.stringify(state));
+  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(storageErr){
+    if(storageErr?.name==="QuotaExceededError"||String(storageErr).includes("quota")){
+      // Không làm hỏng đăng nhập chỉ vì bộ nhớ trình duyệt đầy; dữ liệu vẫn còn trong RAM và sẽ được đồng bộ Sheets.
+      console.warn("LocalStorage đầy; tiếp tục bằng state trong RAM và Google Sheets.",storageErr);
+    }else throw storageErr;
+  }
 
   if(err)err.textContent="";hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${session.name}`);
   CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
@@ -2554,7 +2567,8 @@ async function mainLogin(){
 
   // Giữ đúng lớp người dùng đang xem trước khi đăng nhập nếu lớp đó vẫn tồn tại.
   if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
-  localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();
+  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(storageErr){console.warn("Không đủ LocalStorage để lưu bản local sau pull; giữ dữ liệu trong RAM/Google Sheets.",storageErr)}
+  renderClassSelect();refreshCurrentView();
 
   // Nếu Cloud đang thiếu banner nhưng ta vừa cứu được banner local, ghi state đã ghép trở lại Sheets.
   const remoteClasses=Array.isArray(remote?.data?.classes)?remote.data.classes:[];
