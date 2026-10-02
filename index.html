@@ -2525,16 +2525,42 @@ async function mainLogin(){
  const err=document.getElementById("mainLoginError"),btn=document.querySelector(".gvcn-login-submit");
  if(!username||!password){if(err)err.textContent="Vui lòng nhập tài khoản và mật khẩu.";return}
  if(btn){btn.disabled=true;btn.textContent="Đang đăng nhập..."}
+ // QUAN TRỌNG: giữ nguyên state đang hiển thị trước đăng nhập. Banner hiện nằm ở state này.
+ // Không được đổi KEY rồi loadState() trước khi đã ghép state cũ, nếu không banner sẽ biến mất ngay sau đăng nhập.
+ let preLoginState=null;
+ try{preLoginState=JSON.parse(JSON.stringify(state))}catch(_){preLoginState=state}
+ const preLoginClassId=preLoginState?.currentClassId||"";
  try{
   const x=await cloudLogin(username,password);setCloudSession(x);const u=x.user||{};
   const uidCloud=String(u.UserID||u.userId||"teacher-thien");
   session={teacherId:uidCloud,userId:uidCloud,role:String(u.VaiTro||u.role||"GVCN").toUpperCase()==="ADMIN"?"Giáo viên":(u.VaiTro||u.role||"Giáo viên"),name:u.HoTen||u.name||"HỒ NGUYỄN ĐA THIỆN",isAdmin:String(u.VaiTro||u.role||"").toUpperCase()==="ADMIN",username:u.Username||u.username||username};
-  sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;KEY=teacherDataKey(session.teacherId);state=loadState();backupStateBeforeCloud("before_pull");
+  sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;
+
+  // Chuyển sang kho dữ liệu của tài khoản nhưng GHÉP với state trước đăng nhập trước khi render.
+  KEY=teacherDataKey(session.teacherId);
+  const accountLocal=loadState();
+  backupStateBeforeCloud("account_before_pull");
+  state=mergeRemoteStateSafely(accountLocal,preLoginState,collectLocalBannerCandidates());
+  if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
+  localStorage.setItem(KEY,JSON.stringify(state));
+
   if(err)err.textContent="";hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${session.name}`);
   CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
+
   const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
-  if(remote.ok&&remote.data&&typeof remote.data==="object")state=mergeRemoteStateSafely(remote.data,state,recovered);else state=mergeRemoteStateSafely(state,state,recovered);
+  const beforeCloudMerge=state;
+  if(remote.ok&&remote.data&&typeof remote.data==="object")state=mergeRemoteStateSafely(remote.data,beforeCloudMerge,recovered);
+  else state=mergeRemoteStateSafely(beforeCloudMerge,beforeCloudMerge,recovered);
+
+  // Giữ đúng lớp người dùng đang xem trước khi đăng nhập nếu lớp đó vẫn tồn tại.
+  if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
   localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();
+
+  // Nếu Cloud đang thiếu banner nhưng ta vừa cứu được banner local, ghi state đã ghép trở lại Sheets.
+  const remoteClasses=Array.isArray(remote?.data?.classes)?remote.data.classes:[];
+  const restoredBanner=Array.isArray(state.classes)&&state.classes.some(c=>validBanner(c.cover)&&!validBanner(remoteClasses.find(r=>String(r.id)===String(c.id)||String(r.name)===String(c.name))?.cover));
+  if(restoredBanner){try{await onlineAPI({action:"push",data:state})}catch(e){console.warn("Không thể ghi banner đã khôi phục lên Google Sheets",e)}}
+
   CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
  }catch(e){clearCloudSession();if(err)err.textContent=(e.message==="LOGIN_FAILED"?"Sai tài khoản hoặc mật khẩu.":e.message)||"Không thể đăng nhập"}
  finally{if(btn){btn.disabled=false;btn.textContent="Đăng nhập"}}
