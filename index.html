@@ -2432,7 +2432,7 @@ function updateCloudSyncChip(){
 async function onlineAPI(body){
  const action=String(body?.action||"");
  try{
-  if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"){
+  if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicClasses"){
    const token=body?.token||currentCloudToken();
    const qs=new URLSearchParams({action});if(token)qs.set("token",token);
    const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
@@ -2466,6 +2466,26 @@ function mergeRemoteStateSafely(remote,local,extra=[]){
  return merged;
 }
 async function recoverBannersFromSheets(){try{const x=await onlineAPI({action:"recoverBanners"});return Array.isArray(x.banners)?x.banners:[]}catch(e){return []}}
+async function loadPublicClassesFromSheets(){
+ try{
+  const x=await onlineAPI({action:"publicClasses"});
+  if(!x.ok||!Array.isArray(x.classes))return false;
+  const beforeId=state.currentClassId;
+  const local=Array.isArray(state.classes)?state.classes:[];
+  x.classes.forEach(pc=>{
+   const i=local.findIndex(c=>String(c.id||"")===String(pc.id||""))>=0?local.findIndex(c=>String(c.id||"")===String(pc.id||"")):local.findIndex(c=>String(c.name||"")===String(pc.name||""));
+   if(i>=0){
+    const old=local[i];
+    local[i]={...old,...pc,cover:validBanner(pc.cover)?pc.cover:old.cover,coverRatio:pc.coverRatio||old.coverRatio||null};
+   }else local.push({...pc});
+  });
+  state.classes=local;
+  if(beforeId&&state.classes.some(c=>String(c.id)===String(beforeId)))state.currentClassId=beforeId;
+  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
+  renderClassSelect();refreshCurrentView();
+  return true;
+ }catch(e){console.warn("Không tải được dữ liệu công khai",e);return false}
+}
 function allLoginUsers(){
  const out=[];
  teacherRegistry().forEach(t=>{
@@ -5962,6 +5982,9 @@ if(AUTHENTICATED&&currentCloudToken()){
   }catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip();hideLoginScreen();updateGuestUI()}})();
 }else{
  AUTHENTICATED=false;hideLoginScreen();updateGuestUI();
+ // Chế độ công khai: lấy metadata + banner lớp từ Google Sheets, không cần đăng nhập.
+ // Chỉ endpoint publicClasses được phép trả dữ liệu công khai; không tải hồ sơ HS/tài khoản.
+ loadPublicClassesFromSheets();
 }
 </script>
 
