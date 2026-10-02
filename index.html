@@ -5797,7 +5797,7 @@ function openMemberForm(id=""){
  ${(!isGV&&!isRoot)?`<div class=field style="grid-column:1/-1"><label>Quyền theo vai trò</label><div id=memberRoleHint class=notice></div></div>`:`<div class=field style="grid-column:1/-1"><label>Quyền truy cập</label><div class=notice>✓ Giáo viên/Quản trị luôn được truy cập toàn bộ ứng dụng.</div></div>`}
  </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" id=saveMemberBtn onclick="saveOnlineMember('${id}')">💾 ${id?"Lưu thay đổi":"Thêm thành viên"}</button></div>`);
  setTimeout(updateMemberRoleHint,0);
-}
+} 
 function updateMemberRoleHint(){
  const r=val("mbRole");const box=document.getElementById("memberRoleHint");if(!box)return;
  const m={"Lớp trưởng":"Được cập nhật: Thi đua/Nề nếp, Trực nhật, Kế hoạch tuần, Công việc.","Bí thư":"Được cập nhật: Kế hoạch tuần và Công việc.","Thủ quỹ":"Được cập nhật: Thu – chi."};
