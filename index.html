@@ -2414,14 +2414,58 @@ function blankTeacherState(profile){
  return b;
 }
 function isTeacherAccount(){return session.role==="Giáo viên" || !!session?.isDemo}
-async function onlineAPI(body){
- const r=await fetch("/api/gvcn",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",body:JSON.stringify(body)});
- let x={};try{x=await r.json()}catch(e){}
- if(r.status===401&&body.action!=="login"){sessionStorage.removeItem(SESSION_KEY);AUTHENTICATED=false;updateGuestUI()}
- if(!r.ok&&!x.message)x.message="Không kết nối được máy chủ";
- if(!r.ok&&body.action==="push"&&r.status===403&&!window.__gvcnPermissionNotice){window.__gvcnPermissionNotice=true;toast(x.message||"Không có quyền lưu dữ liệu");}
- return x;
+const GVCN_APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbyWvkLnEt1YhPZMNN96hiKRcy35zXz8u2UKHYHTv3fAl-R0QUL0chgjyhlkDRYjyxca/exec";
+const CLOUD_SESSION_KEY="GVCN_CLOUD_SESSION_V35_5";
+let CLOUD_SYNC_STATE="local",CLOUD_SYNC_TIME="";
+function currentCloudSession(){try{return JSON.parse(sessionStorage.getItem(CLOUD_SESSION_KEY)||"{}")||{}}catch(e){return {}}}
+function currentCloudToken(){return currentCloudSession().token||""}
+function setCloudSession(x){sessionStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify({token:x.token,expiresAt:x.expiresAt,user:x.user||{}}))}
+function clearCloudSession(){sessionStorage.removeItem(CLOUD_SESSION_KEY)}
+function updateCloudSyncChip(){
+ document.querySelectorAll(".sync-chip").forEach(el=>{
+  if(CLOUD_SYNC_STATE==="syncing")el.textContent="↻ Đang đồng bộ...";
+  else if(CLOUD_SYNC_STATE==="synced")el.textContent="✓ Đã đồng bộ Google Sheets"+(CLOUD_SYNC_TIME?" · "+CLOUD_SYNC_TIME:"");
+  else if(CLOUD_SYNC_STATE==="error")el.textContent="⚠ Chưa đồng bộ";
+  else el.textContent="✓ Đã lưu trên thiết bị";
+ });
 }
+async function onlineAPI(body){
+ const action=String(body?.action||"");
+ try{
+  if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"){
+   const token=body?.token||currentCloudToken();
+   const qs=new URLSearchParams({action});if(token)qs.set("token",token);
+   const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
+   const txt=await r.text();let x;try{x=JSON.parse(txt)}catch(e){throw new Error("Apps Script không trả JSON hợp lệ")}
+   if(!x.ok)throw new Error(x.error||x.message||"API_ERROR");return x;
+  }
+  const payload={...body};if(action!=="login"&&!payload.token)payload.token=currentCloudToken();
+  const r=await fetch(GVCN_APPS_SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),redirect:"follow"});
+  const txt=await r.text();let x;try{x=JSON.parse(txt)}catch(e){throw new Error("Apps Script không trả JSON hợp lệ")}
+  if(!x.ok)throw new Error(x.error||x.message||"API_ERROR");return x;
+ }catch(e){if(action==="push"){CLOUD_SYNC_STATE="error";updateCloudSyncChip()}throw e}
+}
+async function cloudLogin(username,password){return await onlineAPI({action:"login",username,password,device:navigator.userAgent})}
+function validBanner(v){return typeof v==="string"&&/^data:image\//.test(v)&&v.length>100}
+function backupStateBeforeCloud(tag="cloud"){
+ try{localStorage.setItem("GVCN_SAFE_BACKUP_"+tag+"_"+Date.now(),JSON.stringify(state))}catch(e){}
+}
+function collectLocalBannerCandidates(){
+ const found=[];const seen=new Set();
+ const walk=(v,source)=>{if(!v)return;if(Array.isArray(v)){v.forEach(x=>walk(x,source));return}if(typeof v==="object"){if(validBanner(v.cover)){const k=v.cover.length+"|"+v.cover.slice(0,100);if(!seen.has(k)){seen.add(k);found.push({classId:String(v.id||v.classId||""),className:String(v.name||v.className||""),cover:v.cover,coverRatio:v.coverRatio||null,source})}}Object.values(v).forEach(x=>walk(x,source));return}if(typeof v==="string"&&v.length>20&&(v[0]==="{"||v[0]==="[")){try{walk(JSON.parse(v),source)}catch(e){}}};
+ for(const store of [localStorage,sessionStorage])for(let i=0;i<store.length;i++){const k=store.key(i);try{walk(store.getItem(k),k)}catch(e){}}
+ return found;
+}
+function mergeRemoteStateSafely(remote,local,extra=[]){
+ if(!remote||typeof remote!=="object")return local||state;
+ const merged={...(local||{}),...remote};const lc=Array.isArray(local?.classes)?local.classes:[];const rc=Array.isArray(remote?.classes)?remote.classes:[];
+ const candidates=[...collectLocalBannerCandidates(),...(extra||[])];
+ const pick=(r,l)=>{if(validBanner(r?.cover))return {cover:r.cover,coverRatio:r.coverRatio||l?.coverRatio||null};if(validBanner(l?.cover))return {cover:l.cover,coverRatio:l.coverRatio||r?.coverRatio||null};const z=candidates.find(x=>(x.classId&&String(x.classId)===String(r?.id||l?.id||""))||(x.className&&String(x.className)===String(r?.name||l?.name||"")));return z?{cover:z.cover,coverRatio:z.coverRatio||null}:{cover:r?.cover||l?.cover||"",coverRatio:r?.coverRatio||l?.coverRatio||null}};
+ merged.classes=rc.length?rc.map(r=>{const l=lc.find(x=>String(x.id||"")===String(r.id||""))||lc.find(x=>String(x.name||"")===String(r.name||""));return {...r,...pick(r,l)}}):lc.map(x=>({...x}));
+ lc.forEach(l=>{if(!merged.classes.some(r=>String(r.id||"")===String(l.id||"")||String(r.name||"")===String(l.name||"")))merged.classes.push(l)});
+ return merged;
+}
+async function recoverBannersFromSheets(){try{const x=await onlineAPI({action:"recoverBanners"});return Array.isArray(x.banners)?x.banners:[]}catch(e){return []}}
 function allLoginUsers(){
  const out=[];
  teacherRegistry().forEach(t=>{
@@ -2475,72 +2519,6 @@ async function sendForgotPasswordGVCN(){
   finally{if(btn){btn.disabled=false;btn.textContent="Tiếp tục"}}
 }
 
-// GVCN BANNER SAFE RECOVERY 2026-10-01
-// Mục tiêu: không để snapshot cloud có cover rỗng ghi đè ảnh lớp còn trong trình duyệt.
-function gvcnIsBanner(v){return typeof v==="string" && /^data:image\//i.test(v) && v.length>200}
-function gvcnCollectBannerCandidates(){
- const found=[]; const seen=new Set();
- function add(c,source,key){
-   if(!c||!gvcnIsBanner(c.cover))return;
-   const sig=String(c.id||"")+"|"+String(c.name||"")+"|"+c.cover.slice(0,80);
-   if(seen.has(sig))return;seen.add(sig);
-   found.push({id:String(c.id||""),name:String(c.name||""),cover:c.cover,coverRatio:c.coverRatio,source,key});
- }
- function walk(v,source,key,depth=0){
-   if(depth>5||v==null)return;
-   if(Array.isArray(v)){v.forEach(x=>walk(x,source,key,depth+1));return}
-   if(typeof v!=="object")return;
-   if(Array.isArray(v.classes))v.classes.forEach(c=>add(c,source,key));
-   for(const [k,x] of Object.entries(v)){
-     if(k==="classes")continue;
-     if(x&&typeof x==="object")walk(x,source,key,depth+1);
-   }
- }
- [[localStorage,"localStorage"],[sessionStorage,"sessionStorage"]].forEach(([store,source])=>{
-   for(let i=0;i<store.length;i++){
-     const key=store.key(i); if(!key)continue;
-     const raw=store.getItem(key); if(!raw||raw.length<2)continue;
-     try{walk(JSON.parse(raw),source,key)}catch(e){}
-   }
- });
- return found;
-}
-function gvcnBackupState(label,obj){
- try{localStorage.setItem(`GVCN_SAFE_BACKUP_${Date.now()}_${label}`,JSON.stringify(obj))}catch(e){}
-}
-function gvcnMergeRemoteSafely(remote,local){
- if(!remote||typeof remote!=="object")return local||remote;
- const merged=JSON.parse(JSON.stringify(remote));
- const localClasses=(local&&Array.isArray(local.classes))?local.classes:[];
- const candidates=gvcnCollectBannerCandidates();
- let restored=0;
- (merged.classes||[]).forEach(rc=>{
-   if(gvcnIsBanner(rc.cover))return;
-   const lc=localClasses.find(c=>String(c.id||"")===String(rc.id||"")) ||
-            localClasses.find(c=>String(c.name||"").trim().toLowerCase()===String(rc.name||"").trim().toLowerCase());
-   const hit=(lc&&gvcnIsBanner(lc.cover))?lc:
-     candidates.find(c=>c.id&&String(c.id)===String(rc.id||"")) ||
-     candidates.find(c=>c.name&&c.name.trim().toLowerCase()===String(rc.name||"").trim().toLowerCase());
-   if(hit&&gvcnIsBanner(hit.cover)){rc.cover=hit.cover;if(hit.coverRatio)rc.coverRatio=hit.coverRatio;restored++}
- });
- Object.defineProperty(merged,"__bannerRestored",{value:restored,enumerable:false});
- return merged;
-}
-async function gvcnApplyRemoteStateSafely(remoteData){
- const localBefore=state;
- gvcnBackupState("BEFORE_PULL",localBefore);
- const merged=gvcnMergeRemoteSafely(remoteData,localBefore);
- const restored=merged&&merged.__bannerRestored||0;
- state=merged;localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();
- if(restored>0){
-   gvcnBackupState("AFTER_RECOVERY",state);
-   toast(`Đã khôi phục ${restored} ảnh banner lớp`);
-   // Chỉ sau khi đã ghép an toàn mới đẩy snapshot có banner trở lại máy chủ.
-   scheduleOnlinePush();
- }
- return restored;
-}
-
 async function mainLogin(){
  const username=(document.getElementById("mainLoginUser")?.value||"").trim().toLowerCase();
  const password=document.getElementById("mainLoginPass")?.value||"";
@@ -2548,32 +2526,23 @@ async function mainLogin(){
  if(!username||!password){if(err)err.textContent="Vui lòng nhập tài khoản và mật khẩu.";return}
  if(btn){btn.disabled=true;btn.textContent="Đang đăng nhập..."}
  try{
-   const r=await fetch("/api/gvcn",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"login",username,password})});
-   const x=await r.json();
-   if(!r.ok||!x.ok)throw new Error(x.message||"Đăng nhập thất bại");
-   const u=x.user;
-   session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,isDemo:!!u.isDemo,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
-   sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;
-   // Bổ sung hồ sơ chủ workspace vào registry cục bộ để app tạo trạng thái đúng khi máy mới chưa có dữ liệu.
-   const reg=teacherRegistry();let t=reg.find(v=>v.id===session.teacherId);
-   if(!t){t={id:session.teacherId,name:u.teacherName||u.name,username:u.isAdmin?u.username:"",password:"",assistants:[]};reg.push(t);persistRegistry(reg)}
-   KEY=teacherDataKey(session.teacherId);
-   state=loadState();
-   if(err)err.textContent="";
-   hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${u.name}`);
-   // Không bắt người dùng chờ tải toàn bộ dữ liệu Neon. Đồng bộ chạy nền sau khi đã vào app.
-   onlineAPI({action:"pull"}).then(remote=>{
-     if(remote.ok&&remote.data&&remote.data.classes){
-       gvcnApplyRemoteStateSafely(remote.data);
-     }
-   }).catch(()=>{});
- }catch(e){if(err)err.textContent=e.message||"Không thể đăng nhập"}
+  const x=await cloudLogin(username,password);setCloudSession(x);const u=x.user||{};
+  const uidCloud=String(u.UserID||u.userId||"teacher-thien");
+  session={teacherId:uidCloud,userId:uidCloud,role:String(u.VaiTro||u.role||"GVCN").toUpperCase()==="ADMIN"?"Giáo viên":(u.VaiTro||u.role||"Giáo viên"),name:u.HoTen||u.name||"HỒ NGUYỄN ĐA THIỆN",isAdmin:String(u.VaiTro||u.role||"").toUpperCase()==="ADMIN",username:u.Username||u.username||username};
+  sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;KEY=teacherDataKey(session.teacherId);state=loadState();backupStateBeforeCloud("before_pull");
+  if(err)err.textContent="";hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${session.name}`);
+  CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
+  const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
+  if(remote.ok&&remote.data&&typeof remote.data==="object")state=mergeRemoteStateSafely(remote.data,state,recovered);else state=mergeRemoteStateSafely(state,state,recovered);
+  localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();
+  CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
+ }catch(e){clearCloudSession();if(err)err.textContent=(e.message==="LOGIN_FAILED"?"Sai tài khoản hoặc mật khẩu.":e.message)||"Không thể đăng nhập"}
  finally{if(btn){btn.disabled=false;btn.textContent="Đăng nhập"}}
 }
 async function logoutGVCN(){
  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
  try{await onlineAPI({action:"logout"})}catch(e){}
- sessionStorage.removeItem(SESSION_KEY);
+ clearCloudSession();sessionStorage.removeItem(SESSION_KEY);
  AUTHENTICATED=false;
  document.getElementById("mainLoginPass")&&(document.getElementById("mainLoginPass").value="");
  hideLoginScreen();updateGuestUI();renderClassSelect();navigate("home");
@@ -2708,7 +2677,11 @@ function loadState(){try{
   return s
 }catch(e){return ensureDemoClassData(seed())}}
 let cloudPushTimer=null;
-function scheduleOnlinePush(){if(!AUTHENTICATED)return;clearTimeout(cloudPushTimer);cloudPushTimer=setTimeout(()=>onlineAPI({action:"push",data:state}).catch(()=>{}),900)}
+function scheduleOnlinePush(){
+ if(!AUTHENTICATED||!currentCloudToken()){CLOUD_SYNC_STATE="local";updateCloudSyncChip();return}
+ clearTimeout(cloudPushTimer);CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
+ cloudPushTimer=setTimeout(async()=>{try{const x=await onlineAPI({action:"push",data:state});if(!x.ok)throw new Error(x.error||"PUSH_FAILED");CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});state.sync={...(state.sync||{}),lastSync:x.syncedAt||new Date().toISOString()};localStorage.setItem(KEY,JSON.stringify(state));updateCloudSyncChip()}catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip()}},700)
+}
 function save(msg="Đã lưu"){localStorage.setItem(KEY,JSON.stringify(state));log(msg);renderClassSelect();scheduleOnlinePush();if(msg) toast(msg)}
 function log(action){state.logs=state.logs||[];state.logs.unshift({id:uid(),at:new Date().toISOString(),action});state.logs=state.logs.slice(0,500)}
 function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
@@ -3243,7 +3216,7 @@ function renderStudents(){
  <button class="btn ${studentDisplayMode==='cards'?'primary':''}" onclick="setStudentDisplayMode('cards')">▦ Thẻ học sinh</button>
 </div>
 ${studentDisplayMode==='cards'?`<div class=student-cards>${ss.map(s=>`<article class=student-profile-card>
- <div style="display:flex;align-items:center;gap:10px"><div class=student-avatar>🎓</div><div><div class=student-name>${esc(s.name)}</div><div class=muted>${esc(s.group||'Chưa phân tổ')}${s.role&&s.role!=='Không chức vụ'?' · '+esc(s.role):''}</div></div></div>
+ <div style="display:flex;align-items:center;gap:10px"><div class=student-avatar>🎓</div><div><div class=student-name>${esc(s.name)}</div><div class=muted>${esc(s.group||'Chưa phân tổ')}</div></div></div>
  <div class=student-detail>🎂 ${esc(fmtDate(s.dob)||'Chưa có ngày sinh')} · ${esc(s.gender||'')}</div>
  <div class=student-detail>🪑 ${esc(s.seat?'Chỗ '+s.seat:'Chưa xếp chỗ')} · ${s.profileDone?'✓ Hồ sơ đầy đủ':'Hồ sơ chưa đầy đủ'}</div>
  <div class=actions><button class="btn sm" onclick="openStudentForm('${s.id}')">✏️ Xem / Sửa hồ sơ</button><button class="btn sm bad" onclick="deleteStudent('${s.id}')">Xóa</button></div>
@@ -3254,14 +3227,13 @@ ${studentDisplayMode==='cards'?`<div class=student-cards>${ss.map(s=>`<article c
 function openStudentForm(id=""){const s=state.students.find(x=>x.id===id)||{};modal(`<h3>${id?"Sửa":"Thêm"} học sinh</h3><div class=form-grid>
  <div class=field><label>Họ và tên</label><input id=sName value="${esc(s.name||"")}"></div><div class=field><label>Giới tính</label><select id=sGender><option></option><option ${s.gender==="Nam"?"selected":""}>Nam</option><option ${s.gender==="Nữ"?"selected":""}>Nữ</option></select></div>
  <div class=field><label>Ngày sinh</label><input id=sDob type=date value="${esc(s.dob||"")}"></div><div class=field><label>Tổ</label><input id=sGroup value="${esc(s.group||"")}"></div>
- <div class=field><label>Chức vụ</label><select id=sRole>${["Không chức vụ","Lớp trưởng","Bí thư","Lớp phó học tập","Lớp phó lao động","Lớp phó văn thể","Thủ quỹ","Tổ trưởng","Tổ phó","Thành viên"].map(v=>`<option ${String(s.role||"Không chức vụ")===v?"selected":""}>${v}</option>`).join("")}</select></div>
  <div class=field><label>SĐT cha</label><input id=sFather value="${esc(s.phoneFather||"")}"></div><div class=field><label>SĐT mẹ</label><input id=sMother value="${esc(s.phoneMother||"")}"></div>
  </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" onclick="saveStudent('${id}')">Lưu</button></div>`)}
 function saveStudent(id){const name=val("sName").trim();if(!name)return toast("Nhập họ tên");
- const data={name,gender:val("sGender"),dob:val("sDob"),group:val("sGroup"),role:val("sRole"),phoneFather:val("sFather"),phoneMother:val("sMother")};
+ const data={name,gender:val("sGender"),dob:val("sDob"),group:val("sGroup"),phoneFather:val("sFather"),phoneMother:val("sMother")};
  if(id)Object.assign(state.students.find(x=>x.id===id),data);else state.students.push({id:uid(),classId:state.currentClassId,...data});
  closeModal();save("Đã lưu học sinh");renderStudents()}
-function toggleStudentProfile(id){const s=state.students.find(x=>x.id===id);if(!s)return;s.profileDone=!s.profileDone;save("Đã cập nhật hồ sơ");refreshCurrentView()}
+function toggleStudentProfile(id){const s=state.students.find(x=>x.id===id);if(!s)return;s.profileDone=!s.profileDone;localStorage.setItem(KEY,JSON.stringify(state));log("Đã cập nhật trạng thái hồ sơ");localStorage.setItem(KEY,JSON.stringify(state));refreshCurrentView();toast("Đã cập nhật hồ sơ")}
 function deleteStudent(id){if(!confirm("Xóa học sinh này?"))return;state.students=state.students.filter(x=>x.id!==id);save("Đã xóa học sinh");renderStudents()}
 
 
@@ -5792,7 +5764,7 @@ function renderActivity(){
 function renderData(){
  const s=state.sync||{};
  $("#content").innerHTML=`<div class="grid g2"><div class=card><h3 style="margin-top:0">💾 Sao lưu & phục hồi</h3><p class=muted>Sao lưu và phục hồi dữ liệu.</p><div class=actions><button class="btn primary" onclick=exportJSON()>Xuất sao lưu JSON</button><button class=btn onclick=importJSON()>Nhập sao lưu</button><button class="btn bad" onclick=resetAll()>Đặt lại toàn bộ</button></div></div>
- <div class=card><h3 style="margin-top:0">☁️ Google Sheets / Apps Script</h3><div class=field><label>Web App URL</label><input id=syncUrl value="${esc(s.url||"")}"></div><div class=field style="margin-top:10px"><label>API key</label><input id=syncKey type=password value="${esc(s.apiKey||"")}"></div><div class=actions style="margin-top:12px"><button class=btn onclick=saveSyncConfig()>Lưu cấu hình</button><button class=btn onclick=pingSync()>Kiểm tra kết nối</button><button class="btn primary" onclick=pushSync()>Đồng bộ ngay</button><button class=btn onclick=pullSync()>Tải dữ liệu</button></div><div class=muted style="margin-top:10px">Lần đồng bộ: ${esc(s.lastSync?fmtDT(s.lastSync):"Chưa có")}</div></div></div>`;
+ <div class=card><h3 style="margin-top:0">☁️ Google Sheets / Apps Script</h3><div class=field><label>Web App URL</label><input id=syncUrl value="${esc(s.url||"")}"></div><div class=field style="margin-top:10px"><label>API key</label><input id=syncKey type=password value="${esc(s.apiKey||"")}"></div><div class=actions style="margin-top:12px"><button class=btn onclick=saveSyncConfig()>Lưu cấu hình</button><button class=btn onclick=pingSync()>Kiểm tra kết nối</button><button class="btn primary" onclick=pushSync()>Đồng bộ ngay</button><button class=btn onclick=pullSync()>Tải dữ liệu</button></div><div class=muted style="margin-top:10px">Lần đồng bộ Google Sheets: ${esc(s.lastSync?fmtDT(s.lastSync):"Chưa có")}</div></div></div>`;
 }
 function exportJSON(){downloadBlob(new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),`GVCNPro_backup_${todayISO()}.json`)}
 function importJSON(){const i=document.createElement("input");i.type="file";i.accept=".json,application/json";i.onchange=()=>{const f=i.files?.[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{state=JSON.parse(e.target.result);localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();render();toast("Đã phục hồi dữ liệu")}catch(err){toast("File sao lưu không hợp lệ")}};r.readAsText(f)};i.click()}
@@ -5893,9 +5865,9 @@ function saveClassIdentityQuick(){
   toast("Đã lưu thay đổi");
 }
 
-function saveSyncConfig(){toast("Đồng bộ trực tuyến đã được cấu hình tự động")}
+function saveSyncConfig(){toast("Google Apps Script V35.5 đã được cấu hình tự động")}
 async function callAPI(body){return await onlineAPI(body)}
-async function pingSync(){try{const x=await onlineAPI({action:"ping"});toast(x.ok?"Kết nối Neon thành công":(x.message||"Kết nối thất bại"))}catch(e){toast(e.message)}}
+async function pingSync(){try{const x=await onlineAPI({action:"health"});toast(x.ok?`Kết nối Google Apps Script ${x.api||""} thành công`:(x.error||"Kết nối thất bại"))}catch(e){toast(e.message||"Không kết nối được Google Apps Script")}}
 async function pushSync(){
  try{
   const x=await onlineAPI({action:"push",data:state});
@@ -5905,10 +5877,11 @@ async function pushSync(){
 }
 async function pullSync(){
  try{
-  const x=await onlineAPI({action:"pull"});if(!x.ok)throw new Error(x.message||"Không tải được dữ liệu");
-  if(x.data&&x.data.classes){await gvcnApplyRemoteStateSafely(x.data);toast("Đã tải dữ liệu mới nhất • Banner được bảo toàn")}
-  else toast("Chưa có dữ liệu trên Cloud");
- }catch(e){toast(e.message)}
+  backupStateBeforeCloud("manual_pull");CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
+  const [x,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
+  if(x.data&&typeof x.data==="object"){state=mergeRemoteStateSafely(x.data,state,recovered);localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();toast("Đã tải và ghép dữ liệu Google Sheets an toàn")}
+  else toast("Google Sheets chưa có AppState để tải");
+ }catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip();toast(e.message||"Không tải được dữ liệu")}
 }
 
 function statusBadge(done,doneText="Hoàn thành",openText="Chưa hoàn thành"){
@@ -5939,22 +5912,16 @@ function downloadCSV(rows,name){const csv=rows.map(r=>r.map(v=>`"${String(v??"")
 setupCompactSidebar();
 hideLoginScreen();
 updateAccountUI();updateGuestUI();renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");
-if(AUTHENTICATED){
- onlineAPI({action:"me"}).then(async x=>{
-  if(!x.ok||!x.authenticated){
-   AUTHENTICATED=false;sessionStorage.removeItem(SESSION_KEY);
-   hideLoginScreen();updateGuestUI();refreshCurrentView();return;
-  }
-  const u=x.user;session={teacherId:u.teacherId||u.id,userId:u.id,role:u.role,name:u.name,isAdmin:!!u.isAdmin,isDemo:!!u.isDemo,username:u.username,workspaceId:u.workspaceId,workspaceRole:u.workspaceRole,teacherName:u.teacherName};
-  sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));KEY=teacherDataKey(session.teacherId);
-  state=loadState();hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();refreshCurrentView();
-  const remote=await onlineAPI({action:"pull"});if(remote.ok&&remote.data){await gvcnApplyRemoteStateSafely(remote.data)}
- }).catch(()=>{
-   AUTHENTICATED=false;sessionStorage.removeItem(SESSION_KEY);
-   hideLoginScreen();updateGuestUI();refreshCurrentView();
- });
+if(AUTHENTICATED&&currentCloudToken()){
+ (async()=>{try{
+   KEY=teacherDataKey(session.teacherId);state=loadState();hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();refreshCurrentView();
+   backupStateBeforeCloud("restore_session");CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
+   const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
+   if(remote.ok&&remote.data){state=mergeRemoteStateSafely(remote.data,state,recovered);localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView()}
+   CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
+  }catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip();hideLoginScreen();updateGuestUI()}})();
 }else{
- hideLoginScreen();updateGuestUI();
+ AUTHENTICATED=false;hideLoginScreen();updateGuestUI();
 }
 </script>
 
@@ -6105,6 +6072,124 @@ function enforceGuestView(){
 }
 window.addEventListener("load",()=>setTimeout(enforceGuestView,50));
 
+
+
+/* ===== V38.80 Seating UX upgrade 26/09/2026 ===== */
+let seatUndoStack=[];
+let seatSwapFirstId="";
+function seatSnapshot(){
+  seatUndoStack.push(classStudents().map(s=>({id:s.id,seat:String(s.seat||"")})));
+  if(seatUndoStack.length>20)seatUndoStack.shift();
+}
+function undoSeats(){
+  if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
+  const snap=seatUndoStack.pop();
+  if(!snap){toast("Chưa có thao tác để hoàn tác.");return}
+  snap.forEach(x=>{const s=state.students.find(v=>v.id===x.id);if(s)s.seat=x.seat});
+  localStorage.setItem(KEY,JSON.stringify(state));renderSeats();toast("Đã hoàn tác thay đổi chỗ ngồi");
+}
+function autoSeats(){
+  if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
+  seatSnapshot();
+  const cap=seatCapacity();
+  const students=[...classStudents()].sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"vi"));
+  students.forEach((s,i)=>s.seat=i<cap?String(i+1):"");
+  save("Đã xếp chỗ tự động");renderSeats();
+}
+function beginSeatSwap(){
+  if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
+  seatSwapFirstId="";toast("Chọn học sinh thứ nhất, sau đó chọn học sinh thứ hai.");
+}
+function seatClickSwap(studentId){
+  if(!studentId||curClass().seatDone)return;
+  if(!seatSwapFirstId){seatSwapFirstId=studentId;renderSeats();toast("Đã chọn học sinh thứ nhất. Chọn học sinh cần đổi chỗ.");return}
+  if(seatSwapFirstId===studentId){seatSwapFirstId="";renderSeats();return}
+  const a=state.students.find(s=>s.id===seatSwapFirstId),b=state.students.find(s=>s.id===studentId);
+  if(!a||!b){seatSwapFirstId="";return}
+  seatSnapshot();[a.seat,b.seat]=[b.seat,a.seat];seatSwapFirstId="";
+  save("Đã đổi chỗ hai học sinh");renderSeats();
+}
+function renderSeats(){
+  const cfg=seatConfig(),cap=seatCapacity(),students=classStudents();
+  const assigned=students.filter(s=>{const n=Number(s.seat||0);return n>=1&&n<=cap});
+  const unassigned=students.filter(s=>!s.seat||Number(s.seat)>cap);
+  const free=Math.max(0,cap-assigned.length);
+  $("#content").innerHTML=`
+  <style id="seat-v3880-style">
+    .seat-toolbar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+    .seat-toolbar .btn{white-space:nowrap}
+    .seat-info-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:13px 0;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:13px;color:#64748b;font-size:13px}
+    .seat-info-bar b{font-size:16px;color:#102a43}.seat-info-dot{color:#c4cfda}
+    .classroom-wrap{background:#eef4fb;border:1px solid var(--line);border-radius:18px;padding:16px;overflow:auto}
+    .board-front{width:min(560px,72%);margin:0 auto 12px;background:#183a5d;color:#fff;text-align:center;padding:10px 16px;border-radius:10px;font-weight:900;letter-spacing:.06em;box-shadow:0 6px 16px rgba(15,35,65,.14)}
+    .teacher-row{display:flex;justify-content:center;margin:0 auto 16px}.teacher-desk{width:200px;border:1.5px solid #9fb2c7;background:#fff;border-radius:11px;padding:9px;text-align:center;font-weight:800;color:#526071}
+    .seat-groups{display:grid;grid-template-columns:repeat(${cfg.groups},minmax(0,1fr));gap:16px;width:100%;min-width:0}
+    .seat-group{background:#fff;border:1px solid #dce6f0;border-radius:15px;padding:10px;box-shadow:0 4px 14px rgba(30,64,100,.04)}
+    .seat-group:nth-child(4n+1){border-top:4px solid #3b82f6}.seat-group:nth-child(4n+2){border-top:4px solid #10b981}.seat-group:nth-child(4n+3){border-top:4px solid #8b5cf6}.seat-group:nth-child(4n){border-top:4px solid #f59e0b}
+    .seat-group-title{text-align:center;font-weight:900;margin:0 0 8px;color:#173457}
+    .desk{margin:7px 0;border:1px solid #cbd9e7;border-radius:11px;overflow:hidden;background:#f8fbfe;padding:0}
+    .desk-label{text-align:center;font-size:10.5px;color:#738197;padding:4px 0 2px;font-weight:700;margin:0}
+    .desk-seats{display:grid;grid-template-columns:repeat(${cfg.seatsPerTable},minmax(0,1fr));gap:1px;background:#dce7f1}
+    .seat-slot{min-height:55px;border:0;background:#fff;padding:6px;display:flex;align-items:center;gap:6px;justify-content:flex-start;text-align:left;font-size:11.5px;font-weight:800;cursor:grab;user-select:none;overflow:hidden}
+    .seat-slot.empty{color:#9aa7b6;font-weight:600;justify-content:center;background:#fbfcfe;cursor:default}.seat-slot.drag-over{outline:3px solid #60a5fa;outline-offset:-3px;background:#eff6ff}.seat-slot.swap-selected{outline:3px solid #f59e0b;outline-offset:-3px;background:#fffbeb}
+    .seat-avatar{width:26px;height:26px;border-radius:50%;background:#e8f0f8;color:#315270;display:grid;place-items:center;flex:0 0 26px;font-size:10px}.seat-name{line-height:1.15;overflow-wrap:anywhere}
+    .unassigned-box{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px}.unassigned-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}.student-chip{padding:7px 9px;border-radius:999px;background:#edf3f8;border:1px solid #dbe4ee;font-weight:800;font-size:12px;cursor:grab}
+    @media(max-width:1100px){.seat-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:700px){.seat-groups{grid-template-columns:1fr}.board-front{width:90%}.seat-toolbar{justify-content:flex-start}}
+  </style>
+  <div class=section-head>
+    <div><h3>Sơ đồ chỗ ngồi</h3><div class=muted>Sắp xếp chỗ ngồi cho lớp ${esc(curClass().name)}.</div></div>
+    <div class=seat-toolbar>
+      <button class=btn onclick=openSeatConfig() ${curClass().seatDone?"disabled":""}>⚙️ Cấu hình</button>
+      <button class=btn onclick=autoSeats() ${curClass().seatDone?"disabled":""}>✨ Xếp tự động</button>
+      <button class=btn onclick=randomSeats() ${curClass().seatDone?"disabled":""}>🔀 Xáo trộn</button>
+      <button class=btn onclick=beginSeatSwap() ${curClass().seatDone?"disabled":""}>⇄ Đổi chỗ</button>
+      <button class=btn onclick=undoSeats() ${curClass().seatDone?"disabled":""}>↶ Hoàn tác</button>
+      <button class="btn ${curClass().seatDone?"warn":"good"}" onclick=toggleSeatDone()>${curClass().seatDone?"Chỉnh sửa sơ đồ":"✓ Lưu sơ đồ"}</button>
+      <button class="btn primary" onclick=exportSeatingWord()>📄 Xuất Word A4</button>
+    </div>
+  </div>
+  <div class=seat-info-bar>
+    <span><b>${students.length}</b> học sinh</span><span class=seat-info-dot>•</span>
+    <span><b>${cap}</b> chỗ</span><span class=seat-info-dot>•</span>
+    <span>🟢 Đã xếp <b>${assigned.length}</b></span><span class=seat-info-dot>•</span>
+    <span>HS chưa xếp <b>${unassigned.length}</b></span><span class=seat-info-dot>•</span>
+    <span>Còn trống <b>${free}</b> chỗ</span>
+  </div>
+  <div class=classroom-wrap>
+    <div class=board-front>BẢNG</div>
+    ${cfg.teacherDesk?`<div class=teacher-row><div class=teacher-desk>🧑‍🏫 BÀN GIÁO VIÊN</div></div>`:""}
+    <div class=seat-groups>
+      ${Array.from({length:cfg.groups},(_,g)=>`<div class=seat-group><div class=seat-group-title>TỔ ${g+1}</div>
+        ${Array.from({length:cfg.tablesPerGroup},(_,t)=>`<div class=desk><div class=desk-label>Bàn ${t+1}</div><div class=desk-seats>
+          ${Array.from({length:cfg.seatsPerTable},(_,si)=>{const no=seatNo(g,t,si),stu=seatStudentByNo(no);const ini=stu?String(stu.name||"").trim().split(/\s+/).slice(-2).map(x=>x[0]).join("").toUpperCase():"";return `<div class="seat-slot ${stu?"":"empty"} ${stu&&seatSwapFirstId===stu.id?"swap-selected":""}" draggable="${stu&&!curClass().seatDone}" data-seat="${no}" data-student="${stu?stu.id:""}" ondragstart="seatDragStart(event)" ondragover="seatDragOver(event)" ondragleave="seatDragLeave(event)" ondrop="seatDrop(event)" onclick="seatClickSwap('${stu?stu.id:""}')">${stu?`<span class=seat-avatar>${esc(ini)}</span><span class=seat-name>${esc(stu.name)}</span>`:`<span>+ Trống</span>`}</div>`}).join("")}
+        </div></div>`).join("")}</div>`).join("")}
+    </div>
+    <div class=unassigned-box><b>Học sinh chưa xếp chỗ</b><div class=unassigned-list>${unassigned.map(s=>`<div class=student-chip draggable="${!curClass().seatDone}" data-student="${s.id}" ondragstart="seatDragStart(event)">${esc(s.name)}</div>`).join("")||`<span class="badge good">Tất cả học sinh đã có chỗ</span>`}</div></div>
+  </div>`;
+  requestAnimationFrame(()=>fitSeatLayoutFull());
+}
+function randomSeats(){
+  if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
+  seatSnapshot();const students=[...classStudents()],cap=seatCapacity();
+  const seats=Array.from({length:cap},(_,i)=>String(i+1));
+  for(let i=seats.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[seats[i],seats[j]]=[seats[j],seats[i]]}
+  for(let i=students.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[students[i],students[j]]=[students[j],students[i]]}
+  students.forEach((s,i)=>s.seat=seats[i]||"");save("Đã xáo trộn chỗ ngồi");renderSeats();
+}
+function clearSeats(){
+  if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
+  if(!confirm("Đưa toàn bộ học sinh về trạng thái chưa xếp chỗ?"))return;
+  seatSnapshot();classStudents().forEach(s=>s.seat="");save("Đã làm lại sơ đồ chỗ ngồi");renderSeats();
+}
+function seatDrop(e){
+  if(curClass().seatDone){toast("Sơ đồ đã hoàn thành. Hãy mở lại để chỉnh sửa.");return}
+  e.preventDefault();e.currentTarget.classList.remove("drag-over");let data=seatDragData;
+  try{if(e.dataTransfer?.getData("text/plain"))data=JSON.parse(e.dataTransfer.getData("text/plain"))}catch(_){}
+  if(!data?.studentId)return;const targetSeat=e.currentTarget.dataset.seat,targetStudentId=e.currentTarget.dataset.student||"",moving=state.students.find(s=>s.id===data.studentId);if(!moving)return;
+  seatSnapshot();const fromSeat=String(moving.seat||"");if(targetStudentId&&targetStudentId!==moving.id){const other=state.students.find(s=>s.id===targetStudentId);if(other)other.seat=fromSeat||""}moving.seat=String(targetSeat);
+  localStorage.setItem(KEY,JSON.stringify(state));log("Đã đổi chỗ ngồi");renderSeats();toast("Đã cập nhật chỗ ngồi");
+}
 
 </script>
 
