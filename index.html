@@ -8,7 +8,7 @@
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
   --pri:#2563eb;--pri2:#1d4ed8;--side:#10233f;--side2:#173457;--good:#0f9f6e;
-  --warn:#d97706;--bad:#dc2626;--shadow:0 10px 28px rgba(15,35,65,.08); 
+  --warn:#d97706;--bad:#dc2626;--shadow:0 10px 28px rgba(15,35,65,.08);
   --radius:18px
 }
 *{box-sizing:border-box}
@@ -2557,7 +2557,7 @@ async function mainLogin(){
   // Tài khoản ADMIN/GVCN chính phải tiếp tục dùng kho LEGACY đang chứa dữ liệu + banner.
   // Không tạo GVCN_TEACHER_U001 vì sẽ nhân đôi toàn bộ ảnh base64 và làm đầy quota LocalStorage.
   const localTeacherId=(cloudRole==="ADMIN"||cloudRole==="GVCN")?"teacher-thien":uidCloud;
-  session={teacherId:localTeacherId,userId:uidCloud,role:cloudRole==="ADMIN"?"Giáo viên":(u.VaiTro||u.role||"Giáo viên"),name:u.HoTen||u.name||"HỒ NGUYỄN ĐA THIỆN",isAdmin:cloudRole==="ADMIN",username:u.Username||u.username||username};
+  session={teacherId:localTeacherId,userId:uidCloud,role:cloudRole==="ADMIN"?"Giáo viên":(u.VaiTro||u.role||"Giáo viên"),name:u.HoTen||u.name||"HỒ NGUYỄN ĐA THIỆN",isAdmin:cloudRole==="ADMIN",username:u.Username||u.username||username,allowedStateKeys:u.AllowedStateKeys||[]};
   sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;
 
   // Chuyển sang kho dữ liệu của tài khoản nhưng GHÉP với state trước đăng nhập trước khi render.
@@ -5739,12 +5739,13 @@ function memberRowsHTML(rows,canEdit){
     <td><b>${root?"🛡️ ":""}${esc(x.name)}</b>${root?`<div class=muted>Quản trị hệ thống • Tài khoản chính</div>`:(main?`<div class=muted>Giáo viên chính</div>`:"")}</td>
     <td><code>${esc(x.username||"")}</code></td>
     <td>${root?"Quản trị hệ thống":esc(x.role)}</td>
+    <td>${esc((state.classes||[]).find(c=>String(c.id)===String(x.classId))?.name||x.classId||"—")}</td>
     <td>${esc(x.phone||"")}</td>
     <td>${esc(areaLabelList(x))}</td>
     <td>${statusBadge(x.active,"Đang hoạt động","Đã khóa")}</td>
     <td>${canEdit?`<div class=actions><button class="btn sm" onclick="openMemberForm('${x.id}')">✏️ Sửa</button>${(!main&&!root)?`<button class="btn sm ${x.active?"warn":"good"}" onclick="toggleOnlineMember('${x.id}',${!x.active})">${x.active?"🔒 Khóa":"🔓 Mở khóa"}</button><button class="btn sm bad" onclick="deleteOnlineMember('${x.id}')">🗑️ Xóa</button>`:`<span class="badge">🔐 Được bảo vệ</span>`}</div>`:"—"}</td>
    </tr>`;
- }).join("")||`<tr><td colspan=7 class=empty>Chưa có thành viên.</td></tr>`;
+ }).join("")||`<tr><td colspan=8 class=empty>Chưa có thành viên.</td></tr>`;
 }
 function updateMemberTable(){
  if(page!=="members")return;
@@ -5767,7 +5768,7 @@ async function reloadMembersOnly(){
    updateMemberTable();
  }catch(e){
    const body=document.getElementById("onlineMemberRows");
-   if(body&&!onlineMembersLoaded)body.innerHTML=`<tr><td colspan=7 class=empty>${esc(e.message)}</td></tr>`;
+   if(body&&!onlineMembersLoaded)body.innerHTML=`<tr><td colspan=8 class=empty>${esc(e.message)}</td></tr>`;
    else toast(e.message||"Không tải được thành viên");
  }
 }
@@ -5777,7 +5778,7 @@ function renderMembers(){
  <div class=actions>${canEdit?`<button id=addMemberBtn class="btn primary" onclick=openMemberForm() ${limited?"disabled":""}>${limited?"✓ Đã đủ 3 tài khoản hỗ trợ":"＋ Thêm thành viên"}</button>`:""}</div></div>
  ${session?.isAdmin?`<div class=card style="margin-bottom:14px;border:1px solid #bfdbfe;background:#eff6ff"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-size:24px">🛡️</span><div><b>HỒ NGUYỄN ĐA THIỆN</b><div class=muted>Tài khoản quản trị hệ thống • Tài khoản chính được bảo vệ</div></div></div></div>`:""}
  <div class=card style="margin-bottom:14px"><b id=memberCount>👥 ${onlineMembersLoaded?onlineMembersCache.length:"…"} thành viên</b><div class=muted style="margin-top:4px">${canEdit?(session?.isAdmin?"Quản trị hệ thống được thêm và quản lý thành viên không giới hạn.":"Có thể thêm, sửa, khóa/mở khóa và xóa tài khoản hỗ trợ. Giáo viên chủ nhiệm được tối đa 3 tài khoản hỗ trợ."):"Tài khoản hỗ trợ chỉ xem danh sách thành viên."}</div></div>
- <div class=table-wrap><table><thead><tr><th>Họ tên</th><th>Tài khoản</th><th>Vai trò</th><th>Liên hệ</th><th>Khu vực được vào</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id=onlineMemberRows>${onlineMembersLoaded?memberRowsHTML(onlineMembersCache,canEdit):`<tr><td colspan=7 class=empty>Đang tải dữ liệu thành viên...</td></tr>`}</tbody></table></div>`;
+ <div class=table-wrap><table><thead><tr><th>Họ tên</th><th>Tài khoản</th><th>Vai trò</th><th>Lớp</th><th>Liên hệ</th><th>Quyền được giao</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id=onlineMemberRows>${onlineMembersLoaded?memberRowsHTML(onlineMembersCache,canEdit):`<tr><td colspan=8 class=empty>Đang tải dữ liệu thành viên...</td></tr>`}</tbody></table></div>`;
  reloadMembersOnly();
 }
 function openMemberForm(id=""){
@@ -5788,16 +5789,23 @@ function openMemberForm(id=""){
  modal(`<h3>${id?"✏️ Sửa thành viên":"＋ Thêm thành viên"}</h3>${isRoot?`<div class=notice style="margin-bottom:12px"><b>🛡️ Tài khoản quản trị chính</b><div class=muted>Tài khoản này luôn được giữ lại và không thể khóa hoặc xóa.</div></div>`:""}<div class=form-grid>
  <div class=field><label>Họ tên</label><input id=mbName value="${esc(x.name||"")}" placeholder="Họ và tên"></div>
  <div class=field><label>Tài khoản đăng nhập</label><input id=mbUsername value="${esc(x.username||"")}" placeholder="vd: loptruong10a2" ${isRoot?"readonly":""}></div>
- <div class=field><label>Vai trò</label><select id=mbRole ${(isGV||isRoot)?"disabled":""}>${(isRoot?["Quản trị hệ thống"]:(isGV?["Giáo viên"]:["Lớp trưởng","Bí thư","Thủ quỹ","Lớp phó","Thư ký"])).map(v=>`<option ${x.role===v?"selected":""}>${v}</option>`).join("")}</select></div>
+ <div class=field><label>Vai trò</label><select id=mbRole ${(isGV||isRoot)?"disabled":""} onchange="updateMemberRoleHint()">${(isRoot?["Quản trị hệ thống"]:(isGV?["Giáo viên"]:["Lớp trưởng","Bí thư","Thủ quỹ"])).map(v=>`<option ${x.role===v?"selected":""}>${v}</option>`).join("")}</select></div>
+ <div class=field><label>Lớp được phân công</label><select id=mbClass ${(isGV||isRoot)?"disabled":""}>${(state.classes||[]).map(c=>`<option value="${esc(c.id)}" ${String(x.classId||state.currentClassId)===String(c.id)?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div>
  <div class=field><label>Liên hệ</label><input id=mbPhone value="${esc(x.phone||"")}" placeholder="Số điện thoại hoặc ghi chú"></div>
  <div class=field style="grid-column:1/-1"><label>${id?"Mật khẩu mới (để trống nếu giữ nguyên)":"Mật khẩu"}</label><input id=mbPassword type=password value="${id?"":"123456"}"></div>
- ${(!isGV&&!isRoot)?`<div class=field style="grid-column:1/-1"><label>Khu vực được phép truy cập</label><div class=muted style="margin-bottom:8px">Chỉ áp dụng cho tài khoản thành viên hỗ trợ. Giáo viên luôn có toàn quyền trên ứng dụng.</div><div class="perm-grid">${MEMBER_AREAS.map(a=>`<label class="perm-item"><input type=checkbox id="perm_${a.id}" ${memberAreaPermissions(x).includes(a.id)?"checked":""}> ${a.label}</label>`).join("")}</div></div>`:`<div class=field style="grid-column:1/-1"><label>Quyền truy cập</label><div class=notice>✓ Giáo viên/Quản trị luôn được truy cập toàn bộ ứng dụng.</div></div>`}
+ ${(!isGV&&!isRoot)?`<div class=field style="grid-column:1/-1"><label>Quyền theo vai trò</label><div id=memberRoleHint class=notice></div></div>`:`<div class=field style="grid-column:1/-1"><label>Quyền truy cập</label><div class=notice>✓ Giáo viên/Quản trị luôn được truy cập toàn bộ ứng dụng.</div></div>`}
  </div><div class=modal-foot><button class=btn onclick=closeModal()>Hủy</button><button class="btn primary" id=saveMemberBtn onclick="saveOnlineMember('${id}')">💾 ${id?"Lưu thay đổi":"Thêm thành viên"}</button></div>`);
+ setTimeout(updateMemberRoleHint,0);
+}
+function updateMemberRoleHint(){
+ const r=val("mbRole");const box=document.getElementById("memberRoleHint");if(!box)return;
+ const m={"Lớp trưởng":"Được cập nhật: Thi đua/Nề nếp, Trực nhật, Kế hoạch tuần, Công việc.","Bí thư":"Được cập nhật: Kế hoạch tuần và Công việc.","Thủ quỹ":"Được cập nhật: Thu – chi."};
+ box.innerHTML=`<b>${esc(r||"")}</b><div class=muted style="margin-top:4px">${esc(m[r]||"Chỉ xem các phần được cấp.")}</div>`;
 }
 async function saveOnlineMember(id=""){
  if(!canManageOnlineMembers())return;
  const old=onlineMembersCache.find(v=>v.id===id);
- const member={name:val("mbName").trim(),username:(old?.systemRole==="admin"?"admin":val("mbUsername").trim().toLowerCase()),role:(old?.systemRole==="admin"?"Quản trị hệ thống":val("mbRole")),phone:val("mbPhone").trim(),password:val("mbPassword"),permissions:(old?.systemRole==="admin"||old?.workspaceRole==="teacher")?["class","tracking","support","admin"]:selectedMemberAreas()};
+ const member={name:val("mbName").trim(),username:(old?.systemRole==="admin"?"admin":val("mbUsername").trim().toLowerCase()),role:(old?.systemRole==="admin"?"Quản trị hệ thống":val("mbRole")),classId:(old?.systemRole==="admin"||old?.workspaceRole==="teacher")?(old?.classId||""):val("mbClass"),phone:val("mbPhone").trim(),password:val("mbPassword")};
  if(!member.name||!member.username||(!id&&!member.password))return toast("Nhập đủ họ tên, tài khoản và mật khẩu");
  const btn=document.getElementById("saveMemberBtn");if(btn){btn.disabled=true;btn.textContent="Đang lưu..."}
  try{
