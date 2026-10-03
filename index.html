@@ -6394,7 +6394,6 @@ function seatDrop(e){
   localStorage.setItem(KEY,JSON.stringify(state));log("Đã đổi chỗ ngồi");renderSeats();toast("Đã cập nhật chỗ ngồi");
 }
 
-
 // V36.3: khóa nút Xóa cho mọi tài khoản thành viên, kể cả nội dung render động.
 const __memberNoDeleteObserver=new MutationObserver(()=>memberNoDeleteGuard());
 __memberNoDeleteObserver.observe(document.body,{childList:true,subtree:true});
