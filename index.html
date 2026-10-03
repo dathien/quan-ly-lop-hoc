@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2420,7 +2420,7 @@ const CLOUD_SESSION_KEY="GVCN_CLOUD_SESSION_V35_5";
 let CLOUD_SYNC_STATE="local",CLOUD_SYNC_TIME="",CLOUD_REVISION=0,CLOUD_BASE_STATE=null;
 // V36.6: sau khi đã đăng nhập, Cloud là nguồn chuẩn. Không cho cache cũ tự đẩy ngược lên Cloud trước khi hydrate xong.
 let CLOUD_HYDRATED=false;
-// V36.9 DIAGNOSTIC: chỉ quan sát luồng đồng bộ, không thay đổi dữ liệu nghiệp vụ.
+// V36.10 APPLY CLOUD FIX: chỉ quan sát luồng đồng bộ, không thay đổi dữ liệu nghiệp vụ.
 let DIAG_CLOUD_REVISION=0,DIAG_LAST_PULL="—",DIAG_LAST_PUSH="—",DIAG_LAST_RESULT="Khởi động",DIAG_LAST_ERROR="";
 function diagTime(){return new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
 function diagUser(){const cs=currentCloudSession();return String(cs?.user?.userId||cs?.user?.id||session?.userId||session?.teacherId||"—")}
@@ -2436,7 +2436,7 @@ function renderSyncDiagnostic(){
  let el=document.getElementById("gvcnSyncDiagnostic");
  if(!el){el=document.createElement("div");el.id="gvcnSyncDiagnostic";document.body.appendChild(el)}
  el.style.cssText="position:fixed;right:12px;bottom:12px;z-index:99999;width:300px;max-width:calc(100vw - 24px);background:rgba(255,255,255,.97);border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 10px 30px rgba(15,23,42,.18);padding:11px 13px;font:12px/1.45 Arial,sans-serif;color:#0f172a";
- el.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px"><b style="font-size:12px">🔎 ĐỒNG BỘ – CHẨN ĐOÁN V36.9</b><span style="font-weight:800;color:${diagStatus()==='SYNCED'?'#059669':'#d97706'}">${diagStatus()}</span></div><div>UserID: <b>${diagUser()}</b></div><div>Local Revision: <b>${Number(CLOUD_REVISION||0)}</b></div><div>Cloud Revision: <b>${Number(DIAG_CLOUD_REVISION||0)}</b></div><div>Pull gần nhất: <b>${DIAG_LAST_PULL}</b></div><div>Push gần nhất: <b>${DIAG_LAST_PUSH}</b></div><div>Kết quả: <b>${DIAG_LAST_RESULT}</b></div>${DIAG_LAST_ERROR?`<div style="margin-top:5px;color:#b91c1c;word-break:break-word">Lỗi: ${String(DIAG_LAST_ERROR).replace(/[<>]/g,'')}</div>`:''}`;
+ el.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px"><b style="font-size:12px">🔎 ĐỒNG BỘ – CHẨN ĐOÁN V36.10</b><span style="font-weight:800;color:${diagStatus()==='SYNCED'?'#059669':'#d97706'}">${diagStatus()}</span></div><div>UserID: <b>${diagUser()}</b></div><div>Local Revision: <b>${Number(CLOUD_REVISION||0)}</b></div><div>Cloud Revision: <b>${Number(DIAG_CLOUD_REVISION||0)}</b></div><div>Pull gần nhất: <b>${DIAG_LAST_PULL}</b></div><div>Push gần nhất: <b>${DIAG_LAST_PUSH}</b></div><div>Kết quả: <b>${DIAG_LAST_RESULT}</b></div>${DIAG_LAST_ERROR?`<div style="margin-top:5px;color:#b91c1c;word-break:break-word">Lỗi: ${String(DIAG_LAST_ERROR).replace(/[<>]/g,'')}</div>`:''}`;
 }
 setInterval(renderSyncDiagnostic,1000);
 setTimeout(renderSyncDiagnostic,300);
@@ -2493,6 +2493,28 @@ function applyCloudAuthoritative(remote,recovered=[]){
  if(!remote||typeof remote!=="object")return state;
  const localBannerShell={classes:Array.isArray(state?.classes)?state.classes:[]};
  return mergeRemoteStateSafely(remote,localBannerShell,recovered);
+}
+function applyPulledCloudSnapshot(snapshot,{recovered=[],force=false,reason="PULL"}={}){
+ if(!snapshot||snapshot.ok!==true||!snapshot.data||typeof snapshot.data!=="object")return false;
+ const rr=Number(snapshot.revision||0);
+ if(!force&&rr<=Number(CLOUD_REVISION||0))return false;
+ state=applyCloudAuthoritative(snapshot.data,recovered);
+ CLOUD_REVISION=rr;
+ DIAG_CLOUD_REVISION=rr;
+ CLOUD_BASE_STATE=cloneSyncValue(snapshot.data);
+ CLOUD_DIRTY=false;
+ try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){console.warn("Không lưu được cache Cloud",e)}
+ renderClassSelect();refreshCurrentView();
+ CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
+ DIAG_LAST_RESULT=reason+" → APPLIED R"+rr;DIAG_LAST_ERROR="";renderSyncDiagnostic();
+ return true;
+}
+async function forceCloudReconcile(reason="RECONCILE"){
+ if(!AUTHENTICATED||!currentCloudToken()||CLOUD_PUSHING)return false;
+ try{
+   const x=await onlineAPI({action:"pull"});
+   return applyPulledCloudSnapshot(x,{force:Number(x.revision||0)>Number(CLOUD_REVISION||0),reason});
+ }catch(e){console.warn(reason,e);return false}
 }
 async function pushStateWithRevision(localState){
  try{
@@ -2641,8 +2663,12 @@ async function mainLogin(){
 
   const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
   const beforeCloudMerge=state;
-  if(remote.ok&&remote.data&&typeof remote.data==="object"){CLOUD_REVISION=Number(remote.revision||0);CLOUD_BASE_STATE=cloneSyncValue(remote.data);state=mergeRemoteStateSafely(remote.data,beforeCloudMerge,recovered);}
-  else state=mergeRemoteStateSafely(beforeCloudMerge,beforeCloudMerge,recovered);
+  if(remote.ok&&remote.data&&typeof remote.data==="object"){
+    // V36.10: Cloud phải được APPLY thật sự trước khi coi đăng nhập hoàn tất.
+    state=mergeRemoteStateSafely(remote.data,beforeCloudMerge,recovered);
+    CLOUD_REVISION=Number(remote.revision||0);DIAG_CLOUD_REVISION=CLOUD_REVISION;CLOUD_BASE_STATE=cloneSyncValue(remote.data);CLOUD_DIRTY=false;
+    DIAG_LAST_RESULT="LOGIN PULL → APPLIED R"+CLOUD_REVISION;renderSyncDiagnostic();
+  } else state=mergeRemoteStateSafely(beforeCloudMerge,beforeCloudMerge,recovered);
 
   // Giữ đúng lớp người dùng đang xem trước khi đăng nhập nếu lớp đó vẫn tồn tại.
   if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
@@ -2656,6 +2682,9 @@ async function mainLogin(){
   if(restoredBanner){try{await pushStateWithRevision(state)}catch(e){console.warn("Không thể ghi banner đã khôi phục lên Google Sheets",e)}}
 
   CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();startCloudLiveSync();
+  // Chốt lại sau khi UI dựng xong để không có luồng khởi tạo cũ giữ revision 0.
+  setTimeout(()=>forceCloudReconcile("POST LOGIN 1"),600);
+  setTimeout(()=>forceCloudReconcile("POST LOGIN 2"),1800);
  }catch(e){clearCloudSession();if(err)err.textContent=(e.message==="LOGIN_FAILED"?"Sai tài khoản hoặc mật khẩu.":e.message)||"Không thể đăng nhập"}
  finally{if(btn){btn.disabled=false;btn.textContent="Đăng nhập"}}
 }
@@ -2803,14 +2832,10 @@ async function pullLatestCloudState({silent=true}={}){
  try{
   const x=await onlineAPI({action:"pull"});
   const rr=Number(x.revision||0);DIAG_CLOUD_REVISION=rr;DIAG_LAST_PULL=diagTime();DIAG_LAST_RESULT="AUTO PULL OK";DIAG_LAST_ERROR="";renderSyncDiagnostic();
-  if(x.data&&typeof x.data==="object"&&rr>CLOUD_REVISION){
-   CLOUD_REVISION=rr;CLOUD_BASE_STATE=cloneSyncValue(x.data);
-   state=applyCloudAuthoritative(x.data,[]);
-   try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
-   renderClassSelect();refreshCurrentView();
-   CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
-   if(!silent)toast("Đã nhận dữ liệu mới từ thiết bị khác");
-   return true;
+  if(x.data&&typeof x.data==="object"&&rr>Number(CLOUD_REVISION||0)){
+   const applied=applyPulledCloudSnapshot(x,{reason:"AUTO PULL"});
+   if(applied&&!silent)toast("Đã nhận dữ liệu mới từ thiết bị khác");
+   return applied;
   }
  }catch(e){console.warn("Auto pull:",e)}
  return false;
@@ -6100,16 +6125,17 @@ setupCompactSidebar();
 hideLoginScreen();
 updateAccountUI();updateGuestUI();
 if(AUTHENTICATED&&currentCloudToken()){
- // V36.9 DIAGNOSTIC: giữ nguyên Tổng quan V36.8; chỉ thêm bảng quan sát revision/pull/push.
+ // V36.10 APPLY CLOUD FIX: giữ nguyên Tổng quan V36.8; chỉ thêm bảng quan sát revision/pull/push.
  (async()=>{try{
    CLOUD_HYDRATED=false;CLOUD_DIRTY=false;CLOUD_PUSHING=false;clearTimeout(cloudPushTimer);clearInterval(cloudPullTimer);cloudPullTimer=null;
    KEY=teacherDataKey(session.teacherId);
    backupStateBeforeCloud("restore_session_cache_only");CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
    const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
    if(remote.ok&&remote.data){
-     CLOUD_REVISION=Number(remote.revision||0);CLOUD_BASE_STATE=cloneSyncValue(remote.data);
      state=applyCloudAuthoritative(remote.data,recovered);
+     CLOUD_REVISION=Number(remote.revision||0);DIAG_CLOUD_REVISION=CLOUD_REVISION;CLOUD_BASE_STATE=cloneSyncValue(remote.data);CLOUD_DIRTY=false;
      try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){console.warn("Không lưu được cache Cloud",e)}
+     DIAG_LAST_RESULT="STARTUP PULL → APPLIED R"+CLOUD_REVISION;renderSyncDiagnostic();
    }else{
      // Chỉ fallback local nếu Cloud thực sự chưa có AppState.
      state=loadState();CLOUD_REVISION=Number(remote.revision||0);CLOUD_BASE_STATE=cloneSyncValue(state);
@@ -6118,6 +6144,8 @@ if(AUTHENTICATED&&currentCloudToken()){
    hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
    startCloudLiveSync();
+   setTimeout(()=>forceCloudReconcile("POST STARTUP 1"),600);
+   setTimeout(()=>forceCloudReconcile("POST STARTUP 2"),1800);
   }catch(e){
    CLOUD_HYDRATED=false;CLOUD_SYNC_STATE="error";updateCloudSyncChip();
    // Không tự dùng cache cũ để ghi lên Cloud. Chỉ hiển thị fallback đọc nếu mất kết nối.
