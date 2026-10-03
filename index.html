@@ -2437,7 +2437,7 @@ async function onlineAPI(body){
  try{
   if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicClasses"){
    const token=body?.token||currentCloudToken();
-   const qs=new URLSearchParams({action});if(token)qs.set("token",token);
+   const qs=new URLSearchParams({action});if(token)qs.set("token",token);if(action==="pull"){qs.set("_ts",String(Date.now()));qs.set("_rev",String(CLOUD_REVISION||0));}
    const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
    const txt=await r.text();let x;try{x=JSON.parse(txt)}catch(e){throw new Error("Apps Script không trả JSON hợp lệ")}
    if(!x.ok){const er=new Error(x.error||x.message||"API_ERROR");er.code=x.error||"API_ERROR";er.payload=x;throw er}return x;
@@ -6076,7 +6076,7 @@ setupCompactSidebar();
 hideLoginScreen();
 updateAccountUI();updateGuestUI();
 if(AUTHENTICATED&&currentCloudToken()){
- // V36.6: KHÔNG render/push state cache cũ trước khi pull Cloud.
+ // V36.8: giữ nguyên Tổng quan V36.6; GET pull có cache-buster để nhận revision mới giữa nhiều trình duyệt.
  (async()=>{try{
    CLOUD_HYDRATED=false;CLOUD_DIRTY=false;CLOUD_PUSHING=false;clearTimeout(cloudPushTimer);clearInterval(cloudPullTimer);cloudPullTimer=null;
    KEY=teacherDataKey(session.teacherId);
