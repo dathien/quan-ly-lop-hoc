@@ -2417,7 +2417,7 @@ function blankTeacherState(profile){
 function isTeacherAccount(){return session.role==="Giáo viên" || !!session?.isDemo}
 const GVCN_APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbyWvkLnEt1YhPZMNN96hiKRcy35zXz8u2UKHYHTv3fAl-R0QUL0chgjyhlkDRYjyxca/exec";
 const CLOUD_SESSION_KEY="GVCN_CLOUD_SESSION_V35_5";
-let CLOUD_SYNC_STATE="local",CLOUD_SYNC_TIME="";
+let CLOUD_SYNC_STATE="local",CLOUD_SYNC_TIME="",CLOUD_REVISION=0,CLOUD_BASE_STATE=null;
 function currentCloudSession(){try{return JSON.parse(sessionStorage.getItem(CLOUD_SESSION_KEY)||"{}")||{}}catch(e){return {}}}
 function currentCloudToken(){return currentCloudSession().token||""}
 function setCloudSession(x){sessionStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify({token:x.token,expiresAt:x.expiresAt,user:x.user||{}}))}
@@ -2438,13 +2438,39 @@ async function onlineAPI(body){
    const qs=new URLSearchParams({action});if(token)qs.set("token",token);
    const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
    const txt=await r.text();let x;try{x=JSON.parse(txt)}catch(e){throw new Error("Apps Script không trả JSON hợp lệ")}
-   if(!x.ok)throw new Error(x.error||x.message||"API_ERROR");return x;
+   if(!x.ok){const er=new Error(x.error||x.message||"API_ERROR");er.code=x.error||"API_ERROR";er.payload=x;throw er}return x;
   }
   const payload={...body};if(action!=="login"&&!payload.token)payload.token=currentCloudToken();
   const r=await fetch(GVCN_APPS_SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),redirect:"follow"});
   const txt=await r.text();let x;try{x=JSON.parse(txt)}catch(e){throw new Error("Apps Script không trả JSON hợp lệ")}
-  if(!x.ok)throw new Error(x.error||x.message||"API_ERROR");return x;
+  if(!x.ok){const er=new Error(x.error||x.message||"API_ERROR");er.code=x.error||"API_ERROR";er.payload=x;throw er}return x;
  }catch(e){if(action==="push"){CLOUD_SYNC_STATE="error";updateCloudSyncChip()}throw e}
+}
+function cloneSyncValue(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
+function syncRecordKey(o){if(!o||typeof o!=="object")return "";return String(o.id||o.ID||o.taskId||o.TaskID||o.studentId||o.StudentID||o.examId||o.ExamID||o.date||o.Ngay||"")}
+function threeWayArrayMerge(base,local,remote){
+ if(!Array.isArray(base)||!Array.isArray(local)||!Array.isArray(remote))return cloneSyncValue(local);
+ const bm=new Map(base.map(x=>[syncRecordKey(x),x]).filter(x=>x[0])),lm=new Map(local.map(x=>[syncRecordKey(x),x]).filter(x=>x[0])),rm=new Map(remote.map(x=>[syncRecordKey(x),x]).filter(x=>x[0]));
+ if(!bm.size||!lm.size||!rm.size)return JSON.stringify(local)===JSON.stringify(base)?cloneSyncValue(remote):cloneSyncValue(local);
+ const out=[],keys=new Set([...bm.keys(),...rm.keys(),...lm.keys()]);
+ keys.forEach(k=>{const b=bm.get(k),l=lm.get(k),r=rm.get(k),lc=JSON.stringify(l)!==JSON.stringify(b),rc=JSON.stringify(r)!==JSON.stringify(b);let v;if(lc)v=l;else if(rc)v=r;else v=r!==undefined?r:l;if(v!==undefined)out.push(cloneSyncValue(v))});
+ return out;
+}
+function threeWayStateMerge(base,local,remote){
+ if(!base||typeof base!=="object")return mergeRemoteStateSafely(remote,local,collectLocalBannerCandidates());
+ const out={};const keys=new Set([...Object.keys(base||{}),...Object.keys(remote||{}),...Object.keys(local||{})]);
+ keys.forEach(k=>{const b=base?.[k],l=local?.[k],r=remote?.[k];if(Array.isArray(b)&&Array.isArray(l)&&Array.isArray(r))out[k]=threeWayArrayMerge(b,l,r);else out[k]=(JSON.stringify(l)!==JSON.stringify(b))?cloneSyncValue(l):cloneSyncValue(r)});
+ return mergeRemoteStateSafely(out,out,collectLocalBannerCandidates());
+}
+async function pushStateWithRevision(localState){
+ try{
+  const x=await onlineAPI({action:"push",data:localState,baseRevision:CLOUD_REVISION});CLOUD_REVISION=Number(x.revision||CLOUD_REVISION+1);CLOUD_BASE_STATE=cloneSyncValue(localState);return x;
+ }catch(e){
+  if(e.code!=="SYNC_CONFLICT")throw e;
+  const latest=await onlineAPI({action:"pull"});if(!latest.data)throw e;
+  const merged=threeWayStateMerge(CLOUD_BASE_STATE||latest.data,localState,latest.data);CLOUD_REVISION=Number(latest.revision||0);CLOUD_BASE_STATE=cloneSyncValue(latest.data);
+  const retry=await onlineAPI({action:"push",data:merged,baseRevision:CLOUD_REVISION});state=merged;CLOUD_REVISION=Number(retry.revision||CLOUD_REVISION+1);CLOUD_BASE_STATE=cloneSyncValue(merged);try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}return retry;
+ }
 }
 async function cloudLogin(username,password){return await onlineAPI({action:"login",username,password,device:navigator.userAgent})}
 function validBanner(v){return typeof v==="string"&&/^data:image\//.test(v)&&v.length>100}
@@ -2583,7 +2609,7 @@ async function mainLogin(){
 
   const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
   const beforeCloudMerge=state;
-  if(remote.ok&&remote.data&&typeof remote.data==="object")state=mergeRemoteStateSafely(remote.data,beforeCloudMerge,recovered);
+  if(remote.ok&&remote.data&&typeof remote.data==="object"){CLOUD_REVISION=Number(remote.revision||0);CLOUD_BASE_STATE=cloneSyncValue(remote.data);state=mergeRemoteStateSafely(remote.data,beforeCloudMerge,recovered);}
   else state=mergeRemoteStateSafely(beforeCloudMerge,beforeCloudMerge,recovered);
 
   // Giữ đúng lớp người dùng đang xem trước khi đăng nhập nếu lớp đó vẫn tồn tại.
@@ -2594,7 +2620,7 @@ async function mainLogin(){
   // Nếu Cloud đang thiếu banner nhưng ta vừa cứu được banner local, ghi state đã ghép trở lại Sheets.
   const remoteClasses=Array.isArray(remote?.data?.classes)?remote.data.classes:[];
   const restoredBanner=Array.isArray(state.classes)&&state.classes.some(c=>validBanner(c.cover)&&!validBanner(remoteClasses.find(r=>String(r.id)===String(c.id)||String(r.name)===String(c.name))?.cover));
-  if(restoredBanner){try{await onlineAPI({action:"push",data:state})}catch(e){console.warn("Không thể ghi banner đã khôi phục lên Google Sheets",e)}}
+  if(restoredBanner){try{await pushStateWithRevision(state)}catch(e){console.warn("Không thể ghi banner đã khôi phục lên Google Sheets",e)}}
 
   CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
  }catch(e){clearCloudSession();if(err)err.textContent=(e.message==="LOGIN_FAILED"?"Sai tài khoản hoặc mật khẩu.":e.message)||"Không thể đăng nhập"}
@@ -2741,7 +2767,7 @@ let cloudPushTimer=null;
 function scheduleOnlinePush(){
  if(!AUTHENTICATED||!currentCloudToken()){CLOUD_SYNC_STATE="local";updateCloudSyncChip();return}
  clearTimeout(cloudPushTimer);CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
- cloudPushTimer=setTimeout(async()=>{try{const x=await onlineAPI({action:"push",data:state});if(!x.ok)throw new Error(x.error||"PUSH_FAILED");CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});state.sync={...(state.sync||{}),lastSync:x.syncedAt||new Date().toISOString()};localStorage.setItem(KEY,JSON.stringify(state));updateCloudSyncChip()}catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip()}},700)
+ cloudPushTimer=setTimeout(async()=>{try{const x=await pushStateWithRevision(state);CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});state.sync={...(state.sync||{}),lastSync:x.syncedAt||new Date().toISOString()};localStorage.setItem(KEY,JSON.stringify(state));updateCloudSyncChip()}catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip()}},700)
 }
 function save(msg="Đã lưu"){if(!isGuestMode()&&!isFullAccessAccount()&&currentRolePolicy()&&!canRoleEditPage()){toast(rolePermissionMessage());refreshCurrentView();return false}try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){console.warn("LocalStorage:",e)}log(msg);renderClassSelect();scheduleOnlinePush();if(msg) toast(msg);return true}
 function log(action){state.logs=state.logs||[];state.logs.unshift({id:uid(),at:new Date().toISOString(),action});state.logs=state.logs.slice(0,500)}
@@ -5960,8 +5986,7 @@ async function callAPI(body){return await onlineAPI(body)}
 async function pingSync(){try{const x=await onlineAPI({action:"health"});toast(x.ok?`Kết nối Google Apps Script ${x.api||""} thành công`:(x.error||"Kết nối thất bại"))}catch(e){toast(e.message||"Không kết nối được Google Apps Script")}}
 async function pushSync(){
  try{
-  const x=await onlineAPI({action:"push",data:state});
-  if(!x.ok)throw new Error(x.message||"Đồng bộ thất bại");
+  const x=await pushStateWithRevision(state);
   state.sync={...(state.sync||{}),lastSync:new Date().toISOString()};localStorage.setItem(KEY,JSON.stringify(state));renderData();toast("Đã đồng bộ");
  }catch(e){toast(e.message)}
 }
@@ -5969,7 +5994,7 @@ async function pullSync(){
  try{
   backupStateBeforeCloud("manual_pull");CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
   const [x,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
-  if(x.data&&typeof x.data==="object"){state=mergeRemoteStateSafely(x.data,state,recovered);localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();toast("Đã tải và ghép dữ liệu Google Sheets an toàn")}
+  if(x.data&&typeof x.data==="object"){CLOUD_REVISION=Number(x.revision||0);CLOUD_BASE_STATE=cloneSyncValue(x.data);state=mergeRemoteStateSafely(x.data,state,recovered);localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView();CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();toast("Đã tải và ghép dữ liệu Google Sheets an toàn")}
   else toast("Google Sheets chưa có AppState để tải");
  }catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip();toast(e.message||"Không tải được dữ liệu")}
 }
@@ -6007,7 +6032,7 @@ if(AUTHENTICATED&&currentCloudToken()){
    KEY=teacherDataKey(session.teacherId);state=loadState();hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();refreshCurrentView();
    backupStateBeforeCloud("restore_session");CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
    const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
-   if(remote.ok&&remote.data){state=mergeRemoteStateSafely(remote.data,state,recovered);localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView()}
+   if(remote.ok&&remote.data){CLOUD_REVISION=Number(remote.revision||0);CLOUD_BASE_STATE=cloneSyncValue(remote.data);state=mergeRemoteStateSafely(remote.data,state,recovered);localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView()}
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
   }catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip();hideLoginScreen();updateGuestUI()}})();
 }else{
@@ -6301,6 +6326,7 @@ function seatDrop(e){
   seatSnapshot();const fromSeat=String(moving.seat||"");if(targetStudentId&&targetStudentId!==moving.id){const other=state.students.find(s=>s.id===targetStudentId);if(other)other.seat=fromSeat||""}moving.seat=String(targetSeat);
   localStorage.setItem(KEY,JSON.stringify(state));log("Đã đổi chỗ ngồi");renderSeats();toast("Đã cập nhật chỗ ngồi");
 }
+
 
 // V36.3: khóa nút Xóa cho mọi tài khoản thành viên, kể cả nội dung render động.
 const __memberNoDeleteObserver=new MutationObserver(()=>memberNoDeleteGuard());
