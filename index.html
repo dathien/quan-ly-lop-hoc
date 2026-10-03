@@ -2420,7 +2420,7 @@ const CLOUD_SESSION_KEY="GVCN_CLOUD_SESSION_V35_5";
 let CLOUD_SYNC_STATE="local",CLOUD_SYNC_TIME="",CLOUD_REVISION=0,CLOUD_BASE_STATE=null;
 // V36.6: sau khi đã đăng nhập, Cloud là nguồn chuẩn. Không cho cache cũ tự đẩy ngược lên Cloud trước khi hydrate xong.
 let CLOUD_HYDRATED=false;
-// V36.10 APPLY CLOUD FIX: chỉ quan sát luồng đồng bộ, không thay đổi dữ liệu nghiệp vụ.
+// V36.11 APPLY CLOUD FIX: chỉ quan sát luồng đồng bộ, không thay đổi dữ liệu nghiệp vụ.
 let DIAG_CLOUD_REVISION=0,DIAG_LAST_PULL="—",DIAG_LAST_PUSH="—",DIAG_LAST_RESULT="Khởi động",DIAG_LAST_ERROR="";
 function diagTime(){return new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
 function diagUser(){const cs=currentCloudSession();return String(cs?.user?.userId||cs?.user?.id||session?.userId||session?.teacherId||"—")}
@@ -2436,7 +2436,7 @@ function renderSyncDiagnostic(){
  let el=document.getElementById("gvcnSyncDiagnostic");
  if(!el){el=document.createElement("div");el.id="gvcnSyncDiagnostic";document.body.appendChild(el)}
  el.style.cssText="position:fixed;right:12px;bottom:12px;z-index:99999;width:300px;max-width:calc(100vw - 24px);background:rgba(255,255,255,.97);border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 10px 30px rgba(15,23,42,.18);padding:11px 13px;font:12px/1.45 Arial,sans-serif;color:#0f172a";
- el.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px"><b style="font-size:12px">🔎 ĐỒNG BỘ – CHẨN ĐOÁN V36.10</b><span style="font-weight:800;color:${diagStatus()==='SYNCED'?'#059669':'#d97706'}">${diagStatus()}</span></div><div>UserID: <b>${diagUser()}</b></div><div>Local Revision: <b>${Number(CLOUD_REVISION||0)}</b></div><div>Cloud Revision: <b>${Number(DIAG_CLOUD_REVISION||0)}</b></div><div>Pull gần nhất: <b>${DIAG_LAST_PULL}</b></div><div>Push gần nhất: <b>${DIAG_LAST_PUSH}</b></div><div>Kết quả: <b>${DIAG_LAST_RESULT}</b></div>${DIAG_LAST_ERROR?`<div style="margin-top:5px;color:#b91c1c;word-break:break-word">Lỗi: ${String(DIAG_LAST_ERROR).replace(/[<>]/g,'')}</div>`:''}`;
+ el.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px"><b style="font-size:12px">🔎 ĐỒNG BỘ – CHẨN ĐOÁN V36.11</b><span style="font-weight:800;color:${diagStatus()==='SYNCED'?'#059669':'#d97706'}">${diagStatus()}</span></div><div>UserID: <b>${diagUser()}</b></div><div>Local Revision: <b>${Number(CLOUD_REVISION||0)}</b></div><div>Cloud Revision: <b>${Number(DIAG_CLOUD_REVISION||0)}</b></div><div>Pull gần nhất: <b>${DIAG_LAST_PULL}</b></div><div>Push gần nhất: <b>${DIAG_LAST_PUSH}</b></div><div>Kết quả: <b>${DIAG_LAST_RESULT}</b></div>${DIAG_LAST_ERROR?`<div style="margin-top:5px;color:#b91c1c;word-break:break-word">Lỗi: ${String(DIAG_LAST_ERROR).replace(/[<>]/g,'')}</div>`:''}`;
 }
 setInterval(renderSyncDiagnostic,1000);
 setTimeout(renderSyncDiagnostic,300);
@@ -2459,8 +2459,23 @@ async function onlineAPI(body){
    const token=body?.token||currentCloudToken();
    const qs=new URLSearchParams({action});if(token)qs.set("token",token);if(action==="pull"){qs.set("_ts",String(Date.now()));qs.set("_rev",String(CLOUD_REVISION||0));}
    const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
-   const txt=await r.text();let x;try{x=JSON.parse(txt)}catch(e){throw new Error("Apps Script không trả JSON hợp lệ")}
-   if(!x.ok){const er=new Error(x.error||x.message||"API_ERROR");er.code=x.error||"API_ERROR";er.payload=x;throw er}
+   const txt=await r.text();let x;
+   try{x=JSON.parse(txt)}
+   catch(e){
+    // publicClasses chỉ là dữ liệu công khai phụ trợ: không được làm hỏng phiên đăng nhập/pull.
+    if(action==="publicClasses"){
+      console.warn("publicClasses trả dữ liệu không phải JSON; bỏ qua và tiếp tục Cloud sync.");
+      return {ok:true,classes:[],skipped:true};
+    }
+    throw new Error("Apps Script không trả JSON hợp lệ");
+   }
+   if(!x.ok){
+    if(action==="publicClasses"){
+      console.warn("publicClasses lỗi; bỏ qua và tiếp tục Cloud sync.",x);
+      return {ok:true,classes:[],skipped:true};
+    }
+    const er=new Error(x.error||x.message||"API_ERROR");er.code=x.error||"API_ERROR";er.payload=x;throw er
+   }
    if(action==="pull"){DIAG_LAST_PULL=diagTime();DIAG_CLOUD_REVISION=Number(x.revision||0);DIAG_LAST_RESULT="PULL OK";DIAG_LAST_ERROR="";renderSyncDiagnostic()}
    return x;
   }
@@ -2470,7 +2485,13 @@ async function onlineAPI(body){
   if(!x.ok){const er=new Error(x.error||x.message||"API_ERROR");er.code=x.error||"API_ERROR";er.payload=x;throw er}
   if(action==="push"){DIAG_LAST_PUSH=diagTime();DIAG_CLOUD_REVISION=Number(x.revision||DIAG_CLOUD_REVISION||0);DIAG_LAST_RESULT="PUSH OK";DIAG_LAST_ERROR="";renderSyncDiagnostic()}
   return x;
- }catch(e){DIAG_LAST_ERROR=String(e.message||e.code||e);DIAG_LAST_RESULT=action.toUpperCase()+" ERROR";renderSyncDiagnostic();if(action==="push"){CLOUD_SYNC_STATE="error";updateCloudSyncChip()}throw e}
+ }catch(e){
+   if(action==="publicClasses"){
+     console.warn("publicClasses không khả dụng; bỏ qua để không chặn đăng nhập/pull.",e);
+     return {ok:true,classes:[],skipped:true};
+   }
+   DIAG_LAST_ERROR=String(e.message||e.code||e);DIAG_LAST_RESULT=action.toUpperCase()+" ERROR";renderSyncDiagnostic();if(action==="push"){CLOUD_SYNC_STATE="error";updateCloudSyncChip()}throw e
+ }
 }
 function cloneSyncValue(v){try{return JSON.parse(JSON.stringify(v))}catch(e){return v}}
 function syncRecordKey(o){if(!o||typeof o!=="object")return "";return String(o.id||o.ID||o.taskId||o.TaskID||o.studentId||o.StudentID||o.examId||o.ExamID||o.date||o.Ngay||"")}
@@ -2550,7 +2571,7 @@ async function recoverBannersFromSheets(){try{const x=await onlineAPI({action:"r
 async function loadPublicClassesFromSheets(){
  try{
   const x=await onlineAPI({action:"publicClasses"});
-  if(!x.ok||!Array.isArray(x.classes))return false;
+  if(!x.ok||!Array.isArray(x.classes)||x.skipped)return false;
   const beforeId=state.currentClassId;
   const local=Array.isArray(state.classes)?state.classes:[];
   x.classes.forEach(pc=>{
@@ -2664,7 +2685,7 @@ async function mainLogin(){
   const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
   const beforeCloudMerge=state;
   if(remote.ok&&remote.data&&typeof remote.data==="object"){
-    // V36.10: Cloud phải được APPLY thật sự trước khi coi đăng nhập hoàn tất.
+    // V36.11: Cloud phải được APPLY thật sự trước khi coi đăng nhập hoàn tất.
     state=mergeRemoteStateSafely(remote.data,beforeCloudMerge,recovered);
     CLOUD_REVISION=Number(remote.revision||0);DIAG_CLOUD_REVISION=CLOUD_REVISION;CLOUD_BASE_STATE=cloneSyncValue(remote.data);CLOUD_DIRTY=false;
     DIAG_LAST_RESULT="LOGIN PULL → APPLIED R"+CLOUD_REVISION;renderSyncDiagnostic();
@@ -6125,7 +6146,7 @@ setupCompactSidebar();
 hideLoginScreen();
 updateAccountUI();updateGuestUI();
 if(AUTHENTICATED&&currentCloudToken()){
- // V36.10 APPLY CLOUD FIX: giữ nguyên Tổng quan V36.8; chỉ thêm bảng quan sát revision/pull/push.
+ // V36.11 APPLY CLOUD FIX: giữ nguyên Tổng quan V36.8; chỉ thêm bảng quan sát revision/pull/push.
  (async()=>{try{
    CLOUD_HYDRATED=false;CLOUD_DIRTY=false;CLOUD_PUSHING=false;clearTimeout(cloudPushTimer);clearInterval(cloudPullTimer);cloudPullTimer=null;
    KEY=teacherDataKey(session.teacherId);
