@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2420,7 +2420,7 @@ const CLOUD_SESSION_KEY="GVCN_CLOUD_SESSION_V35_5";
 let CLOUD_SYNC_STATE="local",CLOUD_SYNC_TIME="",CLOUD_REVISION=0,CLOUD_BASE_STATE=null;
 // V36.6: sau khi đã đăng nhập, Cloud là nguồn chuẩn. Không cho cache cũ tự đẩy ngược lên Cloud trước khi hydrate xong.
 let CLOUD_HYDRATED=false;
-// V36.15 APPLY CLOUD FIX: chỉ quan sát luồng đồng bộ, không thay đổi dữ liệu nghiệp vụ.
+// V36.16 APPLY CLOUD FIX: chỉ quan sát luồng đồng bộ, không thay đổi dữ liệu nghiệp vụ.
 let DIAG_CLOUD_REVISION=0,DIAG_LAST_PULL="—",DIAG_LAST_PUSH="—",DIAG_LAST_RESULT="Khởi động",DIAG_LAST_ERROR="";
 function diagTime(){return new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}
 function diagUser(){const cs=currentCloudSession();return String(cs?.user?.userId||cs?.user?.id||session?.userId||session?.teacherId||"—")}
@@ -2436,7 +2436,7 @@ function renderSyncDiagnostic(){
  let el=document.getElementById("gvcnSyncDiagnostic");
  if(!el){el=document.createElement("div");el.id="gvcnSyncDiagnostic";document.body.appendChild(el)}
  el.style.cssText="position:fixed;right:12px;bottom:12px;z-index:99999;width:300px;max-width:calc(100vw - 24px);background:rgba(255,255,255,.97);border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 10px 30px rgba(15,23,42,.18);padding:11px 13px;font:12px/1.45 Arial,sans-serif;color:#0f172a";
- el.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px"><b style="font-size:12px">🔎 ĐỒNG BỘ – CHẨN ĐOÁN V36.15</b><span style="font-weight:800;color:${diagStatus()==='SYNCED'?'#059669':'#d97706'}">${diagStatus()}</span></div><div>UserID: <b>${diagUser()}</b></div><div>Local Revision: <b>${Number(CLOUD_REVISION||0)}</b></div><div>Cloud Revision: <b>${Number(DIAG_CLOUD_REVISION||0)}</b></div><div>Pull gần nhất: <b>${DIAG_LAST_PULL}</b></div><div>Push gần nhất: <b>${DIAG_LAST_PUSH}</b></div><div>Kết quả: <b>${DIAG_LAST_RESULT}</b></div>${DIAG_LAST_ERROR?`<div style="margin-top:5px;color:#b91c1c;word-break:break-word">Lỗi: ${String(DIAG_LAST_ERROR).replace(/[<>]/g,'')}</div>`:''}`;
+ el.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px"><b style="font-size:12px">🔎 ĐỒNG BỘ – CHẨN ĐOÁN V36.16</b><span style="font-weight:800;color:${diagStatus()==='SYNCED'?'#059669':'#d97706'}">${diagStatus()}</span></div><div>UserID: <b>${diagUser()}</b></div><div>Local Revision: <b>${Number(CLOUD_REVISION||0)}</b></div><div>Cloud Revision: <b>${Number(DIAG_CLOUD_REVISION||0)}</b></div><div>Pull gần nhất: <b>${DIAG_LAST_PULL}</b></div><div>Push gần nhất: <b>${DIAG_LAST_PUSH}</b></div><div>Kết quả: <b>${DIAG_LAST_RESULT}</b></div>${DIAG_LAST_ERROR?`<div style="margin-top:5px;color:#b91c1c;word-break:break-word">Lỗi: ${String(DIAG_LAST_ERROR).replace(/[<>]/g,'')}</div>`:''}`;
 }
 setInterval(renderSyncDiagnostic,1000);
 setTimeout(renderSyncDiagnostic,300);
@@ -2567,11 +2567,11 @@ async function sha256HexClient(value){
  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 async function cloudLogin(username,password){
- // V36.15 FINAL SYNC: xác nhận đúng backend trước khi tạo phiên đăng nhập.
+ // V36.16 FINAL SYNC: xác nhận đúng backend trước khi tạo phiên đăng nhập.
  try{
   const hr=await fetch(GVCN_APPS_SCRIPT_URL+"?action=syncInfo&_ts="+Date.now(),{cache:"no-store",redirect:"follow"});
   const ht=await hr.text();let hi=null;try{hi=JSON.parse(ht)}catch(_){}
-  if(!hi||hi.ok!==true||hi.api!=="V36.15"||hi.chunked!==true){
+  if(!hi||hi.ok!==true||hi.api!=="V36.16"||hi.chunked!==true){
    const er=new Error("BACKEND_VERSION_MISMATCH");er.code="BACKEND_VERSION_MISMATCH";throw er;
   }
  }catch(e){
@@ -2745,14 +2745,29 @@ async function mainLogin(){
   if(err)err.textContent="";hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${session.name}`);
   CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
 
-  const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
+  // V36.16: PULL là bước bắt buộc và không còn chờ recoverBanners.
+  // Trước đây Promise.all có thể treo toàn bộ đăng nhập nếu endpoint banner chậm/không phản hồi.
+  const remote=await onlineAPI({action:"pull"});
   const beforeCloudMerge=state;
+  let recovered=[];
   if(remote.ok&&remote.data&&typeof remote.data==="object"){
-    // V36.15: Cloud phải được APPLY thật sự trước khi coi đăng nhập hoàn tất.
-    state=mergeRemoteStateSafely(remote.data,beforeCloudMerge,recovered);
+    state=mergeRemoteStateSafely(remote.data,beforeCloudMerge,[]);
     CLOUD_REVISION=Number(remote.revision||0);DIAG_CLOUD_REVISION=CLOUD_REVISION;CLOUD_BASE_STATE=cloneSyncValue(remote.data);CLOUD_DIRTY=false;
-    DIAG_LAST_RESULT="LOGIN PULL → APPLIED R"+CLOUD_REVISION;renderSyncDiagnostic();
-  } else state=mergeRemoteStateSafely(beforeCloudMerge,beforeCloudMerge,recovered);
+    DIAG_LAST_RESULT="LOGIN PULL → APPLIED R"+CLOUD_REVISION;DIAG_LAST_ERROR="";renderSyncDiagnostic();
+  }else{
+    // Cloud chưa có state: hydrate từ dữ liệu local hiện có và cho phép watchdog tạo Revision đầu tiên.
+    CLOUD_REVISION=Number(remote.revision||0);DIAG_CLOUD_REVISION=CLOUD_REVISION;
+    CLOUD_BASE_STATE={};CLOUD_DIRTY=false;
+    DIAG_LAST_RESULT="LOGIN PULL EMPTY → READY";DIAG_LAST_ERROR="";renderSyncDiagnostic();
+  }
+  // Banner recovery chỉ là tác vụ phụ; timeout nhanh và tuyệt đối không chặn đăng nhập/sync.
+  try{
+    recovered=await Promise.race([
+      recoverBannersFromSheets(),
+      new Promise(resolve=>setTimeout(()=>resolve([]),1500))
+    ]);
+    if(Array.isArray(recovered)&&recovered.length)state=mergeRemoteStateSafely(state,state,recovered);
+  }catch(_){recovered=[];}
 
   // Giữ đúng lớp người dùng đang xem trước khi đăng nhập nếu lớp đó vẫn tồn tại.
   if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
@@ -2760,12 +2775,12 @@ async function mainLogin(){
   CLOUD_HYDRATED=true;
   renderClassSelect();refreshCurrentView();
 
-  // Nếu Cloud đang thiếu banner nhưng ta vừa cứu được banner local, ghi state đã ghép trở lại Sheets.
-  const remoteClasses=Array.isArray(remote?.data?.classes)?remote.data.classes:[];
-  const restoredBanner=Array.isArray(state.classes)&&state.classes.some(c=>validBanner(c.cover)&&!validBanner(remoteClasses.find(r=>String(r.id)===String(c.id)||String(r.name)===String(c.name))?.cover));
-  if(restoredBanner){try{await pushStateWithRevision(state)}catch(e){console.warn("Không thể ghi banner đã khôi phục lên Google Sheets",e)}}
-
+  // Banner Base64 không còn được PUSH vào AppState; tránh vượt giới hạn ô Google Sheets.
   CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();startCloudLiveSync();
+  if(!remote.data){
+    DIAG_LAST_RESULT="CLOUD EMPTY → INITIAL PUSH QUEUED";renderSyncDiagnostic();
+    scheduleOnlinePush();
+  }
   // Chốt lại sau khi UI dựng xong để không có luồng khởi tạo cũ giữ revision 0.
   setTimeout(()=>forceCloudReconcile("POST LOGIN 1"),600);
   setTimeout(()=>forceCloudReconcile("POST LOGIN 2"),1800);
@@ -2930,7 +2945,7 @@ function startCloudLiveSync(){
  startCloudMutationWatchdog();
 }
 
-// V36.15: watchdog bắt mọi thay đổi nghiệp vụ, kể cả các nút/handler cũ quên gọi save().
+// V36.16: watchdog bắt mọi thay đổi nghiệp vụ, kể cả các nút/handler cũ quên gọi save().
 // So sánh STATE đang chạy với snapshot Cloud gần nhất; không dựa vào sự kiện UI riêng lẻ.
 function cloudBusinessFingerprint(v){
  try{
@@ -6246,7 +6261,7 @@ setupCompactSidebar();
 hideLoginScreen();
 updateAccountUI();updateGuestUI();
 if(AUTHENTICATED&&currentCloudToken()){
- // V36.15 APPLY CLOUD FIX: giữ nguyên Tổng quan V36.8; chỉ thêm bảng quan sát revision/pull/push.
+ // V36.16 APPLY CLOUD FIX: giữ nguyên Tổng quan V36.8; chỉ thêm bảng quan sát revision/pull/push.
  (async()=>{try{
    CLOUD_HYDRATED=false;CLOUD_DIRTY=false;CLOUD_PUSHING=false;clearTimeout(cloudPushTimer);clearInterval(cloudPullTimer);cloudPullTimer=null;
    KEY=teacherDataKey(session.teacherId);
