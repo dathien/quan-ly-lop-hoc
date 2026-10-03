@@ -2432,14 +2432,12 @@ function diagStatus(){
  if(Number(DIAG_CLOUD_REVISION)===Number(CLOUD_REVISION))return "SYNCED";
  return "LOCAL NEWER";
 }
+// Production: giữ toàn bộ biến/trạng thái chẩn đoán cho engine đồng bộ,
+// nhưng không render bảng chẩn đoán kỹ thuật ra giao diện người dùng.
 function renderSyncDiagnostic(){
- let el=document.getElementById("gvcnSyncDiagnostic");
- if(!el){el=document.createElement("div");el.id="gvcnSyncDiagnostic";document.body.appendChild(el)}
- el.style.cssText="position:fixed;right:12px;bottom:12px;z-index:99999;width:300px;max-width:calc(100vw - 24px);background:rgba(255,255,255,.97);border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 10px 30px rgba(15,23,42,.18);padding:11px 13px;font:12px/1.45 Arial,sans-serif;color:#0f172a";
- el.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:7px"><b style="font-size:12px">🔎 ĐỒNG BỘ – CHẨN ĐOÁN V36.17</b><span style="font-weight:800;color:${diagStatus()==='SYNCED'?'#059669':'#d97706'}">${diagStatus()}</span></div><div>UserID: <b>${diagUser()}</b></div><div>Local Revision: <b>${Number(CLOUD_REVISION||0)}</b></div><div>Cloud Revision: <b>${Number(DIAG_CLOUD_REVISION||0)}</b></div><div>Pull gần nhất: <b>${DIAG_LAST_PULL}</b></div><div>Push gần nhất: <b>${DIAG_LAST_PUSH}</b></div><div>Kết quả: <b>${DIAG_LAST_RESULT}</b></div>${DIAG_LAST_ERROR?`<div style="margin-top:5px;color:#b91c1c;word-break:break-word">Lỗi: ${String(DIAG_LAST_ERROR).replace(/[<>]/g,'')}</div>`:''}`;
+ const el=document.getElementById("gvcnSyncDiagnostic");
+ if(el)el.remove();
 }
-setInterval(renderSyncDiagnostic,1000);
-setTimeout(renderSyncDiagnostic,300);
 function currentCloudSession(){try{return JSON.parse(sessionStorage.getItem(CLOUD_SESSION_KEY)||"{}")||{}}catch(e){return {}}}
 function currentCloudToken(){return currentCloudSession().token||""}
 function setCloudSession(x){sessionStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify({token:x.token,expiresAt:x.expiresAt,user:x.user||{}}))}
