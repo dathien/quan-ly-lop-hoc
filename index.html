@@ -2418,6 +2418,7 @@ function isTeacherAccount(){return session.role==="Giáo viên" || !!session?.is
 const GVCN_APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbyWvkLnEt1YhPZMNN96hiKRcy35zXz8u2UKHYHTv3fAl-R0QUL0chgjyhlkDRYjyxca/exec";
 const CLOUD_SESSION_KEY="GVCN_CLOUD_SESSION_V35_5";
 let CLOUD_SYNC_STATE="local",CLOUD_SYNC_TIME="",CLOUD_REVISION=0,CLOUD_BASE_STATE=null;
+// V36.7: Cloud-first + pull bằng POST chống cache giữa nhiều trình duyệt.
 // V36.6: sau khi đã đăng nhập, Cloud là nguồn chuẩn. Không cho cache cũ tự đẩy ngược lên Cloud trước khi hydrate xong.
 let CLOUD_HYDRATED=false;
 function currentCloudSession(){try{return JSON.parse(sessionStorage.getItem(CLOUD_SESSION_KEY)||"{}")||{}}catch(e){return {}}}
@@ -2435,14 +2436,16 @@ function updateCloudSyncChip(){
 async function onlineAPI(body){
  const action=String(body?.action||"");
  try{
-  if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicClasses"){
+  if(action==="health"||action==="bootstrap"||action==="recoverBanners"||action==="publicClasses"){
    const token=body?.token||currentCloudToken();
-   const qs=new URLSearchParams({action});if(token)qs.set("token",token);
+   const qs=new URLSearchParams({action,_ts:String(Date.now())});if(token)qs.set("token",token);
    const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
    const txt=await r.text();let x;try{x=JSON.parse(txt)}catch(e){throw new Error("Apps Script không trả JSON hợp lệ")}
    if(!x.ok){const er=new Error(x.error||x.message||"API_ERROR");er.code=x.error||"API_ERROR";er.payload=x;throw er}return x;
   }
   const payload={...body};if(action!=="login"&&!payload.token)payload.token=currentCloudToken();
+  // V36.7: pull dùng POST để tránh mọi lớp cache GET/CDN của Apps Script.
+  if(action==="pull")payload._ts=Date.now();
   const r=await fetch(GVCN_APPS_SCRIPT_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),redirect:"follow"});
   const txt=await r.text();let x;try{x=JSON.parse(txt)}catch(e){throw new Error("Apps Script không trả JSON hợp lệ")}
   if(!x.ok){const er=new Error(x.error||x.message||"API_ERROR");er.code=x.error||"API_ERROR";er.payload=x;throw er}return x;
