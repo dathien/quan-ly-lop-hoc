@@ -2622,11 +2622,12 @@ async function mainLogin(){
   const restoredBanner=Array.isArray(state.classes)&&state.classes.some(c=>validBanner(c.cover)&&!validBanner(remoteClasses.find(r=>String(r.id)===String(c.id)||String(r.name)===String(c.name))?.cover));
   if(restoredBanner){try{await pushStateWithRevision(state)}catch(e){console.warn("Không thể ghi banner đã khôi phục lên Google Sheets",e)}}
 
-  CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
+  CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();startCloudLiveSync();
  }catch(e){clearCloudSession();if(err)err.textContent=(e.message==="LOGIN_FAILED"?"Sai tài khoản hoặc mật khẩu.":e.message)||"Không thể đăng nhập"}
  finally{if(btn){btn.disabled=false;btn.textContent="Đăng nhập"}}
 }
 async function logoutGVCN(){
+ clearInterval(cloudPullTimer);cloudPullTimer=null;CLOUD_DIRTY=false;CLOUD_PUSHING=false;
  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
  try{await onlineAPI({action:"logout"})}catch(e){}
  clearCloudSession();sessionStorage.removeItem(SESSION_KEY);
@@ -2763,11 +2764,48 @@ function loadState(){try{
   if(session.teacherId==="teacher-thien")ensureDemoClassData(s);
   return s
 }catch(e){return ensureDemoClassData(seed())}}
-let cloudPushTimer=null;
+let cloudPushTimer=null,cloudPullTimer=null,CLOUD_PUSHING=false,CLOUD_DIRTY=false;
+async function pullLatestCloudState({silent=true}={}){
+ if(!AUTHENTICATED||!currentCloudToken()||CLOUD_PUSHING||CLOUD_DIRTY)return false;
+ try{
+  const x=await onlineAPI({action:"pull"});
+  const rr=Number(x.revision||0);
+  if(x.data&&typeof x.data==="object"&&rr>CLOUD_REVISION){
+   CLOUD_REVISION=rr;CLOUD_BASE_STATE=cloneSyncValue(x.data);
+   state=mergeRemoteStateSafely(x.data,state,[]);
+   try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
+   renderClassSelect();refreshCurrentView();
+   CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
+   if(!silent)toast("Đã nhận dữ liệu mới từ thiết bị khác");
+   return true;
+  }
+ }catch(e){console.warn("Auto pull:",e)}
+ return false;
+}
+function startCloudLiveSync(){
+ clearInterval(cloudPullTimer);
+ cloudPullTimer=setInterval(()=>pullLatestCloudState({silent:true}),4000);
+}
 function scheduleOnlinePush(){
  if(!AUTHENTICATED||!currentCloudToken()){CLOUD_SYNC_STATE="local";updateCloudSyncChip();return}
- clearTimeout(cloudPushTimer);CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
- cloudPushTimer=setTimeout(async()=>{try{const x=await pushStateWithRevision(state);CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});state.sync={...(state.sync||{}),lastSync:x.syncedAt||new Date().toISOString()};localStorage.setItem(KEY,JSON.stringify(state));updateCloudSyncChip()}catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip()}},700)
+ clearTimeout(cloudPushTimer);CLOUD_DIRTY=true;CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
+ cloudPushTimer=setTimeout(async()=>{
+  CLOUD_PUSHING=true;
+  try{
+   const x=await pushStateWithRevision(cloneSyncValue(state));
+   CLOUD_REVISION=Number(x.revision||CLOUD_REVISION);
+   CLOUD_BASE_STATE=cloneSyncValue(state);CLOUD_DIRTY=false;
+   // Xác nhận server đã thật sự nhận bản ghi vừa lưu.
+   const verify=await onlineAPI({action:"pull"});
+   if(Number(verify.revision||0)<CLOUD_REVISION)throw new Error("CLOUD_VERIFY_FAILED");
+   if(verify.data&&typeof verify.data==="object"){CLOUD_REVISION=Number(verify.revision||CLOUD_REVISION);CLOUD_BASE_STATE=cloneSyncValue(verify.data);state=mergeRemoteStateSafely(verify.data,state,[])}
+   CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});
+   state.sync={...(state.sync||{}),lastSync:x.syncedAt||new Date().toISOString()};
+   try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
+   renderClassSelect();refreshCurrentView();updateCloudSyncChip();
+  }catch(e){CLOUD_SYNC_STATE="error";CLOUD_DIRTY=true;updateCloudSyncChip();console.error("Cloud push failed",e);toast("Chưa lưu được lên Google Sheets: "+(e.message||e.code||"Lỗi đồng bộ"))}
+  finally{CLOUD_PUSHING=false}
+ },700)
 }
 function save(msg="Đã lưu"){if(!isGuestMode()&&!isFullAccessAccount()&&currentRolePolicy()&&!canRoleEditPage()){toast(rolePermissionMessage());refreshCurrentView();return false}try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){console.warn("LocalStorage:",e)}log(msg);renderClassSelect();scheduleOnlinePush();if(msg) toast(msg);return true}
 function log(action){state.logs=state.logs||[];state.logs.unshift({id:uid(),at:new Date().toISOString(),action});state.logs=state.logs.slice(0,500)}
