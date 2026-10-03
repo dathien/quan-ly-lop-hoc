@@ -2768,7 +2768,7 @@ const titles={
  seats:["Chỗ ngồi","Sơ đồ chỗ ngồi theo lớp"],timetable:["Thời khóa biểu","Lịch học trong tuần"],scores:["Bảng điểm","Theo dõi điểm theo môn"],
  discipline:["Thi đua/nề nếp","Điểm danh, vi phạm và điểm nề nếp"],duty:["Trực nhật","Phân công và theo dõi trực nhật"],weekly:["Kế hoạch tuần","Lập kế hoạch và theo dõi công việc"],tasks:["Công việc","Theo dõi nhiệm vụ và hạn cần nhớ"],
  finance:["Thu – chi","Quản lý các khoản thu và chi"],reports:["Báo cáo","Tổng hợp dữ liệu lớp"],comments:["Nhận xét học sinh","Ghi nhận xét theo từng học sinh"],
- parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],teachers:["Giáo viên","Quản trị tài khoản giáo viên và không gian lớp"],demo:["Demo / Đào tạo","Một tài khoản Demo duy nhất cho từng buổi giới thiệu"],members:["Thành viên","Thiết lập tài khoản hỗ trợ · V36"],activity:["Lịch sử","Nhật ký hoạt động"],
+ parentcomms:["Giao tiếp PHHS","Chọn mẫu, chỉnh sửa và lưu tin nhắn phụ huynh"],situations:["Tình huống chủ nhiệm","Chọn tình huống, tham khảo quy trình xử lý và lưu phương án"],companion:["Đồng hành học sinh","Theo dõi mục tiêu hỗ trợ, tiến triển và lịch đồng hành"],career:["Hướng nghiệp","Ghi nhận định hướng, sở thích và kế hoạch nghề nghiệp"],race:["Đường đua bứt phá","Mỗi học sinh là một xe – cùng bứt phá về đích"],teachers:["Giáo viên","Quản trị tài khoản giáo viên và không gian lớp"],demo:["Demo / Đào tạo","Một tài khoản Demo duy nhất cho từng buổi giới thiệu"],members:["Thành viên","Thiết lập tài khoản hỗ trợ · V36.3"],activity:["Lịch sử","Nhật ký hoạt động"],
  data:["Dữ liệu & Sao lưu","Sao lưu và đồng bộ dữ liệu"]
 };
 
@@ -2784,6 +2784,15 @@ function currentRolePolicy(){return ROLE_POLICY[normalizedRole()]||null}
 function canRoleViewPage(p){const q=currentRolePolicy();return !q||q.view.includes(p)}
 function canRoleEditPage(p=page){if(isFullAccessAccount())return true;const q=currentRolePolicy();return !!q&&q.edit.includes(p)}
 function rolePermissionMessage(){const r=session?.role||"Tài khoản";return `${r} chỉ được cập nhật đúng khu vực đã được GVCN phân công`}
+function memberNoDeleteGuard(){
+ if(isGuestMode()||isFullAccessAccount()||!currentRolePolicy())return;
+ document.querySelectorAll("button").forEach(btn=>{
+   const t=(btn.textContent||"").trim().toLowerCase();
+   if(t==="xóa"||t.startsWith("🗑")||t.includes(" xóa")){
+     btn.disabled=true;btn.title="Tài khoản thành viên không có quyền xóa";btn.style.opacity=".45";btn.style.cursor="not-allowed";
+   }
+ });
+}
 function isGuestMode(){return !AUTHENTICATED}
 function requireLoginToEdit(){
  if(!isGuestMode())return true;
@@ -6293,6 +6302,11 @@ function seatDrop(e){
   localStorage.setItem(KEY,JSON.stringify(state));log("Đã đổi chỗ ngồi");renderSeats();toast("Đã cập nhật chỗ ngồi");
 }
 
+
+// V36.3: khóa nút Xóa cho mọi tài khoản thành viên, kể cả nội dung render động.
+const __memberNoDeleteObserver=new MutationObserver(()=>memberNoDeleteGuard());
+__memberNoDeleteObserver.observe(document.body,{childList:true,subtree:true});
+setTimeout(memberNoDeleteGuard,0);
 </script>
 
 </body>
