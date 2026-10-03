@@ -2418,6 +2418,8 @@ function isTeacherAccount(){return session.role==="Giáo viên" || !!session?.is
 const GVCN_APPS_SCRIPT_URL="https://script.google.com/macros/s/AKfycbyWvkLnEt1YhPZMNN96hiKRcy35zXz8u2UKHYHTv3fAl-R0QUL0chgjyhlkDRYjyxca/exec";
 const CLOUD_SESSION_KEY="GVCN_CLOUD_SESSION_V35_5";
 let CLOUD_SYNC_STATE="local",CLOUD_SYNC_TIME="",CLOUD_REVISION=0,CLOUD_BASE_STATE=null;
+// V36.6: sau khi đã đăng nhập, Cloud là nguồn chuẩn. Không cho cache cũ tự đẩy ngược lên Cloud trước khi hydrate xong.
+let CLOUD_HYDRATED=false;
 function currentCloudSession(){try{return JSON.parse(sessionStorage.getItem(CLOUD_SESSION_KEY)||"{}")||{}}catch(e){return {}}}
 function currentCloudToken(){return currentCloudSession().token||""}
 function setCloudSession(x){sessionStorage.setItem(CLOUD_SESSION_KEY,JSON.stringify({token:x.token,expiresAt:x.expiresAt,user:x.user||{}}))}
@@ -2461,6 +2463,12 @@ function threeWayStateMerge(base,local,remote){
  const out={};const keys=new Set([...Object.keys(base||{}),...Object.keys(remote||{}),...Object.keys(local||{})]);
  keys.forEach(k=>{const b=base?.[k],l=local?.[k],r=remote?.[k];if(Array.isArray(b)&&Array.isArray(l)&&Array.isArray(r))out[k]=threeWayArrayMerge(b,l,r);else out[k]=(JSON.stringify(l)!==JSON.stringify(b))?cloneSyncValue(l):cloneSyncValue(r)});
  return mergeRemoteStateSafely(out,out,collectLocalBannerCandidates());
+}
+function applyCloudAuthoritative(remote,recovered=[]){
+ // Chỉ bảo tồn banner ảnh nếu Cloud thiếu; toàn bộ dữ liệu nghiệp vụ lấy từ Cloud.
+ if(!remote||typeof remote!=="object")return state;
+ const localBannerShell={classes:Array.isArray(state?.classes)?state.classes:[]};
+ return mergeRemoteStateSafely(remote,localBannerShell,recovered);
 }
 async function pushStateWithRevision(localState){
  try{
@@ -2615,6 +2623,7 @@ async function mainLogin(){
   // Giữ đúng lớp người dùng đang xem trước khi đăng nhập nếu lớp đó vẫn tồn tại.
   if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
   try{localStorage.setItem(KEY,JSON.stringify(state))}catch(storageErr){console.warn("Không đủ LocalStorage để lưu bản local sau pull; giữ dữ liệu trong RAM/Google Sheets.",storageErr)}
+  CLOUD_HYDRATED=true;
   renderClassSelect();refreshCurrentView();
 
   // Nếu Cloud đang thiếu banner nhưng ta vừa cứu được banner local, ghi state đã ghép trở lại Sheets.
@@ -2627,7 +2636,7 @@ async function mainLogin(){
  finally{if(btn){btn.disabled=false;btn.textContent="Đăng nhập"}}
 }
 async function logoutGVCN(){
- clearInterval(cloudPullTimer);cloudPullTimer=null;CLOUD_DIRTY=false;CLOUD_PUSHING=false;
+ clearInterval(cloudPullTimer);cloudPullTimer=null;CLOUD_DIRTY=false;CLOUD_PUSHING=false;CLOUD_HYDRATED=false;
  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
  try{await onlineAPI({action:"logout"})}catch(e){}
  clearCloudSession();sessionStorage.removeItem(SESSION_KEY);
@@ -2772,7 +2781,7 @@ async function pullLatestCloudState({silent=true}={}){
   const rr=Number(x.revision||0);
   if(x.data&&typeof x.data==="object"&&rr>CLOUD_REVISION){
    CLOUD_REVISION=rr;CLOUD_BASE_STATE=cloneSyncValue(x.data);
-   state=mergeRemoteStateSafely(x.data,state,[]);
+   state=applyCloudAuthoritative(x.data,[]);
    try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
    renderClassSelect();refreshCurrentView();
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
@@ -2788,6 +2797,7 @@ function startCloudLiveSync(){
 }
 function scheduleOnlinePush(){
  if(!AUTHENTICATED||!currentCloudToken()){CLOUD_SYNC_STATE="local";updateCloudSyncChip();return}
+ if(!CLOUD_HYDRATED){console.warn("Bỏ qua cloud push trước khi hydrate Cloud hoàn tất");return}
  clearTimeout(cloudPushTimer);CLOUD_DIRTY=true;CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
  cloudPushTimer=setTimeout(async()=>{
   CLOUD_PUSHING=true;
@@ -2798,7 +2808,7 @@ function scheduleOnlinePush(){
    // Xác nhận server đã thật sự nhận bản ghi vừa lưu.
    const verify=await onlineAPI({action:"pull"});
    if(Number(verify.revision||0)<CLOUD_REVISION)throw new Error("CLOUD_VERIFY_FAILED");
-   if(verify.data&&typeof verify.data==="object"){CLOUD_REVISION=Number(verify.revision||CLOUD_REVISION);CLOUD_BASE_STATE=cloneSyncValue(verify.data);state=mergeRemoteStateSafely(verify.data,state,[])}
+   if(verify.data&&typeof verify.data==="object"){CLOUD_REVISION=Number(verify.revision||CLOUD_REVISION);CLOUD_BASE_STATE=cloneSyncValue(verify.data);state=applyCloudAuthoritative(verify.data,[])}
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});
    state.sync={...(state.sync||{}),lastSync:x.syncedAt||new Date().toISOString()};
    try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
@@ -6064,19 +6074,35 @@ function downloadCSV(rows,name){const csv=rows.map(r=>r.map(v=>`"${String(v??"")
 
 setupCompactSidebar();
 hideLoginScreen();
-updateAccountUI();updateGuestUI();renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");
+updateAccountUI();updateGuestUI();
 if(AUTHENTICATED&&currentCloudToken()){
+ // V36.6: KHÔNG render/push state cache cũ trước khi pull Cloud.
  (async()=>{try{
-   KEY=teacherDataKey(session.teacherId);state=loadState();hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();refreshCurrentView();
-   backupStateBeforeCloud("restore_session");CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
+   CLOUD_HYDRATED=false;CLOUD_DIRTY=false;CLOUD_PUSHING=false;clearTimeout(cloudPushTimer);clearInterval(cloudPullTimer);cloudPullTimer=null;
+   KEY=teacherDataKey(session.teacherId);
+   backupStateBeforeCloud("restore_session_cache_only");CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
    const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
-   if(remote.ok&&remote.data){CLOUD_REVISION=Number(remote.revision||0);CLOUD_BASE_STATE=cloneSyncValue(remote.data);state=mergeRemoteStateSafely(remote.data,state,recovered);localStorage.setItem(KEY,JSON.stringify(state));renderClassSelect();refreshCurrentView()}
+   if(remote.ok&&remote.data){
+     CLOUD_REVISION=Number(remote.revision||0);CLOUD_BASE_STATE=cloneSyncValue(remote.data);
+     state=applyCloudAuthoritative(remote.data,recovered);
+     try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){console.warn("Không lưu được cache Cloud",e)}
+   }else{
+     // Chỉ fallback local nếu Cloud thực sự chưa có AppState.
+     state=loadState();CLOUD_REVISION=Number(remote.revision||0);CLOUD_BASE_STATE=cloneSyncValue(state);
+   }
+   CLOUD_HYDRATED=true;
+   hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
-  }catch(e){CLOUD_SYNC_STATE="error";updateCloudSyncChip();hideLoginScreen();updateGuestUI()}})();
+   startCloudLiveSync();
+  }catch(e){
+   CLOUD_HYDRATED=false;CLOUD_SYNC_STATE="error";updateCloudSyncChip();
+   // Không tự dùng cache cũ để ghi lên Cloud. Chỉ hiển thị fallback đọc nếu mất kết nối.
+   state=loadState();renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");hideLoginScreen();updateGuestUI();
+   console.error("Cloud hydrate failed",e);toast("Chưa tải được dữ liệu Google Sheets. App đang ở chế độ chỉ đọc cache; hãy kiểm tra kết nối.");
+  }})();
 }else{
- AUTHENTICATED=false;hideLoginScreen();updateGuestUI();
- // Chế độ công khai: lấy metadata + banner lớp từ Google Sheets, không cần đăng nhập.
- // Chỉ endpoint publicClasses được phép trả dữ liệu công khai; không tải hồ sơ HS/tài khoản.
+ AUTHENTICATED=false;CLOUD_HYDRATED=false;renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");hideLoginScreen();updateGuestUI();
+ // Chế độ công khai chỉ lấy metadata + banner lớp.
  loadPublicClassesFromSheets();
 }
 </script>
