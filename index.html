@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2995,14 +2995,27 @@ function scheduleOnlinePush(){
    const x=await pushStateWithRevision(cloneSyncValue(state));
    CLOUD_REVISION=Number(x.revision||CLOUD_REVISION);
    CLOUD_BASE_STATE=cloneSyncValue(state);CLOUD_DIRTY=false;
-   // Xác nhận server đã thật sự nhận bản ghi vừa lưu.
-   const verify=await onlineAPI({action:"pull"});
-   if(Number(verify.revision||0)<CLOUD_REVISION)throw new Error("CLOUD_VERIFY_FAILED");
-   if(verify.data&&typeof verify.data==="object"){CLOUD_REVISION=Number(verify.revision||CLOUD_REVISION);CLOUD_BASE_STATE=cloneSyncValue(verify.data);state=applyCloudAuthoritative(verify.data,[])}
+   // V36.21: Apps Script/Sheets có thể trả PULL cũ trong vài giây ngay sau PUSH.
+   // PUSH đã ok thì không báo lỗi giả; thử xác nhận lại tối đa 3 lần.
+   let verify=null;
+   for(let attempt=0;attempt<3;attempt++){
+     if(attempt)await new Promise(r=>setTimeout(r,700*(attempt+1)));
+     try{verify=await onlineAPI({action:"pull"})}catch(_){verify=null}
+     if(verify&&Number(verify.revision||0)>=CLOUD_REVISION)break;
+   }
+   if(verify&&Number(verify.revision||0)>=CLOUD_REVISION&&verify.data&&typeof verify.data==="object"){
+     CLOUD_REVISION=Number(verify.revision||CLOUD_REVISION);
+     CLOUD_BASE_STATE=cloneSyncValue(verify.data);
+     state=applyCloudAuthoritative(verify.data,[]);
+     DIAG_LAST_RESULT="PUSH VERIFIED → R"+CLOUD_REVISION;
+   }else{
+     // Response PUSH đã xác nhận ghi thành công; để AUTO PULL xác nhận snapshot sau.
+     DIAG_LAST_RESULT="PUSH OK → WAIT AUTO PULL R"+CLOUD_REVISION;
+   }
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});
    state.sync={...(state.sync||{}),lastSync:x.syncedAt||new Date().toISOString()};
    try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
-   DIAG_CLOUD_REVISION=Number(CLOUD_REVISION||0);DIAG_LAST_PUSH=diagTime();DIAG_LAST_RESULT="PUSH VERIFIED → R"+CLOUD_REVISION;DIAG_LAST_ERROR="";renderSyncDiagnostic();
+   DIAG_CLOUD_REVISION=Number(CLOUD_REVISION||0);DIAG_LAST_PUSH=diagTime();DIAG_LAST_ERROR="";renderSyncDiagnostic();
    renderClassSelect();refreshCurrentView();updateCloudSyncChip();
   }catch(e){CLOUD_SYNC_STATE="error";CLOUD_DIRTY=true;updateCloudSyncChip();console.error("Cloud push failed",e);toast("Chưa lưu được lên Google Sheets: "+(e.message||e.code||"Lỗi đồng bộ"))}
   finally{CLOUD_PUSHING=false}
