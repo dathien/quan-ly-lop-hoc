@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2560,10 +2560,19 @@ function threeWayStateMerge(base,local,remote){
  return mergeRemoteStateSafely(out,out,collectLocalBannerCandidates());
 }
 function applyCloudAuthoritative(remote,recovered=[]){
- // Chỉ bảo tồn banner ảnh nếu Cloud thiếu; toàn bộ dữ liệu nghiệp vụ lấy từ Cloud.
+ // V36.33: currentClassId là trạng thái giao diện cục bộ, không để Cloud ép người dùng quay lại lớp vừa đồng bộ.
+ // Thành viên vẫn bị khóa đúng classId bởi renderClassSelect(); GVCN được giữ lớp đang chọn khi PULL/AUTO PULL.
  if(!remote||typeof remote!=="object")return state;
+ const localClassId=String(state?.currentClassId||"");
  const localBannerShell={classes:Array.isArray(state?.classes)?state.classes:[]};
- return mergeRemoteStateSafely(remote,localBannerShell,recovered);
+ const merged=mergeRemoteStateSafely(remote,localBannerShell,recovered);
+ const memberClass=(!isFullAccessAccount()&&currentRolePolicy())?String(session?.classId||""):"";
+ if(memberClass){
+   if((merged.classes||[]).some(c=>String(c.id)===memberClass))merged.currentClassId=memberClass;
+ }else if(localClassId&&(merged.classes||[]).some(c=>String(c.id)===localClassId)){
+   merged.currentClassId=localClassId;
+ }
+ return merged;
 }
 function applyPulledCloudSnapshot(snapshot,{recovered=[],force=false,reason="PULL"}={}){
  if(!snapshot||snapshot.ok!==true||!snapshot.data||typeof snapshot.data!=="object")return false;
@@ -3158,6 +3167,7 @@ function runDemoScores1112MigrationIfNeeded(){
 
 
 
+// V36.33: giữ lớp GVCN đang chọn qua PULL/AUTO PULL.
 // V36.32: FORCE REPAIR dữ liệu DEMO Thi đua/Nề nếp cho lớp 11 và 12A4.
 // Chỉ phục vụ kiểm thử; có thể thay bằng dữ liệu thật sau này.
 function migrateDemoDiscipline1112_20261004(){
