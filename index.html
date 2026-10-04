@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -3167,13 +3167,14 @@ function runDemoScores1112MigrationIfNeeded(){
 
 
 
+// V36.34: phục hồi bền vững dữ liệu DEMO thi đua 11/12 sau khi V36.33 sửa chuyển lớp.
 // V36.33: giữ lớp GVCN đang chọn qua PULL/AUTO PULL.
 // V36.32: FORCE REPAIR dữ liệu DEMO Thi đua/Nề nếp cho lớp 11 và 12A4.
 // Chỉ phục vụ kiểm thử; có thể thay bằng dữ liệu thật sau này.
 function migrateDemoDiscipline1112_20261004(){
  if(!isFullAccessAccount()||!state)return false;
  state._migrations=state._migrations||{};
- if(state._migrations.demoDiscipline1112_fix20261004)return false;
+ if(state._migrations.demoDiscipline1112_fix2_20261004)return false;
  ["attendance","incidents","positive","duty"].forEach(k=>{if(!Array.isArray(state[k]))state[k]=[]});
  const dates=["2026-09-28","2026-09-29","2026-09-30","2026-10-01","2026-10-02","2026-10-03"];
  ["c1","c3"].forEach((classId,ci)=>{
@@ -3215,9 +3216,9 @@ function migrateDemoDiscipline1112_20261004(){
    for(let i=0;i<4;i++)state.duty.push({id:`demotd${classId}du${i+1}`,classId,date:dates[Math.min(i+1,dates.length-1)],assignee:`Tổ ${i+1}`,task:"Vệ sinh lớp học, lau bảng và sắp xếp bàn ghế",done:i!==2,status:i===0?"Xuất sắc":i===2?"Chưa hoàn thành":"Hoàn thành",demo:true});
    const cls=(state.classes||[]).find(x=>String(x.id)===classId);if(cls)cls.demoDisciplineData=true;
  });
- state._migrations.demoDiscipline1112_fix20261004=true;
+ state._migrations.demoDiscipline1112_fix2_20261004=true;
  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
- DIAG_LAST_RESULT="DEMO THI ĐUA 11 + 12A4 → FORCE REPAIRED";DIAG_LAST_ERROR="";renderSyncDiagnostic();
+ DIAG_LAST_RESULT="DEMO THI ĐUA 11 + 12A4 → PERSIST REPAIRED";DIAG_LAST_ERROR="";renderSyncDiagnostic();
  return true;
 }
 function runDemoDiscipline1112MigrationIfNeeded(){
