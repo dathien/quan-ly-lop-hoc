@@ -2581,7 +2581,7 @@ function updateCloudSyncChip(){
 async function onlineAPI(body){
  const action=String(body?.action||"");
  try{
-  if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicClasses"||action==="publicState"){
+  if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicBanners"||action==="publicClasses"||action==="publicState"||action==="publicBanners"){
    const token=body?.token||currentCloudToken();
    const qs=new URLSearchParams({action});if(token)qs.set("token",token);if(action==="pull"){qs.set("_ts",String(Date.now()));qs.set("_rev",String(CLOUD_REVISION||0));}
    const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
@@ -2589,14 +2589,14 @@ async function onlineAPI(body){
    try{x=JSON.parse(txt)}
    catch(e){
     // publicClasses chỉ là dữ liệu công khai phụ trợ: không được làm hỏng phiên đăng nhập/pull.
-    if(action==="publicClasses"||action==="publicState"){
+    if(action==="publicClasses"||action==="publicState"||action==="publicBanners"){
       console.warn("publicClasses trả dữ liệu không phải JSON; bỏ qua và tiếp tục Cloud sync.");
       return {ok:true,classes:[],skipped:true};
     }
     throw new Error("Apps Script không trả JSON hợp lệ");
    }
    if(!x.ok){
-    if(action==="publicClasses"||action==="publicState"){
+    if(action==="publicClasses"||action==="publicState"||action==="publicBanners"){
       console.warn("publicClasses lỗi; bỏ qua và tiếp tục Cloud sync.",x);
       return {ok:true,classes:[],skipped:true};
     }
@@ -2612,7 +2612,7 @@ async function onlineAPI(body){
   if(action==="push"){DIAG_LAST_PUSH=diagTime();DIAG_CLOUD_REVISION=Number(x.revision||DIAG_CLOUD_REVISION||0);DIAG_LAST_RESULT="PUSH OK";DIAG_LAST_ERROR="";renderSyncDiagnostic()}
   return x;
  }catch(e){
-   if(action==="publicClasses"||action==="publicState"){
+   if(action==="publicClasses"||action==="publicState"||action==="publicBanners"){
      console.warn("publicClasses không khả dụng; bỏ qua để không chặn đăng nhập/pull.",e);
      return {ok:true,classes:[],skipped:true};
    }
@@ -2781,10 +2781,16 @@ async function loadPublicClassesFromSheets(){
   state.classes=local;
   if(beforeId&&state.classes.some(c=>String(c.id)===String(beforeId)))state.currentClassId=beforeId;
   try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
-  renderClassSelect();refreshCurrentView();
+  renderClassSelect();applyPublicBanners(readPublicBannerCache(),false);refreshCurrentView();
+  loadPublicBannersFromSheets();
   return true;
  }catch(e){console.warn("Không tải được dữ liệu công khai",e);return false}
 }
+
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3642";
+function readPublicBannerCache(){try{return JSON.parse(localStorage.getItem(PUBLIC_BANNER_CACHE_KEY)||"[]")}catch(_){return []}}
+function applyPublicBanners(list,rerender=true){if(AUTHENTICATED||!Array.isArray(list)||!list.length)return false;let changed=false;(state.classes||[]).forEach(c=>{const z=list.find(x=>x.classId&&String(x.classId)===String(c.id))||list.find(x=>x.className&&String(x.className)===String(c.name));if(z&&validBanner(z.cover)&&c.cover!==z.cover){c.cover=z.cover;c.coverRatio=z.coverRatio||c.coverRatio||null;changed=true}});if(changed&&rerender)refreshCurrentView();return changed}
+async function loadPublicBannersFromSheets(){const gen=PUBLIC_READ_GEN;applyPublicBanners(readPublicBannerCache(),false);try{const x=await onlineAPI({action:"publicBanners"});if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;const list=Array.isArray(x?.banners)?x.banners:[];if(!list.length)return false;try{localStorage.setItem(PUBLIC_BANNER_CACHE_KEY,JSON.stringify(list))}catch(_){}return applyPublicBanners(list,true)}catch(e){console.warn("Không tải được banner công khai",e);return false}}
 
 async function loadPublicStateFromSheets(){
  const gen=PUBLIC_READ_GEN;
@@ -2799,7 +2805,8 @@ async function loadPublicStateFromSheets(){
   ["scores","finance","comments","messages"].forEach(k=>{if(Array.isArray(state[k]))state[k]=[]});
   if(beforeId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(beforeId)))state.currentClassId=beforeId;
   else if(Array.isArray(state.classes)&&state.classes[0])state.currentClassId=state.classes[0].id;
-  renderClassSelect();refreshCurrentView();
+  renderClassSelect();applyPublicBanners(readPublicBannerCache(),false);refreshCurrentView();
+  loadPublicBannersFromSheets();
   const stamp=document.getElementById("guestPublicSyncStamp");if(stamp)stamp.textContent=x.syncedAt?`Dữ liệu công khai cập nhật ${new Date(x.syncedAt).toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})}`:"Dữ liệu công khai mới nhất";
   return true;
  }catch(e){console.warn("Không tải được snapshot công khai",e);return loadPublicClassesFromSheets()}
@@ -2867,7 +2874,7 @@ async function mainLogin(){
  // V36.23: dọn trạng thái phiên/timer cũ trước lần đăng nhập mới; KHÔNG xóa dữ liệu nghiệp vụ/localStorage.
  clearInterval(cloudPullTimer);cloudPullTimer=null;clearInterval(cloudMutationWatchdog);cloudMutationWatchdog=null;
  CLOUD_DIRTY=false;CLOUD_PUSHING=false;CLOUD_HYDRATED=false;clearCloudSession();
- // V36.41: hủy hiệu lực mọi Public Read đang chạy để snapshot khách không thể ghi đè sau đăng nhập.
+ // V36.42: hủy hiệu lực mọi Public Read đang chạy để snapshot khách không thể ghi đè sau đăng nhập.
  PUBLIC_READ_GEN++;
  // Khởi động request xác thực NGAY, đồng thời chuẩn bị state local trong lúc mạng đang chạy.
  const loginPromise=cloudLogin(username,password);
@@ -6846,7 +6853,7 @@ document.addEventListener("click",function(e){
  mainLogin();
 },true);
 
-// V36.41: khóa cứng mọi thao tác ghi ở chế độ Khách nhưng vẫn cho điều hướng/lọc/xem chi tiết.
+// V36.42: khóa cứng mọi thao tác ghi ở chế độ Khách nhưng vẫn cho điều hướng/lọc/xem chi tiết.
 const GUEST_MUTATION_RE=/(^|\s)(thêm|tạo|sửa|xóa|lưu|xác nhận|hủy xác nhận|hoàn thành|mở lại|nhập điểm|điểm danh|ghi vi phạm|tuyên dương|giao dịch|phân công|đổi chỗ|xáo trộn|khôi phục|import|reset)(\s|$)/i;
 function guestNoWriteUI(){
  if(!isGuestMode())return;
