@@ -2138,6 +2138,7 @@ body.guest-mode .guest-write-locked:hover{transform:none!important;box-shadow:no
 @media(prefers-reduced-motion:reduce){.info-enter{animation:none!important}.home-info-dot{transition:none!important}}
 
 </style>
+<meta name="gvcn-build" content="V36.47-BANNER-SNAPSHOT-SAVE-FIX">
 </head>
 <body>
 
@@ -3730,13 +3731,13 @@ function changeCover(){
  const inp=document.createElement("input");inp.type="file";inp.accept="image/png,image/jpeg,image/webp";
  inp.onchange=()=>{const file=inp.files&&inp.files[0];if(!file)return;if(!/^image\/(png|jpeg|webp)$/.test(file.type))return toast("Chọn ảnh PNG, JPG hoặc WEBP");
   const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const maxW=1920,scale=Math.min(1,maxW/img.naturalWidth),w=Math.max(1,Math.round(img.naturalWidth*scale)),hh=Math.max(1,Math.round(img.naturalHeight*scale)),canvas=document.createElement("canvas");canvas.width=w;canvas.height=hh;canvas.getContext("2d").drawImage(img,0,0,w,hh);
-    let data;try{data=canvas.toDataURL("image/jpeg",.90)}catch(e){data=reader.result}c.cover=data;c.coverRatio=img.naturalWidth/img.naturalHeight;save("Đã cập nhật ảnh lớp");setTimeout(()=>saveBannerDirectToCloud_(c).catch(e=>{console.warn(e);toast("Ảnh đã lưu trên máy, nhưng chưa lưu được banner dùng chung")}),0);refreshBannerAfterUpload();toast("Ảnh lớp đã cập nhật và đang lưu dùng chung")};img.onerror=()=>toast("Không đọc được ảnh");img.src=reader.result};reader.readAsDataURL(file)};
+    let data;try{data=canvas.toDataURL("image/jpeg",.90)}catch(e){data=reader.result}c.cover=data;c.coverRatio=img.naturalWidth/img.naturalHeight;const bannerSnapshot={id:String(c.id),name:String(c.name||""),cover:String(data),coverRatio:c.coverRatio};refreshBannerAfterUpload();toast("Đang lưu ảnh lớp dùng chung...");saveBannerDirectToCloud_(bannerSnapshot).then(()=>{save("Đã cập nhật ảnh lớp");toast("Ảnh lớp đã lưu dùng chung")}).catch(e=>{console.warn(e);save("Đã cập nhật ảnh lớp trên thiết bị");toast("Chưa lưu được banner dùng chung: "+String(e?.message||e))})};img.onerror=()=>toast("Không đọc được ảnh");img.src=reader.result};reader.readAsDataURL(file)};
  inp.click()
 }
 function removeCover(){
   if(!curClass()?.cover)return;
   if(!confirm("Bỏ ảnh lớp hiện tại?"))return;
-  const cc=curClass();cc.cover="";setTimeout(()=>saveBannerDirectToCloud_(cc).catch(console.warn),0);
+  const cc=curClass();const bannerSnapshot={id:String(cc.id),name:String(cc.name||""),cover:"",coverRatio:null};cc.cover="";cc.coverRatio=null;saveBannerDirectToCloud_(bannerSnapshot).catch(console.warn);
   localStorage.setItem(KEY,JSON.stringify(state));
   log("Đã bỏ ảnh lớp");
   localStorage.setItem(KEY,JSON.stringify(state));
