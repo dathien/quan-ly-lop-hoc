@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm · V36</title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2432,7 +2432,7 @@ function diagStatus(){
  if(Number(DIAG_CLOUD_REVISION)===Number(CLOUD_REVISION))return "SYNCED";
  return "LOCAL NEWER";
 }
-// Production: giữ toàn bộ biến/trạng thái chẩn đoán cho engine đồng bộ,
+// V36.20 MEMBER HARDENED: giữ toàn bộ biến/trạng thái chẩn đoán cho engine đồng bộ,
 // nhưng không render bảng chẩn đoán kỹ thuật ra giao diện người dùng.
 function renderSyncDiagnostic(){
  const el=document.getElementById("gvcnSyncDiagnostic");
@@ -2720,7 +2720,7 @@ async function mainLogin(){
   // Tài khoản ADMIN/GVCN chính phải tiếp tục dùng kho LEGACY đang chứa dữ liệu + banner.
   // Không tạo GVCN_TEACHER_U001 vì sẽ nhân đôi toàn bộ ảnh base64 và làm đầy quota LocalStorage.
   const localTeacherId=(cloudRole==="ADMIN"||cloudRole==="GVCN")?"teacher-thien":uidCloud;
-  session={teacherId:localTeacherId,userId:uidCloud,role:cloudRole==="ADMIN"?"Giáo viên":(u.VaiTro||u.role||"Giáo viên"),name:u.HoTen||u.name||"HỒ NGUYỄN ĐA THIỆN",isAdmin:cloudRole==="ADMIN",username:u.Username||u.username||username,allowedStateKeys:u.AllowedStateKeys||[]};
+  session={teacherId:localTeacherId,userId:uidCloud,role:cloudRole==="ADMIN"?"Giáo viên":(u.VaiTro||u.role||"Giáo viên"),name:u.HoTen||u.name||"HỒ NGUYỄN ĐA THIỆN",isAdmin:cloudRole==="ADMIN",username:u.Username||u.username||username,classId:String(u.ClassID||u.classId||""),allowedStateKeys:u.AllowedStateKeys||[]};
   sessionStorage.setItem(SESSION_KEY,JSON.stringify(session));AUTHENTICATED=true;
 
   // Chuyển sang kho dữ liệu của tài khoản nhưng GHÉP với state trước đăng nhập trước khi render.
@@ -2811,6 +2811,14 @@ function updateAccountUI(){
  const demoNav=document.getElementById("demoAdminNav");if(demoNav)demoNav.style.display=session?.isAdmin?"":"none";
  const menuNav=document.getElementById("menuManagerNav");if(menuNav)menuNav.style.display=session?.isAdmin?"":"none";
  applyAdminMenuSettings();
+ // Thành viên chỉ nhìn thấy đúng các khu vực được cấp theo vai trò.
+ if(!isFullAccessAccount()&&currentRolePolicy()){
+   document.querySelectorAll(".sidebar .nav button[data-page]").forEach(b=>{
+     const p=b.dataset.page||"";
+     if(!canRoleViewPage(p))b.style.setProperty("display","none","important");
+   });
+   if(!canRoleViewPage(page))page="home";
+ }
  let demoBadge=document.getElementById("demoModeBadge");
  if(session?.isDemo&&!demoBadge){demoBadge=document.createElement("span");demoBadge.id="demoModeBadge";demoBadge.className="badge";demoBadge.textContent="🎓 Môi trường Demo";btn?.parentNode?.insertBefore(demoBadge,btn)}
  if(demoBadge)demoBadge.style.display=session?.isDemo?"inline-flex":"none";
@@ -3166,7 +3174,12 @@ function render(){({
 }[page]||renderHome)()}
 
 function renderClassSelect(){
-  $("#classSelect").innerHTML=state.classes.map(c=>`<option value="${c.id}" ${c.id===state.currentClassId?"selected":""}>${esc(c.name)}</option>`).join("");
+  const memberClass=(!isFullAccessAccount()&&currentRolePolicy())?String(session?.classId||""):"";
+  const visibleClasses=memberClass?(state.classes||[]).filter(c=>String(c.id)===memberClass):(state.classes||[]);
+  if(memberClass&&visibleClasses.length&&String(state.currentClassId)!==memberClass)state.currentClassId=memberClass;
+  $("#classSelect").innerHTML=visibleClasses.map(c=>`<option value="${c.id}" ${String(c.id)===String(state.currentClassId)?"selected":""}>${esc(c.name)}</option>`).join("");
+  $("#classSelect").disabled=!!memberClass;
+  $("#classSelect").title=memberClass?"Tài khoản thành viên chỉ được sử dụng lớp được GVCN phân công":"";
   updateSidebarClassIdentity();
 }
 function updateSidebarClassIdentity(){
@@ -3178,7 +3191,11 @@ function updateSidebarClassIdentity(){
   if(y)y.textContent=c?.year||"";
   if(m)m.textContent=(c?.motto||"ĐOÀN KẾT • NỖ LỰC • TỎA SÁNG").toUpperCase();
 }
-$("#classSelect").addEventListener("change",e=>{state.currentClassId=e.target.value;localStorage.setItem(KEY,JSON.stringify(state));updateSidebarClassIdentity();render()})
+$("#classSelect").addEventListener("change",e=>{
+  const memberClass=(!isFullAccessAccount()&&currentRolePolicy())?String(session?.classId||""):"";
+  if(memberClass){state.currentClassId=memberClass;e.target.value=memberClass;toast("Tài khoản thành viên chỉ được sử dụng lớp được phân công");return}
+  state.currentClassId=e.target.value;localStorage.setItem(KEY,JSON.stringify(state));updateSidebarClassIdentity();render()
+})
 $$(".nav button").forEach(b=>b.onclick=()=>navigate(b.dataset.page));
 $("#hamb").onclick=()=>$("#sidebar").classList.toggle("open");
 
