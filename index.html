@@ -2827,6 +2827,7 @@ async function mainLogin(){
   runClass12RosterMigrationIfNeeded();
   runClass11RosterMigrationIfNeeded();
   runDemoScores1112MigrationIfNeeded();
+  runDemoDiscipline1112MigrationIfNeeded();
   renderClassSelect();refreshCurrentView();
 
   // Banner Base64 không còn được PUSH vào AppState; tránh vượt giới hạn ô Google Sheets.
@@ -3153,6 +3154,64 @@ function migrateDemoScores1112_20261004(){
 }
 function runDemoScores1112MigrationIfNeeded(){
  if(migrateDemoScores1112_20261004()){renderClassSelect();refreshCurrentView();setTimeout(()=>scheduleOnlinePush(),180)}
+}
+
+
+
+// V36.31: dữ liệu DEMO Thi đua/Nề nếp cho lớp 11 và 12A4.
+// Chỉ phục vụ kiểm thử; có thể thay bằng dữ liệu thật sau này.
+function migrateDemoDiscipline1112_20261004(){
+ if(!isFullAccessAccount()||!state)return false;
+ state._migrations=state._migrations||{};
+ if(state._migrations.demoDiscipline1112_20261004)return false;
+ ["attendance","incidents","positive","duty"].forEach(k=>{if(!Array.isArray(state[k]))state[k]=[]});
+ const dates=["2026-09-28","2026-09-29","2026-09-30","2026-10-01","2026-10-02","2026-10-03"];
+ ["c1","c3"].forEach((classId,ci)=>{
+   const sts=(state.students||[]).filter(x=>String(x.classId)===classId);
+   if(!sts.length)return;
+   // Thay riêng dữ liệu thi đua demo của hai lớp, không ảnh hưởng lớp 10.
+   state.attendance=state.attendance.filter(x=>String(x.classId)!==classId);
+   state.incidents=state.incidents.filter(x=>String(x.classId)!==classId);
+   state.positive=state.positive.filter(x=>String(x.classId)!==classId);
+   state.duty=state.duty.filter(x=>String(x.classId)!==classId);
+   let n=1;
+   dates.forEach((date,di)=>sts.forEach((st,si)=>{
+     let status="Có mặt",reason="";
+     if((si+di*7+ci)%31===0){status="Đi trễ";reason="Đến lớp sau giờ quy định";}
+     else if((si*2+di*5+ci)%47===0){status="Vắng phép";reason="Gia đình đã xin phép";}
+     else if((si*3+di*11+ci)%89===0){status="Vắng không phép";reason="Chưa có lý do";}
+     state.attendance.push({id:`demotd${classId}at${String(n++).padStart(5,"0")}`,classId,studentId:st.id,date,status,reason,demo:true});
+   }));
+   const positiveNotes=[
+     ["Tích cực phát biểu xây dựng bài.",3,"Học tập"],
+     ["Hỗ trợ bạn trong hoạt động nhóm.",2,"Phong trào"],
+     ["Hoàn thành tốt nhiệm vụ được giao.",3,"Học tập"],
+     ["Có tiến bộ rõ trong học tập.",2,"Học tập"],
+     ["Tích cực tham gia hoạt động lớp.",3,"Phong trào"],
+     ["Chuẩn bị bài và dụng cụ học tập đầy đủ.",2,"Học tập"],
+     ["Giữ gìn vệ sinh và hỗ trợ trực nhật tốt.",2,"Nề nếp"],
+     ["Chủ động giúp đỡ bạn trong lớp.",2,"Phong trào"]
+   ];
+   const pIdx=[1,4,8,12,17,23,29,34];
+   pIdx.forEach((idx,k)=>{if(sts[idx]){const a=positiveNotes[k];state.positive.push({id:`demotd${classId}po${k+1}`,classId,studentId:sts[idx].id,date:dates[(k+2)%dates.length],note:a[0],points:a[1],category:a[2],demo:true})}});
+   const incidentData=[
+     [5,"Đi học muộn, đã nhắc nhở.","Nhắc nhở"],
+     [10,"Chưa hoàn thành nhiệm vụ học tập đúng hạn.","Cần lưu ý"],
+     [16,"Mất tập trung trong giờ học.","Nhắc nhở"],
+     [25,"Không thực hiện đầy đủ nhiệm vụ trực nhật.","Cần lưu ý"],
+     [32,"Quên sách/vở hoặc dụng cụ học tập.","Nhắc nhở"]
+   ];
+   incidentData.forEach((a,k)=>{if(sts[a[0]])state.incidents.push({id:`demotd${classId}in${k+1}`,classId,studentId:sts[a[0]].id,date:dates[(k+1)%dates.length],note:a[1],level:a[2],resolved:k===0,demo:true})});
+   for(let i=0;i<4;i++)state.duty.push({id:`demotd${classId}du${i+1}`,classId,date:dates[Math.min(i+1,dates.length-1)],assignee:`Tổ ${i+1}`,task:"Vệ sinh lớp học, lau bảng và sắp xếp bàn ghế",done:i!==2,status:i===0?"Xuất sắc":i===2?"Chưa hoàn thành":"Hoàn thành",demo:true});
+   const cls=(state.classes||[]).find(x=>String(x.id)===classId);if(cls)cls.demoDisciplineData=true;
+ });
+ state._migrations.demoDiscipline1112_20261004=true;
+ try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
+ DIAG_LAST_RESULT="DEMO THI ĐUA 11 + 12A4 → READY";DIAG_LAST_ERROR="";renderSyncDiagnostic();
+ return true;
+}
+function runDemoDiscipline1112MigrationIfNeeded(){
+ if(migrateDemoDiscipline1112_20261004()){renderClassSelect();refreshCurrentView();setTimeout(()=>scheduleOnlinePush(),220)}
 }
 
 function startCloudMutationWatchdog(){
@@ -6507,6 +6566,7 @@ if(AUTHENTICATED&&currentCloudToken()){
    runClass12RosterMigrationIfNeeded();
    runClass11RosterMigrationIfNeeded();
    runDemoScores1112MigrationIfNeeded();
+   runDemoDiscipline1112MigrationIfNeeded();
    hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate(safeStartupPage());
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
    startCloudLiveSync();
