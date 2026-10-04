@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm </title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2043,6 +2043,7 @@ input,select,textarea{
 </style>
 
 <!-- GVCN V38.59: admin đúng tài khoản + giao diện Google/Gmail + quên mật khẩu -->
+<!-- GVCN V36.24: member profile/avatar + explicit logout + clean account switching -->
 </head>
 <body>
 
@@ -2132,7 +2133,7 @@ input,select,textarea{
   <main class="main">
     <header class="topbar">
       <div class="topbar-left"><button class="btn hamb" id="hamb">☰</button><div><h2 id="pageTitle">Tổng quan</h2><div class="muted" id="pageSub" style="font-size:12px"></div></div></div>
-      <div class="actions"><select id="classSelect" class="class-select"></select><button class="btn" id="accountBtn" onclick="openAccountSwitcher()">👤 Tài khoản</button><button class="btn" onclick="navigate('members')">⚙️ Thiết lập</button></div>
+      <div class="actions"><select id="classSelect" class="class-select"></select><button class="btn" id="accountBtn" onclick="openAccountSwitcher()">👤 Tài khoản</button><button class="btn bad" id="memberLogoutBtn" style="display:none" onclick="logoutGVCN()">↪ Đăng xuất</button><button class="btn" id="settingsBtn" onclick="navigate('members')">⚙️ Thiết lập</button></div>
     </header>
     <div class="content" id="content"></div>
     <div class="footer">Copyright@GVCN 2026</div>
@@ -2808,7 +2809,9 @@ document.addEventListener("keydown",e=>{
 function updateAccountUI(){
  const p=activeTeacher();
  const brand=document.querySelector(".brand h1");if(brand)brand.textContent=session?.isDemo?"GVCN • DEMO":(p?.name||"GVCN");
- const btn=document.getElementById("accountBtn");if(btn)btn.textContent=`${getAccountAvatar()} ${session.name||p?.name||"Tài khoản"}`;
+ const btn=document.getElementById("accountBtn");if(btn){btn.textContent=`${getAccountAvatar()} ${session.name||p?.name||"Tài khoản"}`;btn.title=isFullAccessAccount()?"Tài khoản":"Bấm để đổi avatar hoặc đăng xuất";}
+ const memberLogoutBtn=document.getElementById("memberLogoutBtn");if(memberLogoutBtn)memberLogoutBtn.style.display=(!isGuestMode()&&!isFullAccessAccount())?"inline-flex":"none";
+ const settingsBtn=document.getElementById("settingsBtn");if(settingsBtn)settingsBtn.style.display=(!isGuestMode()&&!isFullAccessAccount())?"none":"inline-flex";
  const teacherNav=document.getElementById("teacherAdminNav");if(teacherNav)teacherNav.style.display=session?.isAdmin?"":"none";
  const demoNav=document.getElementById("demoAdminNav");if(demoNav)demoNav.style.display=session?.isAdmin?"":"none";
  const menuNav=document.getElementById("menuManagerNav");if(menuNav)menuNav.style.display=session?.isAdmin?"":"none";
@@ -3105,6 +3108,8 @@ function updateGuestUI(){
  document.body.classList.toggle("guest-mode",isGuestMode());
  const btn=document.getElementById("accountBtn");
  if(btn&&isGuestMode())btn.textContent="🔐 Đăng nhập";
+ const memberLogoutBtn=document.getElementById("memberLogoutBtn");if(memberLogoutBtn&&isGuestMode())memberLogoutBtn.style.display="none";
+ const settingsBtn=document.getElementById("settingsBtn");if(settingsBtn&&isGuestMode())settingsBtn.style.display="inline-flex";
  let note=document.getElementById("guestViewNote");
  if(isGuestMode()&&btn&&!note){note=document.createElement("span");note.id="guestViewNote";note.className="badge";note.textContent="👁 Chế độ chỉ xem";btn.parentNode.insertBefore(note,btn)}
  if(note)note.style.display=isGuestMode()?"inline-flex":"none";
