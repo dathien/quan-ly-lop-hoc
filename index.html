@@ -2770,6 +2770,7 @@ async function loadPublicClassesFromSheets(){
   if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;
   if(!x.ok||!Array.isArray(x.classes)||x.skipped)return false;
   const beforeId=state.currentClassId;
+  readPublicBannerCache();
   const local=Array.isArray(state.classes)?state.classes:[];
   x.classes.forEach(pc=>{
    const i=local.findIndex(c=>String(c.id||"")===String(pc.id||""))>=0?local.findIndex(c=>String(c.id||"")===String(pc.id||"")):local.findIndex(c=>String(c.name||"")===String(pc.name||""));
@@ -2787,10 +2788,15 @@ async function loadPublicClassesFromSheets(){
  }catch(e){console.warn("Không tải được dữ liệu công khai",e);return false}
 }
 
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3642";
-function readPublicBannerCache(){try{return JSON.parse(localStorage.getItem(PUBLIC_BANNER_CACHE_KEY)||"[]")}catch(_){return []}}
-function applyPublicBanners(list,rerender=true){if(AUTHENTICATED||!Array.isArray(list)||!list.length)return false;let changed=false;(state.classes||[]).forEach(c=>{const z=list.find(x=>x.classId&&String(x.classId)===String(c.id))||list.find(x=>x.className&&String(x.className)===String(c.name));if(z&&validBanner(z.cover)&&c.cover!==z.cover){c.cover=z.cover;c.coverRatio=z.coverRatio||c.coverRatio||null;changed=true}});if(changed&&rerender)refreshCurrentView();return changed}
-async function loadPublicBannersFromSheets(){const gen=PUBLIC_READ_GEN;applyPublicBanners(readPublicBannerCache(),false);try{const x=await onlineAPI({action:"publicBanners"});if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;const list=Array.isArray(x?.banners)?x.banners:[];if(!list.length)return false;try{localStorage.setItem(PUBLIC_BANNER_CACHE_KEY,JSON.stringify(list))}catch(_){}return applyPublicBanners(list,true)}catch(e){console.warn("Không tải được banner công khai",e);return false}}
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3643";
+let PUBLIC_BANNER_MAP=new Map();
+function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
+function rememberPublicBanners_(list){if(!Array.isArray(list))return;for(const x of list){if(!validBanner(x?.cover))continue;const ids=[x.classId,x.id,x.className,x.name].filter(Boolean).map(String);for(const k of ids)PUBLIC_BANNER_MAP.set(k,{cover:x.cover,coverRatio:x.coverRatio||null});}}
+function readPublicBannerCache(){try{const a=JSON.parse(localStorage.getItem(PUBLIC_BANNER_CACHE_KEY)||"[]");rememberPublicBanners_(a);return a}catch(_){return []}}
+function publicBannerForClass_(c){return PUBLIC_BANNER_MAP.get(String(c?.id||""))||PUBLIC_BANNER_MAP.get(String(c?.name||""))||null}
+function preservePublicBannerClasses_(classes){if(!Array.isArray(classes))return classes;return classes.map(c=>{const b=publicBannerForClass_(c);return b&&validBanner(b.cover)?{...c,cover:b.cover,coverRatio:b.coverRatio||c.coverRatio||null}:c})}
+function applyPublicBanners(list,rerender=true){if(AUTHENTICATED)return false;rememberPublicBanners_(list);let changed=false;(state.classes||[]).forEach(c=>{const z=publicBannerForClass_(c);if(z&&validBanner(z.cover)&&c.cover!==z.cover){c.cover=z.cover;c.coverRatio=z.coverRatio||c.coverRatio||null;changed=true}});if(changed&&rerender)refreshCurrentView();return changed}
+async function loadPublicBannersFromSheets(){const gen=PUBLIC_READ_GEN;const cached=readPublicBannerCache();applyPublicBanners(cached,false);try{const x=await onlineAPI({action:"publicBanners"});if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;const list=Array.isArray(x?.banners)?x.banners:[];if(!list.length)return false;rememberPublicBanners_(list);try{localStorage.setItem(PUBLIC_BANNER_CACHE_KEY,JSON.stringify(list))}catch(_){}return applyPublicBanners(list,true)}catch(e){console.warn("Không tải được banner công khai",e);return false}}
 
 async function loadPublicStateFromSheets(){
  const gen=PUBLIC_READ_GEN;
@@ -2799,8 +2805,10 @@ async function loadPublicStateFromSheets(){
   if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;
   if(!x||!x.ok||!x.data||typeof x.data!=="object")return loadPublicClassesFromSheets();
   const p=x.data,beforeId=state.currentClassId;
+  // V36.43: banner công khai là state độc lập. Public State tuyệt đối không được xóa banner đã tải/cache.
+  readPublicBannerCache();
   const publicKeys=["classes","students","seats","timetable","attendance","positive","incidents","duty","weekly","tasks"];
-  publicKeys.forEach(k=>{if(Array.isArray(p[k]))state[k]=p[k]});
+  publicKeys.forEach(k=>{if(Array.isArray(p[k]))state[k]=(k==="classes"?preservePublicBannerClasses_(p[k]):p[k])});
   // Không để cache cũ làm khách nhìn thấy dữ liệu riêng tư/không còn hiện hành.
   ["scores","finance","comments","messages"].forEach(k=>{if(Array.isArray(state[k]))state[k]=[]});
   if(beforeId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(beforeId)))state.currentClassId=beforeId;
