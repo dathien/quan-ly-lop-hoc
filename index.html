@@ -2343,12 +2343,45 @@ function ensureDemoClassData(s){
     ["Bùi Hải Yến","Nữ"],["Hoàng Thùy Linh","Nữ"],["Nguyễn Đức Mạnh","Nam"],["Trần Gia Huy","Nam"],["Lê Khánh Vy","Nữ"],["Phạm Minh Khoa","Nam"]
   ];
   const demoNames12=[
-    ["Nguyễn Hoài An","Nữ"],["Trần Quốc Anh","Nam"],["Lê Ngọc Bảo","Nữ"],["Phạm Gia Bình","Nam"],["Võ Minh Châu","Nữ"],["Đặng Quốc Cường","Nam"],
-    ["Bùi Anh Dũng","Nam"],["Hoàng Mỹ Duyên","Nữ"],["Nguyễn Thành Đạt","Nam"],["Trần Minh Đức","Nam"],["Lê Thu Giang","Nữ"],["Phạm Ngọc Hà","Nữ"],
-    ["Võ Khánh Hân","Nữ"],["Đặng Trung Hiếu","Nam"],["Bùi Đức Huy","Nam"],["Hoàng Minh Khang","Nam"],["Nguyễn Ngọc Khánh","Nữ"],["Trần Tuấn Kiệt","Nam"],
-    ["Lê Hoàng Long","Nam"],["Phạm Nhật Minh","Nam"],["Võ Thảo My","Nữ"],["Đặng Hải Nam","Nam"],["Bùi Bảo Ngọc","Nữ"],["Hoàng Minh Phúc","Nam"],
-    ["Nguyễn Quỳnh Anh","Nữ"],["Trần Minh Quân","Nam"],["Lê Phương Thảo","Nữ"],["Phạm Anh Thư","Nữ"],["Võ Quốc Trung","Nam"],["Đặng Minh Tú","Nam"],
-    ["Bùi Thanh Tùng","Nam"],["Hoàng Hải Yến","Nữ"],["Nguyễn Thùy Linh","Nữ"],["Trần Đức Mạnh","Nam"],["Lê Gia Huy","Nam"],["Phạm Khánh Vy","Nữ"]
+    ["Nguyễn Thị Ngọc Ánh","Nữ"],
+    ["Nguyễn Đỗ Thanh Binh","Nam"],
+    ["Nguyễn Thị Thanh Hương","Nữ"],
+    ["Nguyễn Hoàng Khang","Nam"],
+    ["Ngô Ngọc Lam","Nữ"],
+    ["Nguyễn Tấn Lộc","Nam"],
+    ["Huỳnh Nhật Quang","Nam"],
+    ["Huỳnh Thị Như Hoàng","Nữ"],
+    ["Nguyễn Phạm Xuân Nghi","Nữ"],
+    ["Nguyễn Ngọc Phương Nghi","Nữ"],
+    ["Nguyễn Hoàng Triều","Nam"],
+    ["Nguyễn Ngô Hoàn Tuấn","Nam"],
+    ["Hoàng Công Thành","Nam"],
+    ["Lê Việt Quốc Vương","Nam"],
+    ["Trần Xuân Lưu Bảo","Nam"],
+    ["Hoa Hoàng Quý Đô","Nam"],
+    ["Lê Nguyễn Ngọc Hương","Nữ"],
+    ["Trần Ngọc Khánh Linh","Nữ"],
+    ["Nguyễn Thành Nhơn","Nam"],
+    ["Ngô Duy Khoa","Nam"],
+    ["Đỗ Đăng Khoa","Nam"],
+    ["Đặng Nguyễn Kim Ngân","Nữ"],
+    ["Nguyễn Trung Bảo","Nam"],
+    ["Phạm Gia Bảo","Nam"],
+    ["Nguyễn Tấn Đạt","Nam"],
+    ["Nguyễn Hồng Diễm","Nữ"],
+    ["Trần Hữu Thành","Nam"],
+    ["Tô Quốc Thịnh","Nam"],
+    ["Nguyễn Xuân Trúc","Nữ"],
+    ["Nguyễn Huyền Diệu","Nữ"],
+    ["Đỗ Minh Kha","Nam"],
+    ["Thân Nguyễn Quốc Bảo","Nam"],
+    ["Phạm Hoàng Gia Bảo","Nam"],
+    ["Nguyễn Trọng Thức","Nam"],
+    ["Phùng Trần Thanh Trúc","Nữ"],
+    ["Nguyễn Huỳnh Hải Vy","Nữ"],
+    ["Lê Huỳnh Hương Y","Nữ"],
+    ["Trần Tấn Tài","Nam"],
+    ["Mai Phương Uyên","Nữ"]
   ];
   const subjects=["Toán","Vật lí","Hóa học","Ngữ văn","Sinh học","Lịch sử","Địa lí","Tiếng Anh (Ngoại ngữ 1)","Tin học"];
   const timetableSubjects=["Ngữ văn","Toán","Tiếng Anh","Vật lí","Hóa học","Sinh học","Lịch sử","Địa lí","Tin học","GDTC","GDQPAN","HĐTN-HN"];
@@ -2791,6 +2824,7 @@ async function mainLogin(){
   if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
   try{localStorage.setItem(KEY,JSON.stringify(state))}catch(storageErr){console.warn("Không đủ LocalStorage để lưu bản local sau pull; giữ dữ liệu trong RAM/Google Sheets.",storageErr)}
   CLOUD_HYDRATED=true;
+  runClass12RosterMigrationIfNeeded();
   renderClassSelect();refreshCurrentView();
 
   // Banner Base64 không còn được PUSH vào AppState; tránh vượt giới hạn ô Google Sheets.
@@ -3032,6 +3066,27 @@ function cloudBusinessFingerprint(v){
  }catch(e){return ""}
 }
 let cloudMutationWatchdog=null;
+// V36.28: cập nhật danh sách chính thức lớp 12A4 từ file Excel do GVCN cung cấp ngày 04/10/2026.
+function migrateClass12Roster20261004(){
+ if(!isFullAccessAccount()||!state||!Array.isArray(state.classes))return false;
+ state._migrations=state._migrations||{};
+ if(state._migrations.class12Roster20261004)return false;
+ const classId="c3", cls=state.classes.find(c=>String(c.id)===classId); if(!cls)return false;
+ const roster=[{"stt":1,"name":"Nguyễn Thị Ngọc Ánh","gender":"Nữ","dob":"2009-11-01"},{"stt":2,"name":"Nguyễn Đỗ Thanh Binh","gender":"Nam","dob":"2009-09-24"},{"stt":3,"name":"Nguyễn Thị Thanh Hương","gender":"Nữ","dob":"2009-09-12"},{"stt":4,"name":"Nguyễn Hoàng Khang","gender":"Nam","dob":"2009-01-22"},{"stt":5,"name":"Ngô Ngọc Lam","gender":"Nữ","dob":"2009-09-25"},{"stt":6,"name":"Nguyễn Tấn Lộc","gender":"Nam","dob":"2009-04-29"},{"stt":7,"name":"Huỳnh Nhật Quang","gender":"Nam","dob":"2003-03-16"},{"stt":8,"name":"Huỳnh Thị Như Hoàng","gender":"Nữ","dob":"2009-12-31"},{"stt":9,"name":"Nguyễn Phạm Xuân Nghi","gender":"Nữ","dob":"2009-11-02"},{"stt":10,"name":"Nguyễn Ngọc Phương Nghi","gender":"Nữ","dob":"2009-05-19"},{"stt":11,"name":"Nguyễn Hoàng Triều","gender":"Nam","dob":"2009-02-23"},{"stt":12,"name":"Nguyễn Ngô Hoàn Tuấn","gender":"Nam","dob":"2009-01-20"},{"stt":13,"name":"Hoàng Công Thành","gender":"Nam","dob":"2009-09-17"},{"stt":14,"name":"Lê Việt Quốc Vương","gender":"Nam","dob":"2009-06-03"},{"stt":15,"name":"Trần Xuân Lưu Bảo","gender":"Nam","dob":"2009-12-13"},{"stt":16,"name":"Hoa Hoàng Quý Đô","gender":"Nam","dob":"2009-04-11"},{"stt":17,"name":"Lê Nguyễn Ngọc Hương","gender":"Nữ","dob":"2009-12-15"},{"stt":18,"name":"Trần Ngọc Khánh Linh","gender":"Nữ","dob":"2009-12-25"},{"stt":19,"name":"Nguyễn Thành Nhơn","gender":"Nam","dob":"2009-02-12"},{"stt":20,"name":"Ngô Duy Khoa","gender":"Nam","dob":"2009-10-30"},{"stt":21,"name":"Đỗ Đăng Khoa","gender":"Nam","dob":"2009-04-09"},{"stt":22,"name":"Đặng Nguyễn Kim Ngân","gender":"Nữ","dob":"2009-08-31"},{"stt":23,"name":"Nguyễn Trung Bảo","gender":"Nam","dob":"2009-01-13"},{"stt":24,"name":"Phạm Gia Bảo","gender":"Nam","dob":"2009-12-06"},{"stt":25,"name":"Nguyễn Tấn Đạt","gender":"Nam","dob":"2009-02-03"},{"stt":26,"name":"Nguyễn Hồng Diễm","gender":"Nữ","dob":"2009-02-03"},{"stt":27,"name":"Trần Hữu Thành","gender":"Nam","dob":"2009-12-26"},{"stt":28,"name":"Tô Quốc Thịnh","gender":"Nam","dob":"2009-01-13"},{"stt":29,"name":"Nguyễn Xuân Trúc","gender":"Nữ","dob":"2009-12-22"},{"stt":30,"name":"Nguyễn Huyền Diệu","gender":"Nữ","dob":"2009-09-26"},{"stt":33,"name":"Đỗ Minh Kha","gender":"Nam","dob":"2009-06-13"},{"stt":35,"name":"Thân Nguyễn Quốc Bảo","gender":"Nam","dob":"2009-06-19"},{"stt":36,"name":"Phạm Hoàng Gia Bảo","gender":"Nam","dob":"2009-10-04"},{"stt":37,"name":"Nguyễn Trọng Thức","gender":"Nam","dob":"2009-03-25"},{"stt":38,"name":"Phùng Trần Thanh Trúc","gender":"Nữ","dob":"2009-08-24"},{"stt":39,"name":"Nguyễn Huỳnh Hải Vy","gender":"Nữ","dob":"2009-11-09"},{"stt":40,"name":"Lê Huỳnh Hương Y","gender":"Nữ","dob":"2009-04-12"},{"stt":41,"name":"Trần Tấn Tài","gender":"Nam","dob":"2009-10-27"},{"stt":42,"name":"Mai Phương Uyên","gender":"Nữ","dob":"2009-06-23"}];
+ // Xóa danh sách demo cũ và các dữ liệu gắn trực tiếp với học sinh demo để không gán nhầm sang học sinh thật.
+ const studentLinked=["scores","attendance","incidents","positive","comments","messages"];
+ studentLinked.forEach(k=>{if(Array.isArray(state[k]))state[k]=state[k].filter(x=>String(x.classId)!==classId)});
+ if(!Array.isArray(state.students))state.students=[];
+ state.students=state.students.filter(x=>String(x.classId)!==classId);
+ roster.forEach((r,i)=>state.students.push({id:`c3real${String(i+1).padStart(3,"0")}`,classId,name:r.name,gender:r.gender,dob:r.dob,studentCode:String(r.stt),phoneFather:"",phoneMother:"",group:`Tổ ${(i%4)+1}`,seat:String(i+1)}));
+ state._migrations.class12Roster20261004=true;
+ try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
+ DIAG_LAST_RESULT="12A4 ROSTER UPDATED → 39 HS";DIAG_LAST_ERROR="";renderSyncDiagnostic();
+ return true;
+}
+function runClass12RosterMigrationIfNeeded(){
+ if(migrateClass12Roster20261004()){renderClassSelect();refreshCurrentView();setTimeout(()=>scheduleOnlinePush(),100)}
+}
 function startCloudMutationWatchdog(){
  clearInterval(cloudMutationWatchdog);
  cloudMutationWatchdog=setInterval(()=>{
@@ -6381,6 +6436,7 @@ if(AUTHENTICATED&&currentCloudToken()){
      state=loadState();CLOUD_REVISION=Number(remote.revision||0);CLOUD_BASE_STATE=cloneSyncValue(state);
    }
    CLOUD_HYDRATED=true;
+   runClass12RosterMigrationIfNeeded();
    hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate(safeStartupPage());
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
    startCloudLiveSync();
