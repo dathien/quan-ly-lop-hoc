@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm </title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2128,6 +2128,16 @@ input,select,textarea{
 body.guest-mode .guest-write-locked{opacity:.5!important;filter:saturate(.55);cursor:not-allowed!important}
 body.guest-mode .guest-write-locked:hover{transform:none!important;box-shadow:none!important}
 </style>
+
+<style id="gvcn-v3640-dynamic-info-global">
+/* V36.37 • Dải thông tin GVCN động */
+.home-info-strip{margin-top:15px;min-height:80px;border:1px solid #dbe5f1;border-left:4px solid #2563eb;border-radius:17px;background:#fff;display:grid;grid-template-columns:34px minmax(0,1fr) auto 34px;align-items:center;gap:8px;padding:11px 12px;box-shadow:0 8px 24px rgba(15,23,42,.055);overflow:hidden}
+.home-info-strip.tone-danger{border-left-color:#dc2626}.home-info-strip.tone-warning{border-left-color:#f59e0b}.home-info-strip.tone-success{border-left-color:#16a34a}.home-info-strip.tone-finance{border-left-color:#0f766e}.home-info-strip.tone-info{border-left-color:#2563eb}
+.home-info-main{display:flex;align-items:center;gap:12px;min-width:0}.home-info-icon{width:42px;height:42px;border-radius:13px;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:23px;flex:0 0 auto}.home-info-copy{min-width:0}.home-info-copy h3{margin:0 0 3px;font-size:17px}.home-info-copy .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.home-info-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.home-info-badge{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#334155;white-space:nowrap}.home-info-dots{display:flex;align-items:center;gap:5px}.home-info-dot{width:7px;height:7px;min-width:7px;padding:0;border:0;border-radius:50%;background:#cbd5e1;cursor:pointer}.home-info-dot.active{width:18px;border-radius:999px;background:#2563eb}.home-info-nav{width:32px;height:32px;border:0;border-radius:10px;background:transparent;color:#64748b;font-size:25px;line-height:1;cursor:pointer}.home-info-nav:hover{background:#f1f5f9;color:#0f172a}.home-info-detail{white-space:nowrap}.info-enter{animation:homeInfoIn .28s ease both}@keyframes homeInfoIn{from{opacity:.35;transform:translateX(8px)}to{opacity:1;transform:none}}
+@media(max-width:760px){.home-info-strip{grid-template-columns:28px minmax(0,1fr) 28px;padding:10px 7px}.home-info-actions{grid-column:2;justify-content:flex-start}.home-info-copy .muted{white-space:normal}.home-info-detail{display:none!important}}
+@media(prefers-reduced-motion:reduce){.info-enter{animation:none!important}.home-info-dot{transition:none!important}}
+
+</style>
 </head>
 <body>
 
@@ -2752,9 +2762,12 @@ function mergeRemoteStateSafely(remote,local,extra=[]){
  return merged;
 }
 async function recoverBannersFromSheets(){try{const x=await onlineAPI({action:"recoverBanners"});return Array.isArray(x.banners)?x.banners:[]}catch(e){return []}}
+let PUBLIC_READ_GEN=0;
 async function loadPublicClassesFromSheets(){
+ const gen=PUBLIC_READ_GEN;
  try{
   const x=await onlineAPI({action:"publicClasses"});
+  if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;
   if(!x.ok||!Array.isArray(x.classes)||x.skipped)return false;
   const beforeId=state.currentClassId;
   const local=Array.isArray(state.classes)?state.classes:[];
@@ -2774,8 +2787,10 @@ async function loadPublicClassesFromSheets(){
 }
 
 async function loadPublicStateFromSheets(){
+ const gen=PUBLIC_READ_GEN;
  try{
   const x=await onlineAPI({action:"publicState"});
+  if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;
   if(!x||!x.ok||!x.data||typeof x.data!=="object")return loadPublicClassesFromSheets();
   const p=x.data,beforeId=state.currentClassId;
   const publicKeys=["classes","students","seats","timetable","attendance","positive","incidents","duty","weekly","tasks"];
@@ -2852,13 +2867,16 @@ async function mainLogin(){
  // V36.23: dọn trạng thái phiên/timer cũ trước lần đăng nhập mới; KHÔNG xóa dữ liệu nghiệp vụ/localStorage.
  clearInterval(cloudPullTimer);cloudPullTimer=null;clearInterval(cloudMutationWatchdog);cloudMutationWatchdog=null;
  CLOUD_DIRTY=false;CLOUD_PUSHING=false;CLOUD_HYDRATED=false;clearCloudSession();
+ // V36.40: hủy hiệu lực mọi Public Read đang chạy để snapshot khách không thể ghi đè sau đăng nhập.
+ PUBLIC_READ_GEN++;
+ // Khởi động request xác thực NGAY, đồng thời chuẩn bị state local trong lúc mạng đang chạy.
+ const loginPromise=cloudLogin(username,password);
  // QUAN TRỌNG: giữ nguyên state đang hiển thị trước đăng nhập. Banner hiện nằm ở state này.
- // Không được đổi KEY rồi loadState() trước khi đã ghép state cũ, nếu không banner sẽ biến mất ngay sau đăng nhập.
  let preLoginState=null;
  try{preLoginState=JSON.parse(JSON.stringify(state))}catch(_){preLoginState=state}
  const preLoginClassId=preLoginState?.currentClassId||"";
  try{
-  const x=await cloudLogin(username,password);setCloudSession(x);const u=x.user||{};
+  const x=await loginPromise;setCloudSession(x);const u=x.user||{};
   const uidCloud=String(u.UserID||u.userId||"teacher-thien");
   const cloudRole=String(u.VaiTro||u.role||"GVCN").toUpperCase();
   // Tài khoản ADMIN/GVCN chính phải tiếp tục dùng kho LEGACY đang chứa dữ liệu + banner.
@@ -2874,7 +2892,6 @@ async function mainLogin(){
   const accidentalKey=`GVCN_TEACHER_${uidCloud}`;
   if(KEY===LEGACY_KEY && accidentalKey!==KEY){try{localStorage.removeItem(accidentalKey)}catch(_){}}
   const accountLocal=loadState();
-  backupStateBeforeCloud("account_before_pull");
   state=mergeRemoteStateSafely(accountLocal,preLoginState,collectLocalBannerCandidates());
   if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
   try{localStorage.setItem(KEY,JSON.stringify(state))}catch(storageErr){
@@ -2885,6 +2902,8 @@ async function mainLogin(){
   }
 
   if(err)err.textContent="";hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${session.name}`);
+  // Backup local là tác vụ phụ, chạy sau khi người dùng đã vào Dashboard.
+  setTimeout(()=>{try{backupStateBeforeCloud("account_before_pull")}catch(_){}},0);
   // Kiểm tra backend chạy nền, không giữ người dùng ở màn hình "Đang đăng nhập...".
   verifyBackendVersionInBackground();
   CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
@@ -6827,7 +6846,7 @@ document.addEventListener("click",function(e){
  mainLogin();
 },true);
 
-// V36.39: khóa cứng mọi thao tác ghi ở chế độ Khách nhưng vẫn cho điều hướng/lọc/xem chi tiết.
+// V36.40: khóa cứng mọi thao tác ghi ở chế độ Khách nhưng vẫn cho điều hướng/lọc/xem chi tiết.
 const GUEST_MUTATION_RE=/(^|\s)(thêm|tạo|sửa|xóa|lưu|xác nhận|hủy xác nhận|hoàn thành|mở lại|nhập điểm|điểm danh|ghi vi phạm|tuyên dương|giao dịch|phân công|đổi chỗ|xáo trộn|khôi phục|import|reset)(\s|$)/i;
 function guestNoWriteUI(){
  if(!isGuestMode())return;
@@ -6969,12 +6988,6 @@ function renderSeats(){
     @media(max-width:1100px){.seat-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:700px){.seat-groups{grid-template-columns:1fr}.board-front{width:90%}.seat-toolbar{justify-content:flex-start}}
   
-/* V36.37 • Dải thông tin GVCN động */
-.home-info-strip{margin-top:15px;min-height:80px;border:1px solid #dbe5f1;border-left:4px solid #2563eb;border-radius:17px;background:#fff;display:grid;grid-template-columns:34px minmax(0,1fr) auto 34px;align-items:center;gap:8px;padding:11px 12px;box-shadow:0 8px 24px rgba(15,23,42,.055);overflow:hidden}
-.home-info-strip.tone-danger{border-left-color:#dc2626}.home-info-strip.tone-warning{border-left-color:#f59e0b}.home-info-strip.tone-success{border-left-color:#16a34a}.home-info-strip.tone-finance{border-left-color:#0f766e}.home-info-strip.tone-info{border-left-color:#2563eb}
-.home-info-main{display:flex;align-items:center;gap:12px;min-width:0}.home-info-icon{width:42px;height:42px;border-radius:13px;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:23px;flex:0 0 auto}.home-info-copy{min-width:0}.home-info-copy h3{margin:0 0 3px;font-size:17px}.home-info-copy .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.home-info-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.home-info-badge{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#334155;white-space:nowrap}.home-info-dots{display:flex;align-items:center;gap:5px}.home-info-dot{width:7px;height:7px;min-width:7px;padding:0;border:0;border-radius:50%;background:#cbd5e1;cursor:pointer}.home-info-dot.active{width:18px;border-radius:999px;background:#2563eb}.home-info-nav{width:32px;height:32px;border:0;border-radius:10px;background:transparent;color:#64748b;font-size:25px;line-height:1;cursor:pointer}.home-info-nav:hover{background:#f1f5f9;color:#0f172a}.home-info-detail{white-space:nowrap}.info-enter{animation:homeInfoIn .28s ease both}@keyframes homeInfoIn{from{opacity:.35;transform:translateX(8px)}to{opacity:1;transform:none}}
-@media(max-width:760px){.home-info-strip{grid-template-columns:28px minmax(0,1fr) 28px;padding:10px 7px}.home-info-actions{grid-column:2;justify-content:flex-start}.home-info-copy .muted{white-space:normal}.home-info-detail{display:none!important}}
-@media(prefers-reduced-motion:reduce){.info-enter{animation:none!important}.home-info-dot{transition:none!important}}
 </style>
   <div class=section-head>
     <div><h3>Sơ đồ chỗ ngồi</h3><div class=muted>Sắp xếp chỗ ngồi cho lớp ${esc(curClass().name)}.</div></div>
