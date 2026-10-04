@@ -2788,8 +2788,8 @@ async function loadPublicClassesFromSheets(){
  }catch(e){console.warn("Không tải được dữ liệu công khai",e);return false}
 }
 
-// V36.44: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3644";
+// V36.45: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3645";
 let PUBLIC_BANNER_MAP=new Map();
 function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
 function rememberPublicBanners_(list){if(!Array.isArray(list))return;for(const x of list){if(!validBanner(x?.cover))continue;const ids=[x.classId,x.id,x.className,x.name].filter(Boolean).map(String);for(const k of ids)PUBLIC_BANNER_MAP.set(k,{cover:x.cover,coverRatio:x.coverRatio||null});}}
