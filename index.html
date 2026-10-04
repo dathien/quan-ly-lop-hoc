@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2825,6 +2825,7 @@ async function mainLogin(){
   try{localStorage.setItem(KEY,JSON.stringify(state))}catch(storageErr){console.warn("Không đủ LocalStorage để lưu bản local sau pull; giữ dữ liệu trong RAM/Google Sheets.",storageErr)}
   CLOUD_HYDRATED=true;
   runClass12RosterMigrationIfNeeded();
+  runClass11RosterMigrationIfNeeded();
   renderClassSelect();refreshCurrentView();
 
   // Banner Base64 không còn được PUSH vào AppState; tránh vượt giới hạn ô Google Sheets.
@@ -3087,6 +3088,29 @@ function migrateClass12Roster20261004(){
 function runClass12RosterMigrationIfNeeded(){
  if(migrateClass12Roster20261004()){renderClassSelect();refreshCurrentView();setTimeout(()=>scheduleOnlinePush(),100)}
 }
+
+// V36.29: cập nhật danh sách lớp 11 do GVCN cung cấp ngày 04/10/2026.
+function migrateClass11Roster20261004(){
+ if(!isFullAccessAccount()||!state||!Array.isArray(state.classes))return false;
+ state._migrations=state._migrations||{};
+ if(state._migrations.class11Roster20261004)return false;
+ const classId="c1", cls=state.classes.find(c=>String(c.id)===classId); if(!cls)return false;
+ const roster=["Thào Thị Sua","Đỗ Minh Tân","Nguyễn Minh Thắng","Nguyễn Tân Thành","Huỳnh Nguyễn Anh Thiên","Nguyễn Ngọc Trường Thịnh","Đặng Quang Thịnh","Phan Huỳnh Minh Thư","Nguyễn Hoàng Bảo Thy","Nguyễn Hữu Long Trang","Nguyễn Ngọc Tành Trí","Nguyễn Thành Trung","Vũ Tam Tú","Phạm Ngọc Tường Vy","Phạm Ngọc Tường Vy","Nguyễn Đặng Hoàng Yến","Nguyễn Gia Kỳ","Phạm Nguyễn Khánh Linh","Đinh Ngọc Trúc Linh","Nguyễn Hoàng Thiên Long","Nguyễn Đức Minh","Đinh Ngọc Thảo My","Lê Bảo Nam","Trần Thị Bảo Ngọc","Dương Hoài Ngọc","Trần Thạch Phúc Nguyên","Phan Nguyễn Uyên Nhi","Lê Đỗ Quỳnh Như","Nguyễn Tiến Phát","Nguyễn Mạnh Phi","Trần Huỳnh Thiên Phú","Nguyễn Trọng Phúc","Trần Lê Hữu Phước","Nguyễn Huỳnh Thanh Phước","Tạ Long Quân","Hồ Nhật Anh Quân","Phạm Hoàng Quân","Huỳnh Minh Sơn","Trần Thành Tài"];
+ // Thay danh sách demo lớp 11; xóa dữ liệu demo gắn trực tiếp với học sinh cũ để tránh gán nhầm.
+ const studentLinked=["scores","attendance","incidents","positive","comments","messages"];
+ studentLinked.forEach(k=>{if(Array.isArray(state[k]))state[k]=state[k].filter(x=>String(x.classId)!==classId)});
+ if(!Array.isArray(state.students))state.students=[];
+ state.students=state.students.filter(x=>String(x.classId)!==classId);
+ roster.forEach((name,i)=>state.students.push({id:`c1real${String(i+1).padStart(3,"0")}`,classId,name,gender:"",dob:"",studentCode:String(i+1).padStart(3,"0"),phoneFather:"",phoneMother:"",group:`Tổ ${(i%4)+1}`,seat:String(i+1)}));
+ state._migrations.class11Roster20261004=true;
+ try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
+ DIAG_LAST_RESULT="CLASS 11 ROSTER UPDATED → 39 HS";DIAG_LAST_ERROR="";renderSyncDiagnostic();
+ return true;
+}
+function runClass11RosterMigrationIfNeeded(){
+ if(migrateClass11Roster20261004()){renderClassSelect();refreshCurrentView();setTimeout(()=>scheduleOnlinePush(),150)}
+}
+
 function startCloudMutationWatchdog(){
  clearInterval(cloudMutationWatchdog);
  cloudMutationWatchdog=setInterval(()=>{
@@ -6437,6 +6461,8 @@ if(AUTHENTICATED&&currentCloudToken()){
    }
    CLOUD_HYDRATED=true;
    runClass12RosterMigrationIfNeeded();
+   runClass11RosterMigrationIfNeeded();
+  runClass11RosterMigrationIfNeeded();
    hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate(safeStartupPage());
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
    startCloudLiveSync();
