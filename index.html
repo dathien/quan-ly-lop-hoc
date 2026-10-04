@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm · V36</title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2565,19 +2565,9 @@ async function sha256HexClient(value){
  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 async function cloudLogin(username,password){
- // V36.17 FINAL SYNC: xác nhận đúng backend trước khi tạo phiên đăng nhập.
- try{
-  const hr=await fetch(GVCN_APPS_SCRIPT_URL+"?action=syncInfo&_ts="+Date.now(),{cache:"no-store",redirect:"follow"});
-  const ht=await hr.text();let hi=null;try{hi=JSON.parse(ht)}catch(_){}
-  if(!hi||hi.ok!==true||hi.api!=="V36.15"||hi.chunked!==true){
-   const er=new Error("BACKEND_VERSION_MISMATCH");er.code="BACKEND_VERSION_MISMATCH";throw er;
-  }
- }catch(e){
-  if(e&&e.code==="BACKEND_VERSION_MISMATCH")throw e;
-  const er=new Error("BACKEND_V36_15_UNAVAILABLE");er.code="BACKEND_V36_15_UNAVAILABLE";throw er;
- }
- // đăng nhập qua GET loginHash để tránh POST của Apps Script đôi lúc trả HTML/redirect ở một số trình duyệt.
- // Backend chỉ nhận SHA-256 của mật khẩu; mật khẩu thô không đưa lên query string.
+ // V36.22 FAST LOGIN: chỉ thực hiện 1 lượt gọi Apps Script trên đường đăng nhập.
+ // Trước đây syncInfo + loginHash chạy tuần tự làm Apps Script cold-start hai lần và có thể kéo dài >10 giây.
+ // loginHash tự xác thực backend/tài khoản; kiểm tra phiên bản chuyển sang nền sau khi đã vào giao diện.
  const passwordHash=await sha256HexClient(password);
  const qs=new URLSearchParams({
    action:"loginHash",
@@ -2608,6 +2598,12 @@ async function cloudLogin(username,password){
  DIAG_LAST_ERROR="";
  renderSyncDiagnostic();
  return x;
+}
+function verifyBackendVersionInBackground(){
+ // Không chặn đăng nhập. Chỉ cập nhật chẩn đoán nếu backend thật sự sai phiên bản.
+ fetch(GVCN_APPS_SCRIPT_URL+"?action=syncInfo&_ts="+Date.now(),{cache:"no-store",redirect:"follow"})
+  .then(r=>r.text()).then(t=>{let x=null;try{x=JSON.parse(t)}catch(_){};if(!x||x.ok!==true||x.api!=="V36.15"||x.chunked!==true){DIAG_LAST_ERROR="BACKEND_VERSION_MISMATCH";renderSyncDiagnostic();}})
+  .catch(()=>{});
 }
 function validBanner(v){return typeof v==="string"&&/^data:image\//.test(v)&&v.length>100}
 function backupStateBeforeCloud(tag="cloud"){
@@ -2708,6 +2704,9 @@ async function mainLogin(){
  const err=document.getElementById("mainLoginError"),btn=document.querySelector(".gvcn-login-submit");
  if(!username||!password){if(err)err.textContent="Vui lòng nhập tài khoản và mật khẩu.";return}
  if(btn){btn.disabled=true;btn.textContent="Đang đăng nhập..."}
+ // V36.22: dọn trạng thái phiên/timer cũ trước lần đăng nhập mới; KHÔNG xóa dữ liệu nghiệp vụ/localStorage.
+ clearInterval(cloudPullTimer);cloudPullTimer=null;clearInterval(cloudMutationWatchdog);cloudMutationWatchdog=null;
+ CLOUD_DIRTY=false;CLOUD_PUSHING=false;CLOUD_HYDRATED=false;clearCloudSession();
  // QUAN TRỌNG: giữ nguyên state đang hiển thị trước đăng nhập. Banner hiện nằm ở state này.
  // Không được đổi KEY rồi loadState() trước khi đã ghép state cũ, nếu không banner sẽ biến mất ngay sau đăng nhập.
  let preLoginState=null;
@@ -2741,6 +2740,8 @@ async function mainLogin(){
   }
 
   if(err)err.textContent="";hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate("home");toast(`Đã đăng nhập: ${session.name}`);
+  // Kiểm tra backend chạy nền, không giữ người dùng ở màn hình "Đang đăng nhập...".
+  verifyBackendVersionInBackground();
   CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
 
   // V36.17: PULL là bước bắt buộc và không còn chờ recoverBanners.
@@ -2788,7 +2789,8 @@ async function mainLogin(){
 async function logoutGVCN(){
  clearInterval(cloudPullTimer);cloudPullTimer=null;clearInterval(cloudMutationWatchdog);cloudMutationWatchdog=null;CLOUD_DIRTY=false;CLOUD_PUSHING=false;CLOUD_HYDRATED=false;
  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}
- try{await onlineAPI({action:"logout"})}catch(e){}
+ // Gửi yêu cầu hủy phiên server bằng token cũ nhưng không bắt UI phải chờ Apps Script.
+ const remoteLogout=onlineAPI({action:"logout"}).catch(()=>null);
  clearCloudSession();sessionStorage.removeItem(SESSION_KEY);
  AUTHENTICATED=false;
  document.getElementById("mainLoginPass")&&(document.getElementById("mainLoginPass").value="");
