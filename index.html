@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2043,7 +2043,7 @@ input,select,textarea{
 </style>
 
 <!-- GVCN V38.59: admin đúng tài khoản + giao diện Google/Gmail + quên mật khẩu -->
-<!-- GVCN V36.24: member profile/avatar + explicit logout + clean account switching -->
+<!-- GVCN V36.25: member profile/avatar + explicit logout + clean account switching -->
 </head>
 <body>
 
@@ -6498,7 +6498,9 @@ document.addEventListener("click",function(e){
  const el=e.target.closest("button,[onclick]");if(!el)return;
  const nav=el.closest("[data-page]")||el.closest(".group-title");
  const code=String(el.getAttribute("onclick")||"");
- const safe=/^(navigate|render|setDisciplineTab|moveAttendanceDate|setAttendanceDate|reportWeekDate|closeModal|window\.print)/.test(code);
+ const safe=/^(navigate|render|setDisciplineTab|moveAttendanceDate|setAttendanceDate|reportWeekDate|closeModal|openAccountSwitcher|openMemberProfile|setAccountAvatar|logoutGVCN|window\.print)/.test(code);
+ // Các thao tác tài khoản không phải thao tác dữ liệu nghiệp vụ và luôn được phép với thành viên.
+ if(el.id==="accountBtn"||el.id==="memberLogoutBtn"||el.closest("#accountBtn")||el.closest("#memberLogoutBtn"))return;
  if(nav||safe)return;
  if(!canRoleEditPage()){e.preventDefault();e.stopImmediatePropagation();toast(rolePermissionMessage());}
 },true);
