@@ -2565,7 +2565,7 @@ async function sha256HexClient(value){
  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 async function cloudLogin(username,password){
- // V36.22 FAST LOGIN: chỉ thực hiện 1 lượt gọi Apps Script trên đường đăng nhập.
+ // V36.23 FAST LOGIN: chỉ thực hiện 1 lượt gọi Apps Script trên đường đăng nhập.
  // Trước đây syncInfo + loginHash chạy tuần tự làm Apps Script cold-start hai lần và có thể kéo dài >10 giây.
  // loginHash tự xác thực backend/tài khoản; kiểm tra phiên bản chuyển sang nền sau khi đã vào giao diện.
  const passwordHash=await sha256HexClient(password);
@@ -2704,7 +2704,7 @@ async function mainLogin(){
  const err=document.getElementById("mainLoginError"),btn=document.querySelector(".gvcn-login-submit");
  if(!username||!password){if(err)err.textContent="Vui lòng nhập tài khoản và mật khẩu.";return}
  if(btn){btn.disabled=true;btn.textContent="Đang đăng nhập..."}
- // V36.22: dọn trạng thái phiên/timer cũ trước lần đăng nhập mới; KHÔNG xóa dữ liệu nghiệp vụ/localStorage.
+ // V36.23: dọn trạng thái phiên/timer cũ trước lần đăng nhập mới; KHÔNG xóa dữ liệu nghiệp vụ/localStorage.
  clearInterval(cloudPullTimer);cloudPullTimer=null;clearInterval(cloudMutationWatchdog);cloudMutationWatchdog=null;
  CLOUD_DIRTY=false;CLOUD_PUSHING=false;CLOUD_HYDRATED=false;clearCloudSession();
  // QUAN TRỌNG: giữ nguyên state đang hiển thị trước đăng nhập. Banner hiện nằm ở state này.
@@ -2808,7 +2808,7 @@ document.addEventListener("keydown",e=>{
 function updateAccountUI(){
  const p=activeTeacher();
  const brand=document.querySelector(".brand h1");if(brand)brand.textContent=session?.isDemo?"GVCN • DEMO":(p?.name||"GVCN");
- const btn=document.getElementById("accountBtn");if(btn)btn.textContent=`👤 ${session.name||p?.name||"Tài khoản"}`;
+ const btn=document.getElementById("accountBtn");if(btn)btn.textContent=`${getAccountAvatar()} ${session.name||p?.name||"Tài khoản"}`;
  const teacherNav=document.getElementById("teacherAdminNav");if(teacherNav)teacherNav.style.display=session?.isAdmin?"":"none";
  const demoNav=document.getElementById("demoAdminNav");if(demoNav)demoNav.style.display=session?.isAdmin?"":"none";
  const menuNav=document.getElementById("menuManagerNav");if(menuNav)menuNav.style.display=session?.isAdmin?"":"none";
@@ -2827,7 +2827,29 @@ function updateAccountUI(){
  document.querySelectorAll(".class-teacher-name").forEach(x=>x.textContent=p?.name||"");
 }
 function persistRegistry(arr){localStorage.setItem(TEACHERS_KEY,JSON.stringify(arr))}
+function accountAvatarKey(){return "GVCN_MEMBER_AVATAR_"+String(session?.userId||session?.username||"guest")}
+function getAccountAvatar(){
+ try{return localStorage.getItem(accountAvatarKey())||"👤"}catch(_){return "👤"}
+}
+function setAccountAvatar(v){
+ try{localStorage.setItem(accountAvatarKey(),String(v||"👤"))}catch(_){}
+ updateAccountUI();
+ const pv=document.getElementById("memberAvatarPreview");if(pv)pv.textContent=getAccountAvatar();
+ toast("Đã đổi ảnh đại diện");
+}
+function openMemberProfile(){
+ const avatars=["👤","🧑‍🎓","👨‍🎓","👩‍🎓","🧑‍💼","👨‍💼","👩‍💼","⭐","🌟","📘","📝","🏆","🎯","💡","🌱","🚀"];
+ const role=esc(session?.role||"Thành viên"),name=esc(session?.name||"Thành viên");
+ modal(`<h3>👤 Tài khoản thành viên</h3>
+ <div style="display:flex;align-items:center;gap:14px;margin:10px 0 16px;padding:14px;border:1px solid #e3eaf3;border-radius:14px;background:#f8fbff">
+   <div id="memberAvatarPreview" style="width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:#eaf3ff;font-size:32px">${getAccountAvatar()}</div>
+   <div><b style="font-size:16px">${name}</b><div class="muted" style="margin-top:4px">${role}</div></div>
+ </div>
+ <div class=field><label>Chọn ảnh đại diện</label><div style="display:grid;grid-template-columns:repeat(8,minmax(38px,1fr));gap:8px;margin-top:8px">${avatars.map(a=>`<button type="button" class="btn" style="font-size:22px;padding:6px;min-height:42px" onclick="setAccountAvatar('${a}')">${a}</button>`).join("")}</div></div>
+ <div class=modal-foot><button class="btn bad" onclick="closeModal();logoutGVCN()">Đăng xuất</button><button class=btn onclick=closeModal()>Đóng</button></div>`);
+}
 function openAccountSwitcher(){
+ if(!isFullAccessAccount()){openMemberProfile();return;}
  const raw=teacherRegistry(),p=activeTeacher(),seen=new Set();
  const reg=raw.filter(t=>{const key=(t.id===session.teacherId||String(t.username||"").toLowerCase()==="admin")&&String(t.name||"").toUpperCase().includes("HỒ NGUYỄN ĐA THIỆN")?"ROOT_ADMIN":String(t.id||t.username||t.name);if(seen.has(key))return false;seen.add(key);return true});
  modal(`<h3>👥 Không gian đa giáo viên</h3>
