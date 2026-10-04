@@ -3472,7 +3472,7 @@ function updateSidebarClassIdentity(){
 $("#classSelect").addEventListener("change",e=>{
   const memberClass=(!isFullAccessAccount()&&currentRolePolicy())?String(session?.classId||""):"";
   if(memberClass){state.currentClassId=memberClass;e.target.value=memberClass;toast("Tài khoản thành viên chỉ được sử dụng lớp được phân công");return}
-  state.currentClassId=e.target.value;localStorage.setItem(KEY,JSON.stringify(state));updateSidebarClassIdentity();render()
+  state.currentClassId=e.target.value;updateSidebarClassIdentity();render();setTimeout(()=>{try{localStorage.setItem(KEY,JSON.stringify(state))}catch(err){console.warn("Không lưu được lớp đang chọn vào LocalStorage",err)}},0)
 })
 $$(".nav button").forEach(b=>b.onclick=()=>navigate(b.dataset.page));
 $("#hamb").onclick=()=>$("#sidebar").classList.toggle("open");
