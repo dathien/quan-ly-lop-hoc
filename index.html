@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm </title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2062,6 +2062,67 @@ input,select,textarea{
 @media(max-width:620px){.modal:has(.member-profile-shell){width:calc(100vw - 20px)}.member-profile-head,.member-profile-body,.member-profile-foot{padding-left:16px;padding-right:16px}.member-avatar-grid{grid-template-columns:repeat(4,1fr)}.member-profile-foot{align-items:flex-end}.member-profile-foot-note{max-width:160px}.member-profile-card{padding:13px}.member-avatar-preview{width:60px;height:60px;flex-basis:60px;border-radius:17px}}
 </style>
 
+
+<style id="gvcn-v3636-dashboard-motion">
+/* V36.36 — subtle dashboard micro-interactions */
+@keyframes gvcnKpiIn{
+  from{opacity:0;transform:translateY(10px);}
+  to{opacity:1;transform:translateY(0);}
+}
+@keyframes gvcnConcernIn{
+  from{opacity:0;transform:translateY(8px);}
+  to{opacity:1;transform:translateY(0);}
+}
+@keyframes gvcnIconBreathe{
+  0%,100%{transform:translateY(0);}
+  50%{transform:translateY(-2px);}
+}
+.overview-kpi{
+  animation:gvcnKpiIn .42s cubic-bezier(.2,.75,.25,1) both;
+  transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
+}
+.overview-kpi:nth-child(2){animation-delay:.045s}
+.overview-kpi:nth-child(3){animation-delay:.09s}
+.overview-kpi:nth-child(4){animation-delay:.135s}
+.overview-kpi:hover{
+  transform:translateY(-3px);
+  box-shadow:0 14px 30px rgba(24,61,98,.11);
+  border-color:#d6e1ec;
+}
+.overview-kpi .overview-icon{
+  transition:transform .2s ease,box-shadow .2s ease;
+}
+.overview-kpi:hover .overview-icon{
+  transform:translateY(-2px) scale(1.035);
+  box-shadow:0 10px 20px rgba(15,35,65,.16);
+}
+.overview-kpi .overview-value{
+  transition:transform .2s ease;
+}
+.overview-kpi:hover .overview-value{transform:translateX(2px)}
+.concern-home-card{
+  animation:gvcnConcernIn .46s .12s cubic-bezier(.2,.75,.25,1) both;
+  transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
+}
+.concern-home-card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 12px 28px rgba(24,61,98,.09);
+}
+.concern-home-card h3:first-child{transition:transform .2s ease}
+.concern-home-card:hover h3:first-child{transform:translateX(2px)}
+.concern-home-card .badge{transition:transform .18s ease,box-shadow .18s ease}
+.concern-home-card:hover .badge{transform:scale(1.035)}
+.concern-home-card .btn{transition:transform .18s ease,box-shadow .18s ease,background-color .18s ease}
+.concern-home-card .btn:hover{transform:translateY(-1px)}
+@media (hover:none){
+  .overview-kpi:hover,.concern-home-card:hover{transform:none}
+  .overview-kpi:hover .overview-icon,.overview-kpi:hover .overview-value,.concern-home-card:hover h3:first-child,.concern-home-card:hover .badge{transform:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .overview-kpi,.concern-home-card{animation:none!important;transition:none!important}
+  .overview-kpi *,.concern-home-card *{transition:none!important}
+}
+</style>
 </head>
 <body>
 
@@ -4903,7 +4964,7 @@ function concernStudents(){
 
 function concernHomeCard(){
   const list=concernStudents();
-  return `<div class=card style="margin-top:15px;border-left:4px solid #dc2626">
+  return `<div class="card concern-home-card" style="margin-top:15px;border-left:4px solid #dc2626">
     <div class=section-head style="margin-bottom:0">
       <div><h3>⚠️ Học sinh cần quan tâm</h3><div class=muted>${list.length?`Phát hiện ${list.length} học sinh có dấu hiệu cần theo dõi từ chuyên cần và nề nếp.`:"Chưa phát hiện học sinh cần quan tâm."}</div></div>
       <div class=actions><span class="${list.length?"badge bad":"badge good"}">${list.length} học sinh</span>${list.length?`<button class=btn onclick="disciplineTab='concern';navigate('discipline')">Xem chi tiết</button>`:""}</div>
