@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2124,15 +2124,9 @@ input,select,textarea{
 }
 </style>
 
-<style id="home-info-v3638-global">
-/* V36.38 - Dải thông tin GVCN: style toàn cục */
-.home-info-strip{margin-top:15px;min-height:80px;border:1px solid #dbe5f1;border-left:4px solid #2563eb;border-radius:17px;background:#fff;display:grid;grid-template-columns:34px minmax(0,1fr) auto 34px;align-items:center;gap:8px;padding:11px 12px;box-shadow:0 8px 24px rgba(15,23,42,.055);overflow:hidden}
-.home-info-strip.tone-danger{border-left-color:#dc2626}.home-info-strip.tone-warning{border-left-color:#f59e0b}.home-info-strip.tone-success{border-left-color:#16a34a}.home-info-strip.tone-finance{border-left-color:#0f766e}.home-info-strip.tone-info{border-left-color:#2563eb}
-.home-info-main{display:flex;align-items:center;gap:12px;min-width:0}.home-info-icon{width:42px;height:42px;border-radius:13px;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:23px;flex:0 0 auto}.home-info-copy{min-width:0}.home-info-copy h3{margin:0 0 3px;font-size:17px}.home-info-copy .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.home-info-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.home-info-badge{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#334155;white-space:nowrap}.home-info-dots{display:flex;align-items:center;gap:5px}.home-info-dot{width:7px;height:7px;min-width:7px;padding:0;border:0;border-radius:50%;background:#cbd5e1;cursor:pointer;transition:.2s ease}.home-info-dot.active{width:18px;border-radius:999px;background:#2563eb}
-.home-info-nav{width:32px;height:32px;border:0;border-radius:10px;background:transparent;color:#64748b;font-size:25px;line-height:1;cursor:pointer;display:grid;place-items:center}.home-info-nav:hover{background:#f1f5f9;color:#0f172a}.home-info-detail{white-space:nowrap}.info-enter{animation:homeInfoIn .28s ease both}@keyframes homeInfoIn{from{opacity:.35;transform:translateX(8px)}to{opacity:1;transform:none}}
-@media(max-width:760px){.home-info-strip{grid-template-columns:28px minmax(0,1fr) 28px;padding:10px 7px}.home-info-actions{grid-column:2;justify-content:flex-start}.home-info-copy .muted{white-space:normal}.home-info-detail{display:none!important}}
-@media(prefers-reduced-motion:reduce){.info-enter{animation:none!important}.home-info-dot{transition:none!important}}
+<style id="guestReadOnlyV3639">
+body.guest-mode .guest-write-locked{opacity:.5!important;filter:saturate(.55);cursor:not-allowed!important}
+body.guest-mode .guest-write-locked:hover{transform:none!important;box-shadow:none!important}
 </style>
 </head>
 <body>
@@ -2577,7 +2571,7 @@ function updateCloudSyncChip(){
 async function onlineAPI(body){
  const action=String(body?.action||"");
  try{
-  if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicClasses"){
+  if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicClasses"||action==="publicState"){
    const token=body?.token||currentCloudToken();
    const qs=new URLSearchParams({action});if(token)qs.set("token",token);if(action==="pull"){qs.set("_ts",String(Date.now()));qs.set("_rev",String(CLOUD_REVISION||0));}
    const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
@@ -2585,14 +2579,14 @@ async function onlineAPI(body){
    try{x=JSON.parse(txt)}
    catch(e){
     // publicClasses chỉ là dữ liệu công khai phụ trợ: không được làm hỏng phiên đăng nhập/pull.
-    if(action==="publicClasses"){
+    if(action==="publicClasses"||action==="publicState"){
       console.warn("publicClasses trả dữ liệu không phải JSON; bỏ qua và tiếp tục Cloud sync.");
       return {ok:true,classes:[],skipped:true};
     }
     throw new Error("Apps Script không trả JSON hợp lệ");
    }
    if(!x.ok){
-    if(action==="publicClasses"){
+    if(action==="publicClasses"||action==="publicState"){
       console.warn("publicClasses lỗi; bỏ qua và tiếp tục Cloud sync.",x);
       return {ok:true,classes:[],skipped:true};
     }
@@ -2608,7 +2602,7 @@ async function onlineAPI(body){
   if(action==="push"){DIAG_LAST_PUSH=diagTime();DIAG_CLOUD_REVISION=Number(x.revision||DIAG_CLOUD_REVISION||0);DIAG_LAST_RESULT="PUSH OK";DIAG_LAST_ERROR="";renderSyncDiagnostic()}
   return x;
  }catch(e){
-   if(action==="publicClasses"){
+   if(action==="publicClasses"||action==="publicState"){
      console.warn("publicClasses không khả dụng; bỏ qua để không chặn đăng nhập/pull.",e);
      return {ok:true,classes:[],skipped:true};
    }
@@ -2778,6 +2772,24 @@ async function loadPublicClassesFromSheets(){
   return true;
  }catch(e){console.warn("Không tải được dữ liệu công khai",e);return false}
 }
+
+async function loadPublicStateFromSheets(){
+ try{
+  const x=await onlineAPI({action:"publicState"});
+  if(!x||!x.ok||!x.data||typeof x.data!=="object")return loadPublicClassesFromSheets();
+  const p=x.data,beforeId=state.currentClassId;
+  const publicKeys=["classes","students","seats","timetable","attendance","positive","incidents","duty","weekly","tasks"];
+  publicKeys.forEach(k=>{if(Array.isArray(p[k]))state[k]=p[k]});
+  // Không để cache cũ làm khách nhìn thấy dữ liệu riêng tư/không còn hiện hành.
+  ["scores","finance","comments","messages"].forEach(k=>{if(Array.isArray(state[k]))state[k]=[]});
+  if(beforeId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(beforeId)))state.currentClassId=beforeId;
+  else if(Array.isArray(state.classes)&&state.classes[0])state.currentClassId=state.classes[0].id;
+  renderClassSelect();refreshCurrentView();
+  const stamp=document.getElementById("guestPublicSyncStamp");if(stamp)stamp.textContent=x.syncedAt?`Dữ liệu công khai cập nhật ${new Date(x.syncedAt).toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})}`:"Dữ liệu công khai mới nhất";
+  return true;
+ }catch(e){console.warn("Không tải được snapshot công khai",e);return loadPublicClassesFromSheets()}
+}
+
 function allLoginUsers(){
  const out=[];
  teacherRegistry().forEach(t=>{
@@ -2877,7 +2889,7 @@ async function mainLogin(){
   verifyBackendVersionInBackground();
   CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
 
-  // V36.38 FAST ENTER: xác thực xong là vào giao diện ngay; hydrate Cloud chạy nền, không khóa popup đăng nhập.
+  // V36.37 FAST ENTER: xác thực xong là vào giao diện ngay; hydrate Cloud chạy nền, không khóa popup đăng nhập.
   setTimeout(async()=>{
    try{
   // V36.17: PULL là bước bắt buộc và không còn chờ recoverBanners.
@@ -6703,8 +6715,8 @@ if(AUTHENTICATED&&currentCloudToken()){
   }})();
 }else{
  AUTHENTICATED=false;CLOUD_HYDRATED=false;renderClassSelect();navigate(safeStartupPage());hideLoginScreen();updateGuestUI();
- // Chế độ công khai chỉ lấy metadata + banner lớp.
- loadPublicClassesFromSheets();
+ // Chế độ công khai: tải snapshot chỉ-đọc mới nhất từ Google Sheets.
+ loadPublicStateFromSheets();
 }
 </script>
 
@@ -6815,6 +6827,21 @@ document.addEventListener("click",function(e){
  mainLogin();
 },true);
 
+// V36.39: khóa cứng mọi thao tác ghi ở chế độ Khách nhưng vẫn cho điều hướng/lọc/xem chi tiết.
+const GUEST_MUTATION_RE=/(^|\s)(thêm|tạo|sửa|xóa|lưu|xác nhận|hủy xác nhận|hoàn thành|mở lại|nhập điểm|điểm danh|ghi vi phạm|tuyên dương|giao dịch|phân công|đổi chỗ|xáo trộn|khôi phục|import|reset)(\s|$)/i;
+function guestNoWriteUI(){
+ if(!isGuestMode())return;
+ document.querySelectorAll("button").forEach(btn=>{
+  if(btn.closest("#loginScreen")||btn.id==="accountBtn"||btn.dataset.page||btn.closest(".group-title"))return;
+  const txt=(btn.textContent||"").trim();
+  if(GUEST_MUTATION_RE.test(txt)){
+   btn.setAttribute("aria-disabled","true");btn.title="Chế độ Khách chỉ được xem • Đăng nhập để thay đổi dữ liệu";
+   btn.classList.add("guest-write-locked");
+  }
+ });
+}
+new MutationObserver(()=>guestNoWriteUI()).observe(document.getElementById("content"),{childList:true,subtree:true});
+
 // Chế độ khách: xem toàn bộ giao diện, không được ghi dữ liệu.
 document.addEventListener("click",function(e){
  if(!isGuestMode())return;
@@ -6823,6 +6850,8 @@ document.addEventListener("click",function(e){
  if(e.target.closest("#loginScreen"))return;
  const el=e.target.closest("button,[onclick]");
  if(!el)return;
+ const guestText=(el.textContent||"").trim();
+ if(GUEST_MUTATION_RE.test(guestText)){e.preventDefault();e.stopImmediatePropagation();requireLoginToEdit();return;}
  if(el.id==="accountBtn"||el.closest("#accountBtn")){requestLogin();e.preventDefault();e.stopImmediatePropagation();return}
  const nav=el.closest("[data-page]")||el.closest(".group-title");
  const code=String(el.getAttribute("onclick")||"");
@@ -6940,7 +6969,7 @@ function renderSeats(){
     @media(max-width:1100px){.seat-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:700px){.seat-groups{grid-template-columns:1fr}.board-front{width:90%}.seat-toolbar{justify-content:flex-start}}
   
-/* V36.38 • Dải thông tin GVCN động */
+/* V36.37 • Dải thông tin GVCN động */
 .home-info-strip{margin-top:15px;min-height:80px;border:1px solid #dbe5f1;border-left:4px solid #2563eb;border-radius:17px;background:#fff;display:grid;grid-template-columns:34px minmax(0,1fr) auto 34px;align-items:center;gap:8px;padding:11px 12px;box-shadow:0 8px 24px rgba(15,23,42,.055);overflow:hidden}
 .home-info-strip.tone-danger{border-left-color:#dc2626}.home-info-strip.tone-warning{border-left-color:#f59e0b}.home-info-strip.tone-success{border-left-color:#16a34a}.home-info-strip.tone-finance{border-left-color:#0f766e}.home-info-strip.tone-info{border-left-color:#2563eb}
 .home-info-main{display:flex;align-items:center;gap:12px;min-width:0}.home-info-icon{width:42px;height:42px;border-radius:13px;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:23px;flex:0 0 auto}.home-info-copy{min-width:0}.home-info-copy h3{margin:0 0 3px;font-size:17px}.home-info-copy .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.home-info-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.home-info-badge{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#334155;white-space:nowrap}.home-info-dots{display:flex;align-items:center;gap:5px}.home-info-dot{width:7px;height:7px;min-width:7px;padding:0;border:0;border-radius:50%;background:#cbd5e1;cursor:pointer}.home-info-dot.active{width:18px;border-radius:999px;background:#2563eb}.home-info-nav{width:32px;height:32px;border:0;border-radius:10px;background:transparent;color:#64748b;font-size:25px;line-height:1;cursor:pointer}.home-info-nav:hover{background:#f1f5f9;color:#0f172a}.home-info-detail{white-space:nowrap}.info-enter{animation:homeInfoIn .28s ease both}@keyframes homeInfoIn{from{opacity:.35;transform:translateX(8px)}to{opacity:1;transform:none}}
