@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2788,7 +2788,8 @@ async function loadPublicClassesFromSheets(){
  }catch(e){console.warn("Không tải được dữ liệu công khai",e);return false}
 }
 
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3643";
+// V36.44: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3644";
 let PUBLIC_BANNER_MAP=new Map();
 function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
 function rememberPublicBanners_(list){if(!Array.isArray(list))return;for(const x of list){if(!validBanner(x?.cover))continue;const ids=[x.classId,x.id,x.className,x.name].filter(Boolean).map(String);for(const k of ids)PUBLIC_BANNER_MAP.set(k,{cover:x.cover,coverRatio:x.coverRatio||null});}}
@@ -2797,6 +2798,14 @@ function publicBannerForClass_(c){return PUBLIC_BANNER_MAP.get(String(c?.id||"")
 function preservePublicBannerClasses_(classes){if(!Array.isArray(classes))return classes;return classes.map(c=>{const b=publicBannerForClass_(c);return b&&validBanner(b.cover)?{...c,cover:b.cover,coverRatio:b.coverRatio||c.coverRatio||null}:c})}
 function applyPublicBanners(list,rerender=true){if(AUTHENTICATED)return false;rememberPublicBanners_(list);let changed=false;(state.classes||[]).forEach(c=>{const z=publicBannerForClass_(c);if(z&&validBanner(z.cover)&&c.cover!==z.cover){c.cover=z.cover;c.coverRatio=z.coverRatio||c.coverRatio||null;changed=true}});if(changed&&rerender)refreshCurrentView();return changed}
 async function loadPublicBannersFromSheets(){const gen=PUBLIC_READ_GEN;const cached=readPublicBannerCache();applyPublicBanners(cached,false);try{const x=await onlineAPI({action:"publicBanners"});if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;const list=Array.isArray(x?.banners)?x.banners:[];if(!list.length)return false;rememberPublicBanners_(list);try{localStorage.setItem(PUBLIC_BANNER_CACHE_KEY,JSON.stringify(list))}catch(_){}return applyPublicBanners(list,true)}catch(e){console.warn("Không tải được banner công khai",e);return false}}
+async function syncOwnedBannersToPublicStore_(){
+ if(!AUTHENTICATED||!session||!Array.isArray(state.classes))return;
+ const role=String(session.role||"").toUpperCase();if(!(session.isAdmin||role.includes("GIÁO VIÊN")||role==="GVCN"))return;
+ for(const c of state.classes){
+  if(!validBanner(c?.cover))continue;
+  try{await onlineAPI({action:"saveClassBanner",classId:String(c.id||""),className:String(c.name||""),cover:c.cover,coverRatio:c.coverRatio||null})}catch(e){console.warn("Chưa lưu được banner lớp "+String(c?.name||""),e)}
+ }
+}
 
 async function loadPublicStateFromSheets(){
  const gen=PUBLIC_READ_GEN;
@@ -2948,6 +2957,7 @@ async function mainLogin(){
           new Promise(resolve=>setTimeout(()=>resolve([]),1500))
         ]);
         if(Array.isArray(recovered)&&recovered.length)state=mergeRemoteStateSafely(state,state,recovered);
+        setTimeout(()=>syncOwnedBannersToPublicStore_(),0);
       }catch(_){recovered=[];}
     
       // Giữ đúng lớp người dùng đang xem trước khi đăng nhập nếu lớp đó vẫn tồn tại.
@@ -3707,13 +3717,13 @@ function changeCover(){
  const inp=document.createElement("input");inp.type="file";inp.accept="image/png,image/jpeg,image/webp";
  inp.onchange=()=>{const file=inp.files&&inp.files[0];if(!file)return;if(!/^image\/(png|jpeg|webp)$/.test(file.type))return toast("Chọn ảnh PNG, JPG hoặc WEBP");
   const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const maxW=1920,scale=Math.min(1,maxW/img.naturalWidth),w=Math.max(1,Math.round(img.naturalWidth*scale)),hh=Math.max(1,Math.round(img.naturalHeight*scale)),canvas=document.createElement("canvas");canvas.width=w;canvas.height=hh;canvas.getContext("2d").drawImage(img,0,0,w,hh);
-    let data;try{data=canvas.toDataURL("image/jpeg",.90)}catch(e){data=reader.result}c.cover=data;c.coverRatio=img.naturalWidth/img.naturalHeight;save("Đã cập nhật ảnh lớp");refreshBannerAfterUpload();toast("Ảnh lớp đã cập nhật và hiển thị ngay")};img.onerror=()=>toast("Không đọc được ảnh");img.src=reader.result};reader.readAsDataURL(file)};
+    let data;try{data=canvas.toDataURL("image/jpeg",.90)}catch(e){data=reader.result}c.cover=data;c.coverRatio=img.naturalWidth/img.naturalHeight;save("Đã cập nhật ảnh lớp");setTimeout(()=>syncOwnedBannersToPublicStore_(),0);refreshBannerAfterUpload();toast("Ảnh lớp đã cập nhật và hiển thị ngay")};img.onerror=()=>toast("Không đọc được ảnh");img.src=reader.result};reader.readAsDataURL(file)};
  inp.click()
 }
 function removeCover(){
   if(!curClass()?.cover)return;
   if(!confirm("Bỏ ảnh lớp hiện tại?"))return;
-  curClass().cover="";
+  curClass().cover="";setTimeout(()=>syncOwnedBannersToPublicStore_(),0);
   localStorage.setItem(KEY,JSON.stringify(state));
   log("Đã bỏ ảnh lớp");
   localStorage.setItem(KEY,JSON.stringify(state));
