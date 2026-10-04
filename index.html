@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2866,49 +2866,59 @@ async function mainLogin(){
   verifyBackendVersionInBackground();
   CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
 
+  // V36.37 FAST ENTER: xác thực xong là vào giao diện ngay; hydrate Cloud chạy nền, không khóa popup đăng nhập.
+  setTimeout(async()=>{
+   try{
   // V36.17: PULL là bước bắt buộc và không còn chờ recoverBanners.
-  // Trước đây Promise.all có thể treo toàn bộ đăng nhập nếu endpoint banner chậm/không phản hồi.
-  const remote=await onlineAPI({action:"pull"});
-  const beforeCloudMerge=state;
-  let recovered=[];
-  if(remote.ok&&remote.data&&typeof remote.data==="object"){
-    state=mergeRemoteStateSafely(remote.data,beforeCloudMerge,[]);
-    CLOUD_REVISION=Number(remote.revision||0);DIAG_CLOUD_REVISION=CLOUD_REVISION;CLOUD_BASE_STATE=cloneSyncValue(remote.data);CLOUD_DIRTY=false;
-    DIAG_LAST_RESULT="LOGIN PULL → APPLIED R"+CLOUD_REVISION;DIAG_LAST_ERROR="";renderSyncDiagnostic();
-  }else{
-    // Cloud chưa có state: hydrate từ dữ liệu local hiện có và cho phép watchdog tạo Revision đầu tiên.
-    CLOUD_REVISION=Number(remote.revision||0);DIAG_CLOUD_REVISION=CLOUD_REVISION;
-    CLOUD_BASE_STATE={};CLOUD_DIRTY=false;
-    DIAG_LAST_RESULT="LOGIN PULL EMPTY → READY";DIAG_LAST_ERROR="";renderSyncDiagnostic();
-  }
-  // Banner recovery chỉ là tác vụ phụ; timeout nhanh và tuyệt đối không chặn đăng nhập/sync.
-  try{
-    recovered=await Promise.race([
-      recoverBannersFromSheets(),
-      new Promise(resolve=>setTimeout(()=>resolve([]),1500))
-    ]);
-    if(Array.isArray(recovered)&&recovered.length)state=mergeRemoteStateSafely(state,state,recovered);
-  }catch(_){recovered=[];}
-
-  // Giữ đúng lớp người dùng đang xem trước khi đăng nhập nếu lớp đó vẫn tồn tại.
-  if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
-  try{localStorage.setItem(KEY,JSON.stringify(state))}catch(storageErr){console.warn("Không đủ LocalStorage để lưu bản local sau pull; giữ dữ liệu trong RAM/Google Sheets.",storageErr)}
-  CLOUD_HYDRATED=true;
-  runClass12RosterMigrationIfNeeded();
-  runClass11RosterMigrationIfNeeded();
-  runDemoScores1112MigrationIfNeeded();
-  runDemoDiscipline1112MigrationIfNeeded();
-  renderClassSelect();refreshCurrentView();
-
-  // Banner Base64 không còn được PUSH vào AppState; tránh vượt giới hạn ô Google Sheets.
-  CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();startCloudLiveSync();
-  if(!remote.data){
-    DIAG_LAST_RESULT="CLOUD EMPTY → INITIAL PUSH QUEUED";renderSyncDiagnostic();
-    scheduleOnlinePush();
-  }
-  // Chốt lại sau khi UI dựng xong để không có luồng khởi tạo cũ giữ revision 0.
-  setTimeout(()=>forceCloudReconcile("POST LOGIN 1"),600);
-  setTimeout(()=>forceCloudReconcile("POST LOGIN 2"),1800);
+      // Trước đây Promise.all có thể treo toàn bộ đăng nhập nếu endpoint banner chậm/không phản hồi.
+      const remote=await onlineAPI({action:"pull"});
+      const beforeCloudMerge=state;
+      let recovered=[];
+      if(remote.ok&&remote.data&&typeof remote.data==="object"){
+        state=mergeRemoteStateSafely(remote.data,beforeCloudMerge,[]);
+        CLOUD_REVISION=Number(remote.revision||0);DIAG_CLOUD_REVISION=CLOUD_REVISION;CLOUD_BASE_STATE=cloneSyncValue(remote.data);CLOUD_DIRTY=false;
+        DIAG_LAST_RESULT="LOGIN PULL → APPLIED R"+CLOUD_REVISION;DIAG_LAST_ERROR="";renderSyncDiagnostic();
+      }else{
+        // Cloud chưa có state: hydrate từ dữ liệu local hiện có và cho phép watchdog tạo Revision đầu tiên.
+        CLOUD_REVISION=Number(remote.revision||0);DIAG_CLOUD_REVISION=CLOUD_REVISION;
+        CLOUD_BASE_STATE={};CLOUD_DIRTY=false;
+        DIAG_LAST_RESULT="LOGIN PULL EMPTY → READY";DIAG_LAST_ERROR="";renderSyncDiagnostic();
+      }
+      // Banner recovery chỉ là tác vụ phụ; timeout nhanh và tuyệt đối không chặn đăng nhập/sync.
+      try{
+        recovered=await Promise.race([
+          recoverBannersFromSheets(),
+          new Promise(resolve=>setTimeout(()=>resolve([]),1500))
+        ]);
+        if(Array.isArray(recovered)&&recovered.length)state=mergeRemoteStateSafely(state,state,recovered);
+      }catch(_){recovered=[];}
+    
+      // Giữ đúng lớp người dùng đang xem trước khi đăng nhập nếu lớp đó vẫn tồn tại.
+      if(preLoginClassId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(preLoginClassId)))state.currentClassId=preLoginClassId;
+      try{localStorage.setItem(KEY,JSON.stringify(state))}catch(storageErr){console.warn("Không đủ LocalStorage để lưu bản local sau pull; giữ dữ liệu trong RAM/Google Sheets.",storageErr)}
+      CLOUD_HYDRATED=true;
+      runClass12RosterMigrationIfNeeded();
+      runClass11RosterMigrationIfNeeded();
+      runDemoScores1112MigrationIfNeeded();
+      runDemoDiscipline1112MigrationIfNeeded();
+      renderClassSelect();refreshCurrentView();
+    
+      // Banner Base64 không còn được PUSH vào AppState; tránh vượt giới hạn ô Google Sheets.
+      CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();startCloudLiveSync();
+      if(!remote.data){
+        DIAG_LAST_RESULT="CLOUD EMPTY → INITIAL PUSH QUEUED";renderSyncDiagnostic();
+        scheduleOnlinePush();
+      }
+      // Chốt lại sau khi UI dựng xong để không có luồng khởi tạo cũ giữ revision 0.
+      setTimeout(()=>forceCloudReconcile("POST LOGIN 1"),600);
+      setTimeout(()=>forceCloudReconcile("POST LOGIN 2"),1800);
+    
+   }catch(bgErr){
+    console.warn("Hydrate Cloud sau đăng nhập chưa hoàn tất; giữ giao diện/local state và để live sync thử lại.",bgErr);
+    CLOUD_SYNC_STATE="offline";DIAG_LAST_ERROR=bgErr?.message||String(bgErr);updateCloudSyncChip();renderSyncDiagnostic();
+    try{startCloudLiveSync()}catch(_){}
+   }
+  },0);
  }catch(e){clearCloudSession();if(err)err.textContent=(e.message==="LOGIN_FAILED"?"Sai tài khoản hoặc mật khẩu.":e.message)||"Không thể đăng nhập"}
  finally{if(btn){btn.disabled=false;btn.textContent="Đăng nhập"}}
 }
@@ -3585,14 +3595,14 @@ function renderHome(){
    ${overviewCard("concern","! ",concernStudents().length,"HS CẦN LƯU Ý","Theo dõi đặc biệt")}
    ${overviewCard("tasks","📖",sortedTasks(false).filter(x=>x.priority==="Gấp" || (x.dueDate&&x.dueDate<=todayISO())).length,"VIỆC GẤP / QUÁ HẠN","Cần xử lý sớm")}
  </div>
- ${concernHomeCard()}
+ ${homeInfoStrip()}
  ${rankBoard()}
  <div class="grid g2" style="margin-top:15px">
   <div class=card><div class=section-head><div><h3>📅 Kế hoạch gần nhất</h3></div><button class=btn onclick="navigate('weekly')">Mở</button></div>${latestWeekly()}</div>
   <div class=card><div class=section-head><div><h3>☑️ Công việc sắp tới</h3><div class=muted>Nhắc việc cần xử lý trong thời gian tới.</div></div><button class=btn onclick="navigate('tasks')">Xem tất cả</button></div>${upcomingTasksHome()}</div>
  </div>`;
 
- requestAnimationFrame(()=>{fitCurrentBanner();syncHeroToImage()});
+ requestAnimationFrame(()=>{fitCurrentBanner();syncHeroToImage();startHomeInfoTicker()});
 }
 function statCard(icon,label,value){return `<div class=card><div class=stat><div><div class=label>${esc(label)}</div><strong>${esc(value)}</strong></div><div style="font-size:29px">${icon}</div></div></div>`}
 function overviewCard(type,icon,value,label,sub){
@@ -4962,15 +4972,45 @@ function concernStudents(){
   });
 }
 
-function concernHomeCard(){
-  const list=concernStudents();
-  return `<div class="card concern-home-card" style="margin-top:15px;border-left:4px solid #dc2626">
-    <div class=section-head style="margin-bottom:0">
-      <div><h3>⚠️ Học sinh cần quan tâm</h3><div class=muted>${list.length?`Phát hiện ${list.length} học sinh có dấu hiệu cần theo dõi từ chuyên cần và nề nếp.`:"Chưa phát hiện học sinh cần quan tâm."}</div></div>
-      <div class=actions><span class="${list.length?"badge bad":"badge good"}">${list.length} học sinh</span>${list.length?`<button class=btn onclick="disciplineTab='concern';navigate('discipline')">Xem chi tiết</button>`:""}</div>
-    </div>
+let homeInfoTickerTimer=null,homeInfoTickerIndex=0;
+function homeInfoItems(){
+  const items=[],today=todayISO(),concerns=concernStudents();
+  if(concerns.length)items.push({icon:"⚠️",tone:"danger",title:"Học sinh cần quan tâm",text:`Phát hiện ${concerns.length} học sinh cần theo dõi từ chuyên cần và nề nếp.`,badge:`${concerns.length} học sinh`,page:"discipline",action:"concern"});
+  const urgent=sortedTasks(false).filter(x=>x.priority==="Gấp"||(x.dueDate&&x.dueDate<=today));
+  if(urgent.length)items.push({icon:"⏰",tone:"warning",title:"Việc cần xử lý sớm",text:`Có ${urgent.length} công việc gấp hoặc đã đến hạn cần GVCN theo dõi.`,badge:`${urgent.length} việc`,page:"tasks"});
+  const pendingFinance=byClass(state.finance).filter(x=>!x.done);
+  if(pendingFinance.length)items.push({icon:"💰",tone:"finance",title:"Thu – chi chờ xác nhận",text:`Có ${pendingFinance.length} giao dịch chưa được xác nhận trong sổ quỹ của lớp.`,badge:`${pendingFinance.length} giao dịch`,page:"finance"});
+  const weekly=byClass(state.weekly).filter(x=>!x.done).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  if(weekly.length)items.push({icon:"📌",tone:"info",title:"Kế hoạch tuần đang thực hiện",text:weekly[0].content||weekly[0].note||weekly[0].title||"Có kế hoạch tuần chưa hoàn thành.",badge:`${weekly.length} kế hoạch`,page:"weekly"});
+  const ranks=rankRows().slice().sort((a,b)=>(b.score||0)-(a.score||0));
+  if(ranks.length&&Number(ranks[0].score||0)!==0)items.push({icon:"🏆",tone:"success",title:"Điểm sáng thi đua",text:`${ranks[0].s?.name||"Học sinh dẫn đầu"} đang dẫn đầu với ${ranks[0].score||0} điểm thi đua.`,badge:"Nổi bật",page:"discipline"});
+  if(!items.length)items.push({icon:"✅",tone:"success",title:"Lớp đang ổn định",text:"Hiện chưa có cảnh báo quan trọng cần GVCN xử lý ngay.",badge:"Ổn định",page:"home"});
+  return items;
+}
+function homeInfoStrip(){
+  const items=homeInfoItems(),dots=items.map((_,i)=>`<button type="button" class="home-info-dot ${i===0?'active':''}" aria-label="Thông tin ${i+1}" onclick="showHomeInfo(${i},true)"></button>`).join("");
+  return `<div class="home-info-strip tone-${items[0].tone}" id="homeInfoStrip" data-count="${items.length}" onmouseenter="pauseHomeInfoTicker()" onmouseleave="resumeHomeInfoTicker()">
+    <button type="button" class="home-info-nav prev" onclick="stepHomeInfo(-1)" aria-label="Thông tin trước">‹</button>
+    <div class="home-info-main"><div class="home-info-icon" id="homeInfoIcon">${items[0].icon}</div><div class="home-info-copy"><h3 id="homeInfoTitle">${esc(items[0].title)}</h3><div class="muted" id="homeInfoText">${esc(items[0].text)}</div></div></div>
+    <div class="home-info-actions"><span class="home-info-badge" id="homeInfoBadge">${esc(items[0].badge)}</span><button type="button" class="btn home-info-detail" id="homeInfoDetail">Xem chi tiết</button><div class="home-info-dots">${dots}</div></div>
+    <button type="button" class="home-info-nav next" onclick="stepHomeInfo(1)" aria-label="Thông tin tiếp">›</button>
   </div>`;
 }
+function showHomeInfo(index,userAction=false){
+  const box=document.getElementById("homeInfoStrip");if(!box)return;const items=homeInfoItems();if(!items.length)return;
+  homeInfoTickerIndex=((index%items.length)+items.length)%items.length;const x=items[homeInfoTickerIndex];
+  box.className=`home-info-strip tone-${x.tone}`;
+  const main=box.querySelector('.home-info-main');if(main){main.classList.remove('info-enter');void main.offsetWidth;main.classList.add('info-enter')}
+  const icon=document.getElementById('homeInfoIcon'),title=document.getElementById('homeInfoTitle'),txt=document.getElementById('homeInfoText'),badge=document.getElementById('homeInfoBadge'),detail=document.getElementById('homeInfoDetail');
+  if(icon)icon.textContent=x.icon;if(title)title.textContent=x.title;if(txt)txt.textContent=x.text;if(badge)badge.textContent=x.badge;
+  if(detail){detail.style.display=x.page==='home'?'none':'inline-flex';detail.onclick=()=>{if(x.action==='concern')disciplineTab='concern';navigate(x.page)}}
+  box.querySelectorAll('.home-info-dot').forEach((d,i)=>d.classList.toggle('active',i===homeInfoTickerIndex));
+  if(userAction)resumeHomeInfoTicker();
+}
+function stepHomeInfo(delta){showHomeInfo(homeInfoTickerIndex+delta,true)}
+function pauseHomeInfoTicker(){clearInterval(homeInfoTickerTimer);homeInfoTickerTimer=null}
+function resumeHomeInfoTicker(){pauseHomeInfoTicker();const box=document.getElementById('homeInfoStrip');if(!box||Number(box.dataset.count||0)<=1)return;homeInfoTickerTimer=setInterval(()=>showHomeInfo(homeInfoTickerIndex+1,false),5500)}
+function startHomeInfoTicker(){homeInfoTickerIndex=0;showHomeInfo(0,false);resumeHomeInfoTicker()}
 
 function renderConcernStudents(){
   const pane=$("#disciplinePane"), all=concernStudents();
@@ -6888,7 +6928,14 @@ function renderSeats(){
     .unassigned-box{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px}.unassigned-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}.student-chip{padding:7px 9px;border-radius:999px;background:#edf3f8;border:1px solid #dbe4ee;font-weight:800;font-size:12px;cursor:grab}
     @media(max-width:1100px){.seat-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:700px){.seat-groups{grid-template-columns:1fr}.board-front{width:90%}.seat-toolbar{justify-content:flex-start}}
-  </style>
+  
+/* V36.37 • Dải thông tin GVCN động */
+.home-info-strip{margin-top:15px;min-height:80px;border:1px solid #dbe5f1;border-left:4px solid #2563eb;border-radius:17px;background:#fff;display:grid;grid-template-columns:34px minmax(0,1fr) auto 34px;align-items:center;gap:8px;padding:11px 12px;box-shadow:0 8px 24px rgba(15,23,42,.055);overflow:hidden}
+.home-info-strip.tone-danger{border-left-color:#dc2626}.home-info-strip.tone-warning{border-left-color:#f59e0b}.home-info-strip.tone-success{border-left-color:#16a34a}.home-info-strip.tone-finance{border-left-color:#0f766e}.home-info-strip.tone-info{border-left-color:#2563eb}
+.home-info-main{display:flex;align-items:center;gap:12px;min-width:0}.home-info-icon{width:42px;height:42px;border-radius:13px;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:23px;flex:0 0 auto}.home-info-copy{min-width:0}.home-info-copy h3{margin:0 0 3px;font-size:17px}.home-info-copy .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.home-info-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.home-info-badge{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#334155;white-space:nowrap}.home-info-dots{display:flex;align-items:center;gap:5px}.home-info-dot{width:7px;height:7px;min-width:7px;padding:0;border:0;border-radius:50%;background:#cbd5e1;cursor:pointer}.home-info-dot.active{width:18px;border-radius:999px;background:#2563eb}.home-info-nav{width:32px;height:32px;border:0;border-radius:10px;background:transparent;color:#64748b;font-size:25px;line-height:1;cursor:pointer}.home-info-nav:hover{background:#f1f5f9;color:#0f172a}.home-info-detail{white-space:nowrap}.info-enter{animation:homeInfoIn .28s ease both}@keyframes homeInfoIn{from{opacity:.35;transform:translateX(8px)}to{opacity:1;transform:none}}
+@media(max-width:760px){.home-info-strip{grid-template-columns:28px minmax(0,1fr) 28px;padding:10px 7px}.home-info-actions{grid-column:2;justify-content:flex-start}.home-info-copy .muted{white-space:normal}.home-info-detail{display:none!important}}
+@media(prefers-reduced-motion:reduce){.info-enter{animation:none!important}.home-info-dot{transition:none!important}}
+</style>
   <div class=section-head>
     <div><h3>Sơ đồ chỗ ngồi</h3><div class=muted>Sắp xếp chỗ ngồi cho lớp ${esc(curClass().name)}.</div></div>
     <div class=seat-toolbar>
