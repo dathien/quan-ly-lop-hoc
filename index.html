@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm </title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2123,6 +2123,17 @@ input,select,textarea{
   .overview-kpi *,.concern-home-card *{transition:none!important}
 }
 </style>
+
+<style id="home-info-v3638-global">
+/* V36.38 - Dải thông tin GVCN: style toàn cục */
+.home-info-strip{margin-top:15px;min-height:80px;border:1px solid #dbe5f1;border-left:4px solid #2563eb;border-radius:17px;background:#fff;display:grid;grid-template-columns:34px minmax(0,1fr) auto 34px;align-items:center;gap:8px;padding:11px 12px;box-shadow:0 8px 24px rgba(15,23,42,.055);overflow:hidden}
+.home-info-strip.tone-danger{border-left-color:#dc2626}.home-info-strip.tone-warning{border-left-color:#f59e0b}.home-info-strip.tone-success{border-left-color:#16a34a}.home-info-strip.tone-finance{border-left-color:#0f766e}.home-info-strip.tone-info{border-left-color:#2563eb}
+.home-info-main{display:flex;align-items:center;gap:12px;min-width:0}.home-info-icon{width:42px;height:42px;border-radius:13px;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:23px;flex:0 0 auto}.home-info-copy{min-width:0}.home-info-copy h3{margin:0 0 3px;font-size:17px}.home-info-copy .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.home-info-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.home-info-badge{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#334155;white-space:nowrap}.home-info-dots{display:flex;align-items:center;gap:5px}.home-info-dot{width:7px;height:7px;min-width:7px;padding:0;border:0;border-radius:50%;background:#cbd5e1;cursor:pointer;transition:.2s ease}.home-info-dot.active{width:18px;border-radius:999px;background:#2563eb}
+.home-info-nav{width:32px;height:32px;border:0;border-radius:10px;background:transparent;color:#64748b;font-size:25px;line-height:1;cursor:pointer;display:grid;place-items:center}.home-info-nav:hover{background:#f1f5f9;color:#0f172a}.home-info-detail{white-space:nowrap}.info-enter{animation:homeInfoIn .28s ease both}@keyframes homeInfoIn{from{opacity:.35;transform:translateX(8px)}to{opacity:1;transform:none}}
+@media(max-width:760px){.home-info-strip{grid-template-columns:28px minmax(0,1fr) 28px;padding:10px 7px}.home-info-actions{grid-column:2;justify-content:flex-start}.home-info-copy .muted{white-space:normal}.home-info-detail{display:none!important}}
+@media(prefers-reduced-motion:reduce){.info-enter{animation:none!important}.home-info-dot{transition:none!important}}
+</style>
 </head>
 <body>
 
@@ -2866,7 +2877,7 @@ async function mainLogin(){
   verifyBackendVersionInBackground();
   CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
 
-  // V36.37 FAST ENTER: xác thực xong là vào giao diện ngay; hydrate Cloud chạy nền, không khóa popup đăng nhập.
+  // V36.38 FAST ENTER: xác thực xong là vào giao diện ngay; hydrate Cloud chạy nền, không khóa popup đăng nhập.
   setTimeout(async()=>{
    try{
   // V36.17: PULL là bước bắt buộc và không còn chờ recoverBanners.
@@ -6929,7 +6940,7 @@ function renderSeats(){
     @media(max-width:1100px){.seat-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:700px){.seat-groups{grid-template-columns:1fr}.board-front{width:90%}.seat-toolbar{justify-content:flex-start}}
   
-/* V36.37 • Dải thông tin GVCN động */
+/* V36.38 • Dải thông tin GVCN động */
 .home-info-strip{margin-top:15px;min-height:80px;border:1px solid #dbe5f1;border-left:4px solid #2563eb;border-radius:17px;background:#fff;display:grid;grid-template-columns:34px minmax(0,1fr) auto 34px;align-items:center;gap:8px;padding:11px 12px;box-shadow:0 8px 24px rgba(15,23,42,.055);overflow:hidden}
 .home-info-strip.tone-danger{border-left-color:#dc2626}.home-info-strip.tone-warning{border-left-color:#f59e0b}.home-info-strip.tone-success{border-left-color:#16a34a}.home-info-strip.tone-finance{border-left-color:#0f766e}.home-info-strip.tone-info{border-left-color:#2563eb}
 .home-info-main{display:flex;align-items:center;gap:12px;min-width:0}.home-info-icon{width:42px;height:42px;border-radius:13px;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:23px;flex:0 0 auto}.home-info-copy{min-width:0}.home-info-copy h3{margin:0 0 3px;font-size:17px}.home-info-copy .muted{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.home-info-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.home-info-badge{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#334155;white-space:nowrap}.home-info-dots{display:flex;align-items:center;gap:5px}.home-info-dot{width:7px;height:7px;min-width:7px;padding:0;border:0;border-radius:50%;background:#cbd5e1;cursor:pointer}.home-info-dot.active{width:18px;border-radius:999px;background:#2563eb}.home-info-nav{width:32px;height:32px;border:0;border-radius:10px;background:transparent;color:#64748b;font-size:25px;line-height:1;cursor:pointer}.home-info-nav:hover{background:#f1f5f9;color:#0f172a}.home-info-detail{white-space:nowrap}.info-enter{animation:homeInfoIn .28s ease both}@keyframes homeInfoIn{from{opacity:.35;transform:translateX(8px)}to{opacity:1;transform:none}}
