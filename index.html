@@ -1,10 +1,10 @@
 <!doctype html>
-<!-- GVCN PRO V35.9 MEMBER FIX -->
+<!-- GVCN PRO V36.27 REFRESH SESSION RECOVERY FIX -->
 <html lang="vi">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm · V36</title>
+<title>Quản lý lớp chủ nhiệm </title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -3226,6 +3226,15 @@ function renderMenuManager(){
  const custom=(c.custom||[]).map(x=>`<tr><td>${esc(x.label)}</td><td>Liên kết → ${esc(x.target)}</td><td>${x.hidden?'Đang ẩn':'Đang hiện'}</td><td><div class="actions"><button class="btn sm" onclick="editMenuShortcut('${x.id}','rename')">Sửa tên</button><button class="btn sm" onclick="editMenuShortcut('${x.id}','hide')">${x.hidden?'Hiện':'Ẩn'}</button><button class="btn sm bad" onclick="editMenuShortcut('${x.id}','remove')">Xóa</button></div></td></tr>`).join("");
  document.getElementById("content").innerHTML=`<div class="section-head"><div><h3>🗂️ Quản lý menu</h3><div class="muted">Ẩn, hiện, đổi tên, gỡ và khôi phục menu. Thêm liên kết tới trang đã có.</div></div><button class="btn primary" onclick="addMenuShortcut()">+ Thêm menu</button></div><div class="notice">Cấu hình menu của bản cập nhật này lưu trên trình duyệt đang dùng, chưa đồng bộ Neon giữa các thiết bị. Gỡ menu không xóa chức năng hoặc dữ liệu. Quản lý menu luôn được giữ lại.</div><div class="table-wrap"><table><thead><tr><th>Menu</th><th>Trang</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>${rows}${custom}</tbody></table></div>`;
 }
+// V36.27 REFRESH RECOVERY: luôn chọn một trang hợp lệ sau F5/refresh.
+function safeStartupPage(){
+ const saved=sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home";
+ if(canAccessPage(saved))return saved;
+ if(canAccessPage("home"))return "home";
+ const policy=currentRolePolicy();
+ return policy?.view?.[0]||"home";
+}
+function withTimeout(promise,ms,label="TIMEOUT"){return Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error(label)),ms))]);}
 function navigate(p){
   if(p==="menuManager"&&!session?.isAdmin){toast("Chỉ Admin được quản lý menu");return}
   if(!canAccessPage(p)){toast("Tài khoản này chưa được giáo viên cấp quyền vào khu vực này");return}
@@ -6352,12 +6361,16 @@ setupCompactSidebar();
 hideLoginScreen();
 updateAccountUI();updateGuestUI();
 if(AUTHENTICATED&&currentCloudToken()){
- // V36.17 APPLY CLOUD FIX: giữ nguyên Tổng quan V36.8; chỉ thêm bảng quan sát revision/pull/push.
+ // V36.27 REFRESH FIX: render cache ngay khi F5, không để màn hình trắng chờ Apps Script.
+ try{renderClassSelect();navigate(safeStartupPage());hideLoginScreen();updateAccountUI();updateGuestUI();}catch(e){console.warn("Refresh cache render",e)}
+ // Sau đó hydrate Cloud ở nền; Cloud vẫn là nguồn chuẩn.
  (async()=>{try{
    CLOUD_HYDRATED=false;CLOUD_DIRTY=false;CLOUD_PUSHING=false;clearTimeout(cloudPushTimer);clearInterval(cloudPullTimer);cloudPullTimer=null;
    KEY=teacherDataKey(session.teacherId);
    backupStateBeforeCloud("restore_session_cache_only");CLOUD_SYNC_STATE="syncing";updateCloudSyncChip();
-   const [remote,recovered]=await Promise.all([onlineAPI({action:"pull"}),recoverBannersFromSheets()]);
+   const bannerPromise=withTimeout(recoverBannersFromSheets(),3500,"BANNER_TIMEOUT").catch(()=>[]);
+   const remote=await withTimeout(onlineAPI({action:"pull"}),9000,"PULL_TIMEOUT");
+   const recovered=await bannerPromise;
    if(remote.ok&&remote.data){
      state=applyCloudAuthoritative(remote.data,recovered);
      CLOUD_REVISION=Number(remote.revision||0);DIAG_CLOUD_REVISION=CLOUD_REVISION;CLOUD_BASE_STATE=cloneSyncValue(remote.data);CLOUD_DIRTY=false;
@@ -6368,7 +6381,7 @@ if(AUTHENTICATED&&currentCloudToken()){
      state=loadState();CLOUD_REVISION=Number(remote.revision||0);CLOUD_BASE_STATE=cloneSyncValue(state);
    }
    CLOUD_HYDRATED=true;
-   hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");
+   hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate(safeStartupPage());
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
    startCloudLiveSync();
    setTimeout(()=>forceCloudReconcile("POST STARTUP 1"),600);
@@ -6376,11 +6389,11 @@ if(AUTHENTICATED&&currentCloudToken()){
   }catch(e){
    CLOUD_HYDRATED=false;CLOUD_SYNC_STATE="error";updateCloudSyncChip();
    // Không tự dùng cache cũ để ghi lên Cloud. Chỉ hiển thị fallback đọc nếu mất kết nối.
-   state=loadState();renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");hideLoginScreen();updateGuestUI();
+   state=loadState();renderClassSelect();navigate(safeStartupPage());hideLoginScreen();updateGuestUI();
    console.error("Cloud hydrate failed",e);toast("Chưa tải được dữ liệu Google Sheets. App đang ở chế độ chỉ đọc cache; hãy kiểm tra kết nối.");
   }})();
 }else{
- AUTHENTICATED=false;CLOUD_HYDRATED=false;renderClassSelect();navigate(sessionStorage.getItem("GVCN_CURRENT_PAGE")||"home");hideLoginScreen();updateGuestUI();
+ AUTHENTICATED=false;CLOUD_HYDRATED=false;renderClassSelect();navigate(safeStartupPage());hideLoginScreen();updateGuestUI();
  // Chế độ công khai chỉ lấy metadata + banner lớp.
  loadPublicClassesFromSheets();
 }
