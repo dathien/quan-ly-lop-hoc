@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2867,7 +2867,7 @@ async function mainLogin(){
  // V36.23: dọn trạng thái phiên/timer cũ trước lần đăng nhập mới; KHÔNG xóa dữ liệu nghiệp vụ/localStorage.
  clearInterval(cloudPullTimer);cloudPullTimer=null;clearInterval(cloudMutationWatchdog);cloudMutationWatchdog=null;
  CLOUD_DIRTY=false;CLOUD_PUSHING=false;CLOUD_HYDRATED=false;clearCloudSession();
- // V36.40: hủy hiệu lực mọi Public Read đang chạy để snapshot khách không thể ghi đè sau đăng nhập.
+ // V36.41: hủy hiệu lực mọi Public Read đang chạy để snapshot khách không thể ghi đè sau đăng nhập.
  PUBLIC_READ_GEN++;
  // Khởi động request xác thực NGAY, đồng thời chuẩn bị state local trong lúc mạng đang chạy.
  const loginPromise=cloudLogin(username,password);
@@ -6846,7 +6846,7 @@ document.addEventListener("click",function(e){
  mainLogin();
 },true);
 
-// V36.40: khóa cứng mọi thao tác ghi ở chế độ Khách nhưng vẫn cho điều hướng/lọc/xem chi tiết.
+// V36.41: khóa cứng mọi thao tác ghi ở chế độ Khách nhưng vẫn cho điều hướng/lọc/xem chi tiết.
 const GUEST_MUTATION_RE=/(^|\s)(thêm|tạo|sửa|xóa|lưu|xác nhận|hủy xác nhận|hoàn thành|mở lại|nhập điểm|điểm danh|ghi vi phạm|tuyên dương|giao dịch|phân công|đổi chỗ|xáo trộn|khôi phục|import|reset)(\s|$)/i;
 function guestNoWriteUI(){
  if(!isGuestMode())return;
