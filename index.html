@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm · V36</title>
+<title>Quản lý lớp chủ nhiệm </title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2826,6 +2826,7 @@ async function mainLogin(){
   CLOUD_HYDRATED=true;
   runClass12RosterMigrationIfNeeded();
   runClass11RosterMigrationIfNeeded();
+  runDemoScores1112MigrationIfNeeded();
   renderClassSelect();refreshCurrentView();
 
   // Banner Base64 không còn được PUSH vào AppState; tránh vượt giới hạn ô Google Sheets.
@@ -3109,6 +3110,49 @@ function migrateClass11Roster20261004(){
 }
 function runClass11RosterMigrationIfNeeded(){
  if(migrateClass11Roster20261004()){renderClassSelect();refreshCurrentView();setTimeout(()=>scheduleOnlinePush(),150)}
+}
+
+
+// V36.30: dữ liệu điểm DEMO cho lớp 11 và 12A4 để GVCN kiểm thử trước khi thay bằng điểm thật.
+function migrateDemoScores1112_20261004(){
+ if(!isFullAccessAccount()||!state)return false;
+ state._migrations=state._migrations||{};
+ if(state._migrations.demoScores1112_20261004)return false;
+ if(!Array.isArray(state.scores))state.scores=[];
+ const subjects=["Toán","Vật lí","Hóa học","Ngữ văn","Sinh học","Lịch sử","Địa lí","Tiếng Anh (Ngoại ngữ 1)","Tin học"];
+ const slots=[
+  ["TX1","2026-09-10",0],["TX2","2026-09-17",0.2],["TX3","2026-09-24",-0.1],["TX4","2026-10-01",0.3],
+  ["Giữa kỳ","2026-10-20",0.4],["Cuối kỳ","2026-12-15",0.5]
+ ];
+ const clamp=x=>Math.max(2.5,Math.min(10,Math.round(x*10)/10));
+ ["c1","c3"].forEach((classId,ci)=>{
+   const students=(state.students||[]).filter(x=>String(x.classId)===classId);
+   if(!students.length)return;
+   // Chỉ thay điểm của 2 lớp này bằng bộ DEMO mới; không ảnh hưởng lớp 10.
+   state.scores=state.scores.filter(x=>String(x.classId)!==classId);
+   let n=1;
+   students.forEach((st,si)=>subjects.forEach((sub,mi)=>{
+     // Phân bố có chủ ý: có HS cần hỗ trợ, trung bình, khá và giỏi để kiểm thử phân tích.
+     const band=[4.4,5.4,6.3,7.1,7.8,8.5,9.1][(si*3+mi+ci)%7];
+     const personal=((si%5)-2)*0.12, subject=((mi%4)-1.5)*0.10;
+     slots.forEach((sl,ki)=>{
+       // Một số ô để trống có kiểm soát nhằm kiểm thử trạng thái thiếu điểm.
+       const missing=(ki===3 && (si+mi+ci)%11===0) || (ki===5 && (si*2+mi+ci)%13===0);
+       if(missing)return;
+       const wave=(((si+1)*(mi+2)*(ki+3))%7-3)*0.08;
+       state.scores.push({id:`demo${classId}sc${String(n++).padStart(5,"0")}`,classId,studentId:st.id,subject:sub,type:sl[0],score:clamp(band+personal+subject+sl[2]+wave),date:sl[1],demo:true,done:true});
+     });
+   }));
+   const cls=(state.classes||[]).find(x=>String(x.id)===classId);
+   if(cls)cls.demoScoreData=true;
+ });
+ state._migrations.demoScores1112_20261004=true;
+ try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
+ DIAG_LAST_RESULT="DEMO SCORES 11 + 12A4 → READY";DIAG_LAST_ERROR="";renderSyncDiagnostic();
+ return true;
+}
+function runDemoScores1112MigrationIfNeeded(){
+ if(migrateDemoScores1112_20261004()){renderClassSelect();refreshCurrentView();setTimeout(()=>scheduleOnlinePush(),180)}
 }
 
 function startCloudMutationWatchdog(){
@@ -6462,7 +6506,7 @@ if(AUTHENTICATED&&currentCloudToken()){
    CLOUD_HYDRATED=true;
    runClass12RosterMigrationIfNeeded();
    runClass11RosterMigrationIfNeeded();
-  runClass11RosterMigrationIfNeeded();
+   runDemoScores1112MigrationIfNeeded();
    hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate(safeStartupPage());
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
    startCloudLiveSync();
