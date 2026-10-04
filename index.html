@@ -2790,7 +2790,7 @@ async function loadPublicClassesFromSheets(){
 }
 
 // V36.45: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3646";
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3648";
 let PUBLIC_BANNER_MAP=new Map();
 function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
 function rememberPublicBanners_(list){if(!Array.isArray(list))return;for(const x of list){if(!validBanner(x?.cover))continue;const ids=[x.classId,x.id,x.className,x.name].filter(Boolean).map(String);for(const k of ids)PUBLIC_BANNER_MAP.set(k,{cover:x.cover,coverRatio:x.coverRatio||null});}}
@@ -2803,13 +2803,10 @@ async function saveBannerDirectToCloud_(c){
  if(!AUTHENTICATED||!session||!c?.id)return false;
  const role=String(session.role||"").toUpperCase();if(!(session.isAdmin||role.includes("GIÁO VIÊN")||role==="GVCN"))return false;
  const cover=validBanner(c.cover)?String(c.cover):"";
- const chunkSize=24000, parts=cover?Array.from({length:Math.ceil(cover.length/chunkSize)},(_,i)=>cover.slice(i*chunkSize,(i+1)*chunkSize)):[];
- // Bắt đầu phiên ghi mới cho đúng ClassID; nếu cover rỗng thì đây cũng là thao tác xóa banner.
- await onlineAPI({action:"beginClassBanner",classId:String(c.id),className:String(c.name||""),partCount:parts.length,coverRatio:c.coverRatio||null});
- for(let i=0;i<parts.length;i++){
-  await onlineAPI({action:"appendClassBannerChunk",classId:String(c.id),className:String(c.name||""),partIndex:i+1,partCount:parts.length,coverChunk:parts[i],coverRatio:c.coverRatio||null});
- }
- await onlineAPI({action:"commitClassBanner",classId:String(c.id),partCount:parts.length});
+ // V36.48: lưu ảnh trực tiếp thành file Google Drive qua Apps Script.
+ // Sheet chỉ lưu FileID nên không còn phụ thuộc giới hạn ký tự của ô Google Sheets.
+ const x=await onlineAPI({action:"saveClassBannerFile",classId:String(c.id),className:String(c.name||""),cover,coverRatio:c.coverRatio||null});
+ if(!x?.ok)return false;
  return true;
 }
 async function syncOwnedBannersToPublicStore_(){
@@ -3731,7 +3728,7 @@ function changeCover(){
  const inp=document.createElement("input");inp.type="file";inp.accept="image/png,image/jpeg,image/webp";
  inp.onchange=()=>{const file=inp.files&&inp.files[0];if(!file)return;if(!/^image\/(png|jpeg|webp)$/.test(file.type))return toast("Chọn ảnh PNG, JPG hoặc WEBP");
   const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const maxW=1920,scale=Math.min(1,maxW/img.naturalWidth),w=Math.max(1,Math.round(img.naturalWidth*scale)),hh=Math.max(1,Math.round(img.naturalHeight*scale)),canvas=document.createElement("canvas");canvas.width=w;canvas.height=hh;canvas.getContext("2d").drawImage(img,0,0,w,hh);
-    let data;try{data=canvas.toDataURL("image/jpeg",.90)}catch(e){data=reader.result}c.cover=data;c.coverRatio=img.naturalWidth/img.naturalHeight;const bannerSnapshot={id:String(c.id),name:String(c.name||""),cover:String(data),coverRatio:c.coverRatio};refreshBannerAfterUpload();toast("Đang lưu ảnh lớp dùng chung...");saveBannerDirectToCloud_(bannerSnapshot).then(()=>{save("Đã cập nhật ảnh lớp");toast("Ảnh lớp đã lưu dùng chung")}).catch(e=>{console.warn(e);save("Đã cập nhật ảnh lớp trên thiết bị");toast("Chưa lưu được banner dùng chung: "+String(e?.message||e))})};img.onerror=()=>toast("Không đọc được ảnh");img.src=reader.result};reader.readAsDataURL(file)};
+    let data;try{data=canvas.toDataURL("image/jpeg",.90)}catch(e){data=reader.result}c.cover=data;c.coverRatio=img.naturalWidth/img.naturalHeight;const bannerSnapshot={id:String(c.id),name:String(c.name||""),cover:String(data),coverRatio:c.coverRatio};refreshBannerAfterUpload();toast("Đang lưu ảnh lớp dùng chung...");saveBannerDirectToCloud_(bannerSnapshot).then(()=>{save("Đã cập nhật ảnh lớp");toast("Ảnh lớp đã lưu dùng chung trên Cloud")}).catch(e=>{console.warn(e);save("Đã cập nhật ảnh lớp trên thiết bị");toast("Chưa lưu được banner dùng chung: "+String(e?.message||e))})};img.onerror=()=>toast("Không đọc được ảnh");img.src=reader.result};reader.readAsDataURL(file)};
  inp.click()
 }
 function removeCover(){
