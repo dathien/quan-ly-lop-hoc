@@ -2790,7 +2790,7 @@ async function loadPublicClassesFromSheets(){
 }
 
 // V36.45: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3653";
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3654";
 let GUEST_BANNER_PIN={classId:"",cover:"",coverRatio:null};
 function pinGuestBanner_(b){
   if(AUTHENTICATED||!b||!validBanner(b.cover))return false;
@@ -2817,12 +2817,19 @@ function forceGuestBannerDom_(){
   c.cover=GUEST_BANNER_PIN.cover;
   if(GUEST_BANNER_PIN.coverRatio)c.coverRatio=GUEST_BANNER_PIN.coverRatio;
   // Then repair visible banner elements directly if a delayed renderer changed only the DOM.
-  const selectors=["#coverImg","#classCoverImg",".cover img",".hero img",".class-cover img","img[data-cover]"];
+  const selectors=[".class-cover-photo","#coverImg","#classCoverImg",".cover img",".hero img",".class-cover img","img[data-cover]"];
   let hit=false;
   for(const sel of selectors){
     document.querySelectorAll(sel).forEach(el=>{
       if(el&&el.tagName==="IMG"&&el.src!==GUEST_BANNER_PIN.cover){el.src=GUEST_BANNER_PIN.cover;hit=true}
     });
+  }
+  // Nếu render muộn đã thay hẳn <img> bằng ô trường học mặc định,
+  // khôi phục state trước rồi render lại Home đúng một lần.
+  if(!document.querySelector(".class-cover-photo")&&document.querySelector(".class-cover-empty")){
+    c.cover=GUEST_BANNER_PIN.cover;
+    if(GUEST_BANNER_PIN.coverRatio)c.coverRatio=GUEST_BANNER_PIN.coverRatio;
+    try{if(typeof renderHome==="function"){renderHome();hit=true}}catch(_){}
   }
   return hit;
 }
