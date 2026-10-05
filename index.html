@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -3892,7 +3892,7 @@ function getRankRange(){
  const sy=()=>{const y=now.getFullYear(),m=now.getMonth()+1,s=m>=8?y:y-1;return{s,e:s+1}};
  if(rankFilter.mode==="today"){const x=iso(now);return{x1:x,x2:x,label:"Hôm nay"}}
  if(rankFilter.mode==="date"){const x=iso(date);return{x1:x,x2:x,label:"Ngày "+date.toLocaleDateString("vi-VN")}}
- if(rankFilter.mode==="week"){const y=sy(),s=new Date(y.s,8,1),ws=new Date(now),d=(now.getDay()+6)%7;ws.setDate(now.getDate()-d);const e=new Date(ws);e.setDate(ws.getDate()+6);return{x1:iso(s),x2:iso(e),label:"Lũy kế đến tuần "+ws.toLocaleDateString("vi-VN")+" – "+e.toLocaleDateString("vi-VN")}}
+ if(rankFilter.mode==="week"){const y=sy(),ws=new Date(now),d=(now.getDay()+6)%7;ws.setDate(now.getDate()-d);return{x1:`${y.s}-09-01`,x2:iso(now),label:"Lũy kế đến tuần "+ws.toLocaleDateString("vi-VN")+" • cập nhật "+now.toLocaleDateString("vi-VN")}}
  if(rankFilter.mode==="month"){const s=new Date(now.getFullYear(),now.getMonth(),1),e=new Date(now.getFullYear(),now.getMonth()+1,0);return{x1:iso(s),x2:iso(e),label:"Tháng "+(now.getMonth()+1)+"/"+now.getFullYear()}}
  const y=sy(); if(rankFilter.mode==="sem1")return{x1:`${y.s}-09-01`,x2:`${y.e}-01-15`,label:`Học kì 1 • ${y.s}–${y.e}`}
  if(rankFilter.mode==="sem2")return{x1:`${y.e}-01-16`,x2:`${y.e}-05-31`,label:`Học kì 2 • ${y.s}–${y.e}`}
@@ -3900,15 +3900,16 @@ function getRankRange(){
 }
 function rankRows(){
  const r=getRankRange(),rules={...DEFAULT_RULES,...(state.disciplineRules||{})};
+ const now=new Date(),syStart=(now.getMonth()+1)>=8?now.getFullYear():now.getFullYear()-1,today=todayISO();
+ const x1=rankFilter.mode==="week"?`${syStart}-09-01`:r.x1;
+ const x2=rankFilter.mode==="week"?today:r.x2;
  return classStudents().map(s=>{let o={s,present:0,late:0,excused:0,unexcused:0,violations:0,positive:0,academic:0,score:Number(rules.base||0)};
-  byClass(state.attendance).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{if(x.status==="Có mặt")o.present++;if(x.status==="Đi trễ"){o.late++;o.score+=Number(rules.late||0)}
-   if(x.status==="Vắng phép"){o.excused++;o.score+=Number(rules.excused||0)}if(x.status==="Vắng không phép"){o.unexcused++;o.score+=Number(rules.unexcused||0)}if(x.status==="Về sớm")o.score+=Number(rules.early||0)});
-  byClass(state.incidents).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{o.violations++;const lv=x.level||"Nhắc nhở";o.score+=lv==="Nghiêm trọng"?Number(rules.incidentSerious):lv==="Cần lưu ý"?Number(rules.incidentAttention):Number(rules.incidentReminder)});
-  byClass(state.positive).filter(x=>x.studentId===s.id&&x.date>=r.x1&&x.date<=r.x2).forEach(x=>{const p=Number(x.points||0);if(x.category==="Học tập")o.academic+=p;else if(x.category==="Chuyên cần"){if(x.criterion==="Đi trễ")o.late++;if(x.criterion==="Vắng phép")o.excused++;if(x.criterion==="Vắng không phép")o.unexcused++;}else o.positive+=p;o.score+=p});
+  byClass(state.attendance).filter(x=>x.studentId===s.id&&String(x.date||"")>=x1&&String(x.date||"")<=x2).forEach(x=>{if(x.status==="Có mặt")o.present++;if(x.status==="Đi trễ"){o.late++;o.score+=Number(rules.late||0)}if(x.status==="Vắng phép"){o.excused++;o.score+=Number(rules.excused||0)}if(x.status==="Vắng không phép"){o.unexcused++;o.score+=Number(rules.unexcused||0)}if(x.status==="Về sớm")o.score+=Number(rules.early||0)});
+  byClass(state.incidents).filter(x=>x.studentId===s.id&&String(x.date||"")>=x1&&String(x.date||"")<=x2).forEach(x=>{o.violations++;const lv=x.level||"Nhắc nhở";o.score+=lv==="Nghiêm trọng"?Number(rules.incidentSerious):lv==="Cần lưu ý"?Number(rules.incidentAttention):Number(rules.incidentReminder)});
+  byClass(state.positive).filter(x=>x.studentId===s.id&&String(x.date||"")>=x1&&String(x.date||"")<=x2).forEach(x=>{const p=Number(x.points??x.point??x.score??0);if(x.category==="Học tập")o.academic+=p;else if(p>0)o.positive+=p;o.score+=p});
   return o
  }).sort((a,b)=>b.score-a.score||b.positive-a.positive||a.violations-b.violations||a.s.name.localeCompare(b.s.name,"vi"))
 }
-
 function groupCompetitionRows(x1,x2){
  const rules={...DEFAULT_RULES,...(state.disciplineRules||{})},groups=[...new Set(classStudents().map(x=>x.group||"Chưa xếp tổ"))];
  return groups.map(group=>{
