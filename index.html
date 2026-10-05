@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm · V36</title>
+<title>Quản lý lớp chủ nhiệm </title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2582,9 +2582,9 @@ function updateCloudSyncChip(){
 async function onlineAPI(body){
  const action=String(body?.action||"");
  try{
-  if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicBanners"||action==="publicBanner"||action==="publicClasses"||action==="publicState"){
+  if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicBanners"||action==="publicBanner"||action==="bannerDiag"||action==="publicClasses"||action==="publicState"){
    const token=body?.token||currentCloudToken();
-   const qs=new URLSearchParams({action});if(token)qs.set("token",token);if(action==="publicBanner"&&body?.classId)qs.set("classId",String(body.classId));if(action==="pull"){qs.set("_ts",String(Date.now()));qs.set("_rev",String(CLOUD_REVISION||0));}
+   const qs=new URLSearchParams({action});if(token)qs.set("token",token);if((action==="publicBanner"||action==="bannerDiag")&&body?.classId)qs.set("classId",String(body.classId));if(action==="pull"){qs.set("_ts",String(Date.now()));qs.set("_rev",String(CLOUD_REVISION||0));}
    const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
    const txt=await r.text();let x;
    try{x=JSON.parse(txt)}
@@ -7170,5 +7170,30 @@ __memberNoDeleteObserver.observe(document.body,{childList:true,subtree:true});
 setTimeout(memberNoDeleteGuard,0);
 </script>
 
+
+<div id="bannerDiagPanel" style="position:fixed;right:12px;bottom:12px;z-index:99999;width:min(520px,calc(100vw - 24px));background:#fff;border:1px solid #cbd5e1;border-radius:14px;box-shadow:0 12px 35px rgba(15,23,42,.18);padding:12px;font:12px/1.45 system-ui;color:#0f172a">
+ <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+  <b>Chẩn đoán Public Banner V36.60</b>
+  <button onclick="document.getElementById('bannerDiagPanel').style.display='none'" style="border:0;background:#eef2f7;border-radius:8px;padding:5px 8px;cursor:pointer">Đóng</button>
+ </div>
+ <div style="margin:7px 0 9px;color:#475569">Không sửa dữ liệu. Chỉ đo response Cloud của 11A4 / 10A2 / 12A4.</div>
+ <button onclick="runBannerDiag_()" style="border:0;background:#e8f2ff;border-radius:9px;padding:7px 10px;font-weight:700;cursor:pointer">Kiểm tra 3 banner</button>
+ <pre id="bannerDiagOut" style="white-space:pre-wrap;word-break:break-word;background:#f8fafc;border-radius:9px;padding:9px;margin:9px 0 0;max-height:260px;overflow:auto">Bấm “Kiểm tra 3 banner”.</pre>
+</div>
+<script>
+async function runBannerDiag_(){
+ const out=document.getElementById("bannerDiagOut");out.textContent="Đang kiểm tra Cloud...";
+ const rows=[];
+ for(const [id,name] of [["c1","11A4"],["c2","10A2"],["c3","12A4"]]){
+  const t0=performance.now();
+  try{
+   const d=await onlineAPI({action:"bannerDiag",classId:id});
+   const ms=Math.round(performance.now()-t0);
+   rows.push(`${name} | ${id} | found=${!!d?.found} | parts=${d?.receivedParts||0}/${d?.partCount||0} | missing=${(d?.missingParts||[]).join(",")||"—"} | chars=${d?.totalChars||0} | complete=${!!d?.complete} | ${ms}ms`);
+  }catch(e){rows.push(`${name} | ${id} | ERROR: ${e?.message||e}`)}
+ }
+ out.textContent=rows.join("\\n");
+}
+</script>
 </body>
 </html>
