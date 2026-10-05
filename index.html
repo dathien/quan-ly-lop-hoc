@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -7128,7 +7128,7 @@ function clearSeats(){
   if(!confirm("Đưa toàn bộ học sinh về trạng thái chưa xếp chỗ?"))return;
   seatSnapshot();classStudents().forEach(s=>s.seat="");save("Đã làm lại sơ đồ chỗ ngồi");renderSeats();
 }
-function seatDrop(e){
+function seatDrop(e){ 
   if(curClass().seatDone){toast("Sơ đồ đã hoàn thành. Hãy mở lại để chỉnh sửa.");return}
   e.preventDefault();e.currentTarget.classList.remove("drag-over");let data=seatDragData;
   try{if(e.dataTransfer?.getData("text/plain"))data=JSON.parse(e.dataTransfer.getData("text/plain"))}catch(_){}
