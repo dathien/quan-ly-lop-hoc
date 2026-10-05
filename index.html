@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm</title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2790,7 +2790,7 @@ async function loadPublicClassesFromSheets(){
 }
 
 // V36.45: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3656";
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3657";
 let PUBLIC_BANNER_MAP=new Map();
 function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
 function normBannerClassKey_(v){
@@ -2825,25 +2825,33 @@ function preservePublicBannerClasses_(classes){
  });
 }
 function applyPublicBanners(list,rerender=true){if(AUTHENTICATED)return false;rememberPublicBanners_(list);let changed=false;(state.classes||[]).forEach(c=>{const z=publicBannerForClass_(c);if(z&&validBanner(z.cover)&&c.cover!==z.cover){c.cover=z.cover;c.coverRatio=z.coverRatio||c.coverRatio||null;changed=true}});if(changed&&rerender)refreshCurrentView();return changed}
-async function loadPublicBannersFromSheets(){
+async function loadPublicBannersFromSheets(opts={}){
  const gen=PUBLIC_READ_GEN;
+ // Cache chỉ giúp hiện nhanh trong lúc chờ mạng; kết quả Cloud phía dưới luôn ghi đè.
  const cached=readPublicBannerCache();applyPublicBanners(cached,false);
  const c=curClass();if(!c?.id)return false;
+ const requestedClassId=String(c.id),requestedClassName=String(c.name||"");
  try{
-  let x=await onlineAPI({action:"publicBanner",classId:String(c.id)});
+  let x=await onlineAPI({action:"publicBanner",classId:requestedClassId});
   if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;
+  const now=curClass();
+  if(!now||String(now.id)!==requestedClassId)return false;
   let b=x?.banner;
   // V36.56: lớp cũ có thể lưu banner theo tên lớp thay vì ClassID hiện hành.
   // Chỉ fallback khi ClassID không trả banner; không ảnh hưởng lớp 12 đang đúng.
-  if((!b||!validBanner(b.cover))&&c.name){
+  if((!b||!validBanner(b.cover))&&requestedClassName){
     try{
-      const byName=await onlineAPI({action:"publicBanner",classId:String(c.name)});
+      const byName=await onlineAPI({action:"publicBanner",classId:requestedClassName});
       if(byName?.banner&&validBanner(byName.banner.cover))b=byName.banner;
     }catch(_){}
   }
   if(!b||!validBanner(b.cover))return false;
+  // Chuẩn hóa định danh bằng lớp đang yêu cầu, kể cả backend cũ chỉ trả cover.
+  b={...b,classId:requestedClassId,className:requestedClassName};
   rememberPublicBanners_([b]);
-  // Gắn banner vào state hiện hành trước render; mọi render sau đều đọc cùng một nguồn.
+  const target=(state.classes||[]).find(z=>String(z.id||"")===requestedClassId);
+  if(target){target.cover=b.cover;target.coverRatio=b.coverRatio||target.coverRatio||null}
+  // Gắn banner Cloud vào state hiện hành trước render; mọi render sau đều đọc cùng một nguồn.
   state.classes=preservePublicBannerClasses_(state.classes);
   // Cache theo từng lớp, không xóa banner lớp khác.
   try{
@@ -2905,8 +2913,12 @@ async function loadPublicStateFromSheets(){
   ["scores","finance","comments","messages"].forEach(k=>{if(Array.isArray(state[k]))state[k]=[]});
   if(beforeId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(beforeId)))state.currentClassId=beforeId;
   else if(Array.isArray(state.classes)&&state.classes[0])state.currentClassId=state.classes[0].id;
-  renderClassSelect();applyPublicBanners(readPublicBannerCache(),false);refreshCurrentView();
-  loadPublicBannersFromSheets();
+  renderClassSelect();
+  // V36.57: Cloud là nguồn chuẩn banner Guest. Không để localStorage quyết định banner có hay không.
+  // Render dữ liệu công khai trước, sau đó bắt buộc lấy banner lớp hiện tại trực tiếp từ Apps Script.
+  applyPublicBanners(readPublicBannerCache(),false);
+  refreshCurrentView();
+  await loadPublicBannersFromSheets({forceCloud:true});
   const stamp=document.getElementById("guestPublicSyncStamp");if(stamp)stamp.textContent=x.syncedAt?`Dữ liệu công khai cập nhật ${new Date(x.syncedAt).toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})}`:"Dữ liệu công khai mới nhất";
   return true;
  }catch(e){console.warn("Không tải được snapshot công khai",e);return loadPublicClassesFromSheets()}
