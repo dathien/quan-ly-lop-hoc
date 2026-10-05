@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm · V36</title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2283,7 +2283,7 @@ const DEFAULT_RULES={base:0,late:-2,excused:-1,unexcused:-5,early:-2,notLearned:
 let state=loadState();
 let page="home";
 
-let rankFilter={mode:"week",date:todayISO()};
+let rankFilter={mode:"week",date:todayISO()}; // V36.67: Tuần này = điểm lũy kế từ đầu năm học đến hết tuần hiện tại
 
 const THPT_SUBJECTS=[
   {name:"Ngữ văn",mode:"score",group:"Bắt buộc"},
@@ -3892,7 +3892,7 @@ function getRankRange(){
  const sy=()=>{const y=now.getFullYear(),m=now.getMonth()+1,s=m>=8?y:y-1;return{s,e:s+1}};
  if(rankFilter.mode==="today"){const x=iso(now);return{x1:x,x2:x,label:"Hôm nay"}}
  if(rankFilter.mode==="date"){const x=iso(date);return{x1:x,x2:x,label:"Ngày "+date.toLocaleDateString("vi-VN")}}
- if(rankFilter.mode==="week"){const s=new Date(now),d=(now.getDay()+6)%7;s.setDate(now.getDate()-d);const e=new Date(s);e.setDate(s.getDate()+6);return{x1:iso(s),x2:iso(e),label:s.toLocaleDateString("vi-VN")+" – "+e.toLocaleDateString("vi-VN")}}
+ if(rankFilter.mode==="week"){const y=sy(),s=new Date(y.s,8,1),ws=new Date(now),d=(now.getDay()+6)%7;ws.setDate(now.getDate()-d);const e=new Date(ws);e.setDate(ws.getDate()+6);return{x1:iso(s),x2:iso(e),label:"Lũy kế đến tuần "+ws.toLocaleDateString("vi-VN")+" – "+e.toLocaleDateString("vi-VN")}}
  if(rankFilter.mode==="month"){const s=new Date(now.getFullYear(),now.getMonth(),1),e=new Date(now.getFullYear(),now.getMonth()+1,0);return{x1:iso(s),x2:iso(e),label:"Tháng "+(now.getMonth()+1)+"/"+now.getFullYear()}}
  const y=sy(); if(rankFilter.mode==="sem1")return{x1:`${y.s}-09-01`,x2:`${y.e}-01-15`,label:`Học kì 1 • ${y.s}–${y.e}`}
  if(rankFilter.mode==="sem2")return{x1:`${y.e}-01-16`,x2:`${y.e}-05-31`,label:`Học kì 2 • ${y.s}–${y.e}`}
@@ -6899,7 +6899,6 @@ if(AUTHENTICATED&&currentCloudToken()){
    runClass11RosterMigrationIfNeeded();
    runDemoScores1112MigrationIfNeeded();
    runDemoDiscipline1112MigrationIfNeeded();
-runDemoDiscipline10A2MigrationIfNeeded();
    hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate(safeStartupPage());
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
    startCloudLiveSync();
@@ -7210,7 +7209,7 @@ function randomSeats(){
 }
 function clearSeats(){
   if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
-  if(!confirm("Đưa toàn bộ học sinh về trạng thái chưa xếp chỗ?"))return; 
+  if(!confirm("Đưa toàn bộ học sinh về trạng thái chưa xếp chỗ?"))return;
   seatSnapshot();classStudents().forEach(s=>s.seat="");save("Đã làm lại sơ đồ chỗ ngồi");renderSeats();
 }
 function seatDrop(e){
