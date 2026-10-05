@@ -2790,7 +2790,7 @@ async function loadPublicClassesFromSheets(){
 }
 
 // V36.45: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3652";
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3653";
 let GUEST_BANNER_PIN={classId:"",cover:"",coverRatio:null};
 function pinGuestBanner_(b){
   if(AUTHENTICATED||!b||!validBanner(b.cover))return false;
@@ -2810,16 +2810,44 @@ function reapplyGuestBanner_(){
   if(changed){try{renderCover?.()}catch(_){}}
   return true;
 }
+function forceGuestBannerDom_(){
+  if(AUTHENTICATED||!GUEST_BANNER_PIN.cover)return false;
+  const c=curClass();if(!c||String(c.id)!==String(GUEST_BANNER_PIN.classId))return false;
+  // State first.
+  c.cover=GUEST_BANNER_PIN.cover;
+  if(GUEST_BANNER_PIN.coverRatio)c.coverRatio=GUEST_BANNER_PIN.coverRatio;
+  // Then repair visible banner elements directly if a delayed renderer changed only the DOM.
+  const selectors=["#coverImg","#classCoverImg",".cover img",".hero img",".class-cover img","img[data-cover]"];
+  let hit=false;
+  for(const sel of selectors){
+    document.querySelectorAll(sel).forEach(el=>{
+      if(el&&el.tagName==="IMG"&&el.src!==GUEST_BANNER_PIN.cover){el.src=GUEST_BANNER_PIN.cover;hit=true}
+    });
+  }
+  return hit;
+}
 function startGuestBannerGuard_(){
   if(GUEST_BANNER_GUARD_TIMER)clearInterval(GUEST_BANNER_GUARD_TIMER);
   if(AUTHENTICATED)return;
   GUEST_BANNER_GUARD_TIMER=setInterval(()=>{
     if(AUTHENTICATED){clearInterval(GUEST_BANNER_GUARD_TIMER);GUEST_BANNER_GUARD_TIMER=null;return}
     reapplyGuestBanner_();
-  },250);
+    forceGuestBannerDom_();
+  },200);
 }
 function stopGuestBannerGuard_(){
   if(GUEST_BANNER_GUARD_TIMER){clearInterval(GUEST_BANNER_GUARD_TIMER);GUEST_BANNER_GUARD_TIMER=null}
+}
+let GUEST_BANNER_OBSERVER=null;
+function startGuestBannerObserver_(){
+  if(GUEST_BANNER_OBSERVER)GUEST_BANNER_OBSERVER.disconnect();
+  if(AUTHENTICATED)return;
+  GUEST_BANNER_OBSERVER=new MutationObserver(()=>{
+    if(!AUTHENTICATED&&GUEST_BANNER_PIN.cover){
+      requestAnimationFrame(()=>{reapplyGuestBanner_();forceGuestBannerDom_()});
+    }
+  });
+  GUEST_BANNER_OBSERVER.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:["src","style","class"]});
 }
 let PUBLIC_BANNER_MAP=new Map();
 function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
@@ -2839,6 +2867,7 @@ async function loadPublicBannersFromSheets(){
   if(!b||!validBanner(b.cover))return false;
   pinGuestBanner_(b);
   startGuestBannerGuard_();
+  startGuestBannerObserver_();
   rememberPublicBanners_([b]);
   // Cache theo từng lớp, không xóa banner lớp khác.
   try{
@@ -7128,7 +7157,7 @@ function clearSeats(){
   if(!confirm("Đưa toàn bộ học sinh về trạng thái chưa xếp chỗ?"))return;
   seatSnapshot();classStudents().forEach(s=>s.seat="");save("Đã làm lại sơ đồ chỗ ngồi");renderSeats();
 }
-function seatDrop(e){ 
+function seatDrop(e){
   if(curClass().seatDone){toast("Sơ đồ đã hoàn thành. Hãy mở lại để chỉnh sửa.");return}
   e.preventDefault();e.currentTarget.classList.remove("drag-over");let data=seatDragData;
   try{if(e.dataTransfer?.getData("text/plain"))data=JSON.parse(e.dataTransfer.getData("text/plain"))}catch(_){}
