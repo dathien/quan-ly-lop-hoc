@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2790,12 +2790,29 @@ async function loadPublicClassesFromSheets(){
 }
 
 // V36.45: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3655";
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3656";
 let PUBLIC_BANNER_MAP=new Map();
 function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
-function rememberPublicBanners_(list){if(!Array.isArray(list))return;for(const x of list){if(!validBanner(x?.cover))continue;const ids=[x.classId,x.id,x.className,x.name].filter(Boolean).map(String);for(const k of ids)PUBLIC_BANNER_MAP.set(k,{cover:x.cover,coverRatio:x.coverRatio||null});}}
+function normBannerClassKey_(v){
+ return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+}
+function rememberPublicBanners_(list){
+ if(!Array.isArray(list))return;
+ for(const x of list){
+  if(!validBanner(x?.cover))continue;
+  const rec={cover:x.cover,coverRatio:x.coverRatio||null,classId:String(x.classId||x.id||""),className:String(x.className||x.name||"")};
+  const ids=[x.classId,x.id,x.className,x.name].filter(Boolean).map(String);
+  for(const k of ids){
+   PUBLIC_BANNER_MAP.set(k,rec);
+   const nk=normBannerClassKey_(k);if(nk)PUBLIC_BANNER_MAP.set("N:"+nk,rec);
+  }
+ }
+}
 function readPublicBannerCache(){try{const a=JSON.parse(localStorage.getItem(PUBLIC_BANNER_CACHE_KEY)||"[]");rememberPublicBanners_(a);return a}catch(_){return []}}
-function publicBannerForClass_(c){return PUBLIC_BANNER_MAP.get(String(c?.id||""))||PUBLIC_BANNER_MAP.get(String(c?.name||""))||null}
+function publicBannerForClass_(c){
+ const id=String(c?.id||""),name=String(c?.name||"");
+ return PUBLIC_BANNER_MAP.get(id)||PUBLIC_BANNER_MAP.get(name)||PUBLIC_BANNER_MAP.get("N:"+normBannerClassKey_(id))||PUBLIC_BANNER_MAP.get("N:"+normBannerClassKey_(name))||null;
+}
 function preservePublicBannerClasses_(classes){
  if(!Array.isArray(classes))return classes;
  const oldClasses=Array.isArray(state?.classes)?state.classes:[];
@@ -2813,9 +2830,17 @@ async function loadPublicBannersFromSheets(){
  const cached=readPublicBannerCache();applyPublicBanners(cached,false);
  const c=curClass();if(!c?.id)return false;
  try{
-  const x=await onlineAPI({action:"publicBanner",classId:String(c.id)});
+  let x=await onlineAPI({action:"publicBanner",classId:String(c.id)});
   if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;
-  const b=x?.banner;
+  let b=x?.banner;
+  // V36.56: lớp cũ có thể lưu banner theo tên lớp thay vì ClassID hiện hành.
+  // Chỉ fallback khi ClassID không trả banner; không ảnh hưởng lớp 12 đang đúng.
+  if((!b||!validBanner(b.cover))&&c.name){
+    try{
+      const byName=await onlineAPI({action:"publicBanner",classId:String(c.name)});
+      if(byName?.banner&&validBanner(byName.banner.cover))b=byName.banner;
+    }catch(_){}
+  }
   if(!b||!validBanner(b.cover))return false;
   rememberPublicBanners_([b]);
   // Gắn banner vào state hiện hành trước render; mọi render sau đều đọc cùng một nguồn.
