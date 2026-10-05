@@ -7210,7 +7210,7 @@ function randomSeats(){
 }
 function clearSeats(){
   if(curClass().seatDone){toast("Hãy mở chỉnh sửa sơ đồ trước.");return}
-  if(!confirm("Đưa toàn bộ học sinh về trạng thái chưa xếp chỗ?"))return;
+  if(!confirm("Đưa toàn bộ học sinh về trạng thái chưa xếp chỗ?"))return; 
   seatSnapshot();classStudents().forEach(s=>s.seat="");save("Đã làm lại sơ đồ chỗ ngồi");renderSeats();
 }
 function seatDrop(e){
