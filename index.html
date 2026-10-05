@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm · V36</title>
+<title>Quản lý lớp chủ nhiệm </title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2790,78 +2790,23 @@ async function loadPublicClassesFromSheets(){
 }
 
 // V36.45: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3654";
-let GUEST_BANNER_PIN={classId:"",cover:"",coverRatio:null};
-function pinGuestBanner_(b){
-  if(AUTHENTICATED||!b||!validBanner(b.cover))return false;
-  const c=curClass(); if(!c?.id)return false;
-  GUEST_BANNER_PIN={classId:String(c.id),cover:String(b.cover),coverRatio:b.coverRatio||null};
-  c.cover=GUEST_BANNER_PIN.cover;
-  if(GUEST_BANNER_PIN.coverRatio)c.coverRatio=GUEST_BANNER_PIN.coverRatio;
-  return true;
-}
-let GUEST_BANNER_GUARD_TIMER=null;
-function reapplyGuestBanner_(){
-  if(AUTHENTICATED||!GUEST_BANNER_PIN.cover)return false;
-  const c=curClass(); if(!c||String(c.id)!==String(GUEST_BANNER_PIN.classId))return false;
-  const changed=String(c.cover||"")!==String(GUEST_BANNER_PIN.cover);
-  c.cover=GUEST_BANNER_PIN.cover;
-  if(GUEST_BANNER_PIN.coverRatio)c.coverRatio=GUEST_BANNER_PIN.coverRatio;
-  if(changed){try{renderCover?.()}catch(_){}}
-  return true;
-}
-function forceGuestBannerDom_(){
-  if(AUTHENTICATED||!GUEST_BANNER_PIN.cover)return false;
-  const c=curClass();if(!c||String(c.id)!==String(GUEST_BANNER_PIN.classId))return false;
-  // State first.
-  c.cover=GUEST_BANNER_PIN.cover;
-  if(GUEST_BANNER_PIN.coverRatio)c.coverRatio=GUEST_BANNER_PIN.coverRatio;
-  // Then repair visible banner elements directly if a delayed renderer changed only the DOM.
-  const selectors=[".class-cover-photo","#coverImg","#classCoverImg",".cover img",".hero img",".class-cover img","img[data-cover]"];
-  let hit=false;
-  for(const sel of selectors){
-    document.querySelectorAll(sel).forEach(el=>{
-      if(el&&el.tagName==="IMG"&&el.src!==GUEST_BANNER_PIN.cover){el.src=GUEST_BANNER_PIN.cover;hit=true}
-    });
-  }
-  // Nếu render muộn đã thay hẳn <img> bằng ô trường học mặc định,
-  // khôi phục state trước rồi render lại Home đúng một lần.
-  if(!document.querySelector(".class-cover-photo")&&document.querySelector(".class-cover-empty")){
-    c.cover=GUEST_BANNER_PIN.cover;
-    if(GUEST_BANNER_PIN.coverRatio)c.coverRatio=GUEST_BANNER_PIN.coverRatio;
-    try{if(typeof renderHome==="function"){renderHome();hit=true}}catch(_){}
-  }
-  return hit;
-}
-function startGuestBannerGuard_(){
-  if(GUEST_BANNER_GUARD_TIMER)clearInterval(GUEST_BANNER_GUARD_TIMER);
-  if(AUTHENTICATED)return;
-  GUEST_BANNER_GUARD_TIMER=setInterval(()=>{
-    if(AUTHENTICATED){clearInterval(GUEST_BANNER_GUARD_TIMER);GUEST_BANNER_GUARD_TIMER=null;return}
-    reapplyGuestBanner_();
-    forceGuestBannerDom_();
-  },200);
-}
-function stopGuestBannerGuard_(){
-  if(GUEST_BANNER_GUARD_TIMER){clearInterval(GUEST_BANNER_GUARD_TIMER);GUEST_BANNER_GUARD_TIMER=null}
-}
-let GUEST_BANNER_OBSERVER=null;
-function startGuestBannerObserver_(){
-  if(GUEST_BANNER_OBSERVER)GUEST_BANNER_OBSERVER.disconnect();
-  if(AUTHENTICATED)return;
-  GUEST_BANNER_OBSERVER=new MutationObserver(()=>{
-    if(!AUTHENTICATED&&GUEST_BANNER_PIN.cover){
-      requestAnimationFrame(()=>{reapplyGuestBanner_();forceGuestBannerDom_()});
-    }
-  });
-  GUEST_BANNER_OBSERVER.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:["src","style","class"]});
-}
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3655";
 let PUBLIC_BANNER_MAP=new Map();
 function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
 function rememberPublicBanners_(list){if(!Array.isArray(list))return;for(const x of list){if(!validBanner(x?.cover))continue;const ids=[x.classId,x.id,x.className,x.name].filter(Boolean).map(String);for(const k of ids)PUBLIC_BANNER_MAP.set(k,{cover:x.cover,coverRatio:x.coverRatio||null});}}
 function readPublicBannerCache(){try{const a=JSON.parse(localStorage.getItem(PUBLIC_BANNER_CACHE_KEY)||"[]");rememberPublicBanners_(a);return a}catch(_){return []}}
 function publicBannerForClass_(c){return PUBLIC_BANNER_MAP.get(String(c?.id||""))||PUBLIC_BANNER_MAP.get(String(c?.name||""))||null}
-function preservePublicBannerClasses_(classes){if(!Array.isArray(classes))return classes;return classes.map(c=>{const b=publicBannerForClass_(c);return b&&validBanner(b.cover)?{...c,cover:b.cover,coverRatio:b.coverRatio||c.coverRatio||null}:c})}
+function preservePublicBannerClasses_(classes){
+ if(!Array.isArray(classes))return classes;
+ const oldClasses=Array.isArray(state?.classes)?state.classes:[];
+ return classes.map(c=>{
+   const b=publicBannerForClass_(c);
+   const old=oldClasses.find(x=>String(x.id||"")===String(c.id||""))||oldClasses.find(x=>String(x.name||"")===String(c.name||""));
+   const cover=(b&&validBanner(b.cover))?b.cover:(old&&validBanner(old.cover)?old.cover:"");
+   const ratio=(b&&b.coverRatio)||old?.coverRatio||c.coverRatio||null;
+   return cover?{...c,cover,coverRatio:ratio}:c;
+ });
+}
 function applyPublicBanners(list,rerender=true){if(AUTHENTICATED)return false;rememberPublicBanners_(list);let changed=false;(state.classes||[]).forEach(c=>{const z=publicBannerForClass_(c);if(z&&validBanner(z.cover)&&c.cover!==z.cover){c.cover=z.cover;c.coverRatio=z.coverRatio||c.coverRatio||null;changed=true}});if(changed&&rerender)refreshCurrentView();return changed}
 async function loadPublicBannersFromSheets(){
  const gen=PUBLIC_READ_GEN;
@@ -2872,10 +2817,9 @@ async function loadPublicBannersFromSheets(){
   if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;
   const b=x?.banner;
   if(!b||!validBanner(b.cover))return false;
-  pinGuestBanner_(b);
-  startGuestBannerGuard_();
-  startGuestBannerObserver_();
   rememberPublicBanners_([b]);
+  // Gắn banner vào state hiện hành trước render; mọi render sau đều đọc cùng một nguồn.
+  state.classes=preservePublicBannerClasses_(state.classes);
   // Cache theo từng lớp, không xóa banner lớp khác.
   try{
    const arr=[];const seen=new Set();
@@ -2885,9 +2829,7 @@ async function loadPublicBannersFromSheets(){
    }
    localStorage.setItem(PUBLIC_BANNER_CACHE_KEY,JSON.stringify(arr));
   }catch(_){}
-  const ok=applyPublicBanners([b],true);
-  requestAnimationFrame(()=>{reapplyGuestBanner_();setTimeout(reapplyGuestBanner_,120);setTimeout(reapplyGuestBanner_,600);});
-  return ok;
+  return applyPublicBanners([b],true);
  }catch(e){console.warn("Không tải được banner công khai của lớp",c.id,e);return false}
 }
 async function saveBannerDirectToCloud_(c){
@@ -2919,10 +2861,21 @@ async function loadPublicStateFromSheets(){
   if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;
   if(!x||!x.ok||!x.data||typeof x.data!=="object")return loadPublicClassesFromSheets();
   const p=x.data,beforeId=state.currentClassId;
-  // V36.43: banner công khai là state độc lập. Public State tuyệt đối không được xóa banner đã tải/cache.
+  // V36.55 ROOT FIX: chụp banner công khai TRƯỚC khi Public State thay state.classes.
+  // Banner phải là một phần của state mới ngay trước render, không vá DOM/timer sau render.
   readPublicBannerCache();
+  const bannerSnapshot=new Map(PUBLIC_BANNER_MAP);
+  (state.classes||[]).forEach(c=>{
+    if(validBanner(c?.cover)){
+      const rec={classId:String(c.id||""),className:String(c.name||""),cover:String(c.cover),coverRatio:c.coverRatio||null};
+      if(rec.classId)bannerSnapshot.set(rec.classId,rec);
+      if(rec.className)bannerSnapshot.set("name:"+rec.className.toLowerCase(),rec);
+    }
+  });
+  PUBLIC_BANNER_MAP.clear();bannerSnapshot.forEach((v,k)=>PUBLIC_BANNER_MAP.set(k,v));
   const publicKeys=["classes","students","seats","timetable","attendance","positive","incidents","duty","weekly","tasks"];
   publicKeys.forEach(k=>{if(Array.isArray(p[k]))state[k]=(k==="classes"?preservePublicBannerClasses_(p[k]):p[k])});
+  state.classes=preservePublicBannerClasses_(state.classes);
   // Không để cache cũ làm khách nhìn thấy dữ liệu riêng tư/không còn hiện hành.
   ["scores","finance","comments","messages"].forEach(k=>{if(Array.isArray(state[k]))state[k]=[]});
   if(beforeId&&Array.isArray(state.classes)&&state.classes.some(c=>String(c.id)===String(beforeId)))state.currentClassId=beforeId;
