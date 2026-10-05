@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2584,7 +2584,7 @@ async function onlineAPI(body){
  try{
   if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicBanners"||action==="publicBanner"||action==="publicClasses"||action==="publicState"){
    const token=body?.token||currentCloudToken();
-   const qs=new URLSearchParams({action});if(token)qs.set("token",token);if((action==="publicBanner")&&body?.classId)qs.set("classId",String(body.classId));if(action==="pull"){qs.set("_ts",String(Date.now()));qs.set("_rev",String(CLOUD_REVISION||0));}
+   const qs=new URLSearchParams({action});if(token)qs.set("token",token);if(action==="publicBanner"&&body?.classId)qs.set("classId",String(body.classId));if(action==="pull"){qs.set("_ts",String(Date.now()));qs.set("_rev",String(CLOUD_REVISION||0));}
    const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
    const txt=await r.text();let x;
    try{x=JSON.parse(txt)}
@@ -2790,8 +2790,15 @@ async function loadPublicClassesFromSheets(){
 }
 
 // V36.45: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3657";
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3663";
 let PUBLIC_BANNER_MAP=new Map();
+// V36.63 SIMPLE STATIC BANNER: browser loads a normal image file; no Base64/chunk/cache path is needed.
+const STATIC_CLASS_BANNERS={
+ "c1":"./assets/banners/11A4.webp",
+ "c2":"./assets/banners/10A2.webp",
+ "c3":"./assets/banners/12A4.webp"
+};
+function classBannerSrc_(c){return STATIC_CLASS_BANNERS[String(c?.id||"")]||String(c?.cover||"");}
 function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
 function normBannerClassKey_(v){
  return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"");
@@ -2918,7 +2925,7 @@ async function loadPublicStateFromSheets(){
   // Render dữ liệu công khai trước, sau đó bắt buộc lấy banner lớp hiện tại trực tiếp từ Apps Script.
   applyPublicBanners(readPublicBannerCache(),false);
   refreshCurrentView();
-  await loadPublicBannersFromSheets({forceCloud:true});
+  /* V36.63 static banner: no guest banner cloud fetch */
   const stamp=document.getElementById("guestPublicSyncStamp");if(stamp)stamp.textContent=x.syncedAt?`Dữ liệu công khai cập nhật ${new Date(x.syncedAt).toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})}`:"Dữ liệu công khai mới nhất";
   return true;
  }catch(e){console.warn("Không tải được snapshot công khai",e);return loadPublicClassesFromSheets()}
@@ -3738,7 +3745,7 @@ function renderHome(){
  const present=att.filter(x=>x.status==="Có mặt").length, absent=att.filter(x=>String(x.status).startsWith("Vắng")).length;
  const bal=byClass(state.finance).reduce((a,x)=>a+(x.type==="Thu"?Number(x.amount||0):-Number(x.amount||0)),0);
  $("#content").innerHTML=`
- <section class="class-cover-full">${c?.cover?`<img class="class-cover-photo" src="${c.cover}" alt="Banner lớp ${esc(c?.name||"")}">`:`<div class="class-cover-empty">🏫</div>`}
+ <section class="class-cover-full">${classBannerSrc_(c)?`<img class="class-cover-photo" src="${classBannerSrc_(c)}" alt="Banner lớp ${esc(c?.name||"")}" onerror="this.onerror=null;this.src=String(curClass()?.cover||'')">`:`<div class="class-cover-empty">🏫</div>`}
  <div class="class-cover-tools"><button class=btn onclick=changeCover()>📷 ${c?.cover?"Đổi ảnh lớp":"Thêm ảnh lớp"}</button>${c?.cover?`<button class="btn bad" onclick=removeCover()>Bỏ ảnh</button>`:""}</div></section>
  <div class="dashboard-summary-head">
    <div>
@@ -7169,10 +7176,6 @@ const __memberNoDeleteObserver=new MutationObserver(()=>memberNoDeleteGuard());
 __memberNoDeleteObserver.observe(document.body,{childList:true,subtree:true});
 setTimeout(memberNoDeleteGuard,0);
 </script>
-
-
-
-
 
 </body>
 </html>
