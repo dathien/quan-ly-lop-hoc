@@ -2790,7 +2790,7 @@ async function loadPublicClassesFromSheets(){
 }
 
 // V36.45: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3651";
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3652";
 let GUEST_BANNER_PIN={classId:"",cover:"",coverRatio:null};
 function pinGuestBanner_(b){
   if(AUTHENTICATED||!b||!validBanner(b.cover))return false;
@@ -2800,13 +2800,26 @@ function pinGuestBanner_(b){
   if(GUEST_BANNER_PIN.coverRatio)c.coverRatio=GUEST_BANNER_PIN.coverRatio;
   return true;
 }
+let GUEST_BANNER_GUARD_TIMER=null;
 function reapplyGuestBanner_(){
   if(AUTHENTICATED||!GUEST_BANNER_PIN.cover)return false;
   const c=curClass(); if(!c||String(c.id)!==String(GUEST_BANNER_PIN.classId))return false;
+  const changed=String(c.cover||"")!==String(GUEST_BANNER_PIN.cover);
   c.cover=GUEST_BANNER_PIN.cover;
   if(GUEST_BANNER_PIN.coverRatio)c.coverRatio=GUEST_BANNER_PIN.coverRatio;
-  try{renderCover?.()}catch(_){}
+  if(changed){try{renderCover?.()}catch(_){}}
   return true;
+}
+function startGuestBannerGuard_(){
+  if(GUEST_BANNER_GUARD_TIMER)clearInterval(GUEST_BANNER_GUARD_TIMER);
+  if(AUTHENTICATED)return;
+  GUEST_BANNER_GUARD_TIMER=setInterval(()=>{
+    if(AUTHENTICATED){clearInterval(GUEST_BANNER_GUARD_TIMER);GUEST_BANNER_GUARD_TIMER=null;return}
+    reapplyGuestBanner_();
+  },250);
+}
+function stopGuestBannerGuard_(){
+  if(GUEST_BANNER_GUARD_TIMER){clearInterval(GUEST_BANNER_GUARD_TIMER);GUEST_BANNER_GUARD_TIMER=null}
 }
 let PUBLIC_BANNER_MAP=new Map();
 function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
@@ -2825,6 +2838,7 @@ async function loadPublicBannersFromSheets(){
   const b=x?.banner;
   if(!b||!validBanner(b.cover))return false;
   pinGuestBanner_(b);
+  startGuestBannerGuard_();
   rememberPublicBanners_([b]);
   // Cache theo từng lớp, không xóa banner lớp khác.
   try{
