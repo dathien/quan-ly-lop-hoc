@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm </title>
+<title>Quản lý lớp chủ nhiệm · V36</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -3461,6 +3461,57 @@ function migrateDemoDiscipline1112_20261004(){
  DIAG_LAST_RESULT="DEMO THI ĐUA 11 + 12A4 → PERSIST REPAIRED";DIAG_LAST_ERROR="";renderSyncDiagnostic();
  return true;
 }
+
+// V36.65: phục hồi Bảng vinh danh lớp 10A2 theo cách KHÔNG PHÁ HỦY.
+// Chỉ tạo dữ liệu mẫu khi c2 hoàn toàn chưa có attendance/incidents/positive/duty.
+// Không xóa, không ghi đè dữ liệu thật và không tác động c1/c3.
+function migrateDemoDiscipline10A2NonDestructive_20261005(){
+ if(!isFullAccessAccount()||!state)return false;
+ state._migrations=state._migrations||{};
+ if(state._migrations.demoDiscipline10A2_nonDestructive_20261005)return false;
+ ["attendance","incidents","positive","duty"].forEach(k=>{if(!Array.isArray(state[k]))state[k]=[]});
+ const classId="c2",sts=(state.students||[]).filter(x=>String(x.classId)===classId);
+ if(!sts.length)return false;
+ const hasExisting=["attendance","incidents","positive","duty"].some(k=>(state[k]||[]).some(x=>String(x.classId)===classId));
+ if(hasExisting){
+   state._migrations.demoDiscipline10A2_nonDestructive_20261005=true;
+   try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
+   return false;
+ }
+ const dates=["2026-09-28","2026-09-29","2026-09-30","2026-10-01","2026-10-02","2026-10-03"];
+ let n=1;
+ dates.forEach((date,di)=>sts.forEach((st,si)=>{
+   let status="Có mặt",reason="";
+   if((si+di*5)%29===0){status="Đi trễ";reason="Đến lớp sau giờ quy định";}
+   else if((si*2+di*7)%43===0){status="Vắng phép";reason="Gia đình đã xin phép";}
+   state.attendance.push({id:`demotdc2at${String(n++).padStart(5,"0")}`,classId,studentId:st.id,date,status,reason,demo:true});
+ }));
+ const positives=[
+  [1,"Tích cực phát biểu xây dựng bài.",3,"Học tập"],
+  [4,"Hỗ trợ bạn trong hoạt động nhóm.",2,"Phong trào"],
+  [8,"Hoàn thành tốt nhiệm vụ được giao.",3,"Học tập"],
+  [12,"Có tiến bộ rõ trong học tập.",2,"Học tập"],
+  [17,"Tích cực tham gia hoạt động lớp.",3,"Phong trào"],
+  [23,"Chuẩn bị bài và dụng cụ học tập đầy đủ.",2,"Học tập"],
+  [29,"Giữ gìn vệ sinh và hỗ trợ trực nhật tốt.",2,"Nề nếp"],
+  [34,"Chủ động giúp đỡ bạn trong lớp.",2,"Phong trào"]
+ ];
+ positives.forEach((a,k)=>{if(sts[a[0]])state.positive.push({id:`demotdc2po${k+1}`,classId,studentId:sts[a[0]].id,date:dates[(k+2)%dates.length],note:a[1],points:a[2],category:a[3],demo:true})});
+ const incidents=[
+  [5,"Đi học muộn, đã nhắc nhở.","Nhắc nhở"],
+  [10,"Chưa hoàn thành nhiệm vụ học tập đúng hạn.","Cần lưu ý"],
+  [16,"Mất tập trung trong giờ học.","Nhắc nhở"]
+ ];
+ incidents.forEach((a,k)=>{if(sts[a[0]])state.incidents.push({id:`demotdc2in${k+1}`,classId,studentId:sts[a[0]].id,date:dates[(k+1)%dates.length],note:a[1],level:a[2],resolved:k===0,demo:true})});
+ for(let i=0;i<4;i++)state.duty.push({id:`demotdc2du${i+1}`,classId,date:dates[Math.min(i+1,dates.length-1)],assignee:`Tổ ${i+1}`,task:"Vệ sinh lớp học, lau bảng và sắp xếp bàn ghế",done:i!==2,status:i===0?"Xuất sắc":i===2?"Chưa hoàn thành":"Hoàn thành",demo:true});
+ state._migrations.demoDiscipline10A2_nonDestructive_20261005=true;
+ try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}
+ return true;
+}
+function runDemoDiscipline10A2MigrationIfNeeded(){
+ if(migrateDemoDiscipline10A2NonDestructive_20261005()){renderClassSelect();refreshCurrentView();setTimeout(()=>scheduleOnlinePush(),260)}
+}
+
 function runDemoDiscipline1112MigrationIfNeeded(){
  if(migrateDemoDiscipline1112_20261004()){renderClassSelect();refreshCurrentView();setTimeout(()=>scheduleOnlinePush(),220)}
 }
@@ -6848,6 +6899,7 @@ if(AUTHENTICATED&&currentCloudToken()){
    runClass11RosterMigrationIfNeeded();
    runDemoScores1112MigrationIfNeeded();
    runDemoDiscipline1112MigrationIfNeeded();
+runDemoDiscipline10A2MigrationIfNeeded();
    hideLoginScreen();updateAccountUI();updateGuestUI();renderClassSelect();navigate(safeStartupPage());
    CLOUD_SYNC_STATE="synced";CLOUD_SYNC_TIME=new Date().toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});updateCloudSyncChip();
    startCloudLiveSync();
