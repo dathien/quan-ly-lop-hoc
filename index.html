@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Quản lý lớp chủ nhiệm · V36</title>
+<title>Quản lý lớp chủ nhiệm</title>
 <style>
 :root{
   --bg:#f5f7fb;--card:#fff;--text:#1f2937;--muted:#718096;--line:#e5eaf1;
@@ -2584,7 +2584,7 @@ async function onlineAPI(body){
  try{
   if(action==="health"||action==="pull"||action==="bootstrap"||action==="recoverBanners"||action==="publicBanners"||action==="publicBanner"||action==="publicClasses"||action==="publicState"){
    const token=body?.token||currentCloudToken();
-   const qs=new URLSearchParams({action});if(token)qs.set("token",token);if(action==="publicBanner"&&body?.classId)qs.set("classId",String(body.classId));if(action==="pull"){qs.set("_ts",String(Date.now()));qs.set("_rev",String(CLOUD_REVISION||0));}
+   const qs=new URLSearchParams({action});if(token)qs.set("token",token);if(action==="publicBanner"){if(body?.classId)qs.set("classId",String(body.classId));if(body?.className)qs.set("className",String(body.className));}if(action==="pull"){qs.set("_ts",String(Date.now()));qs.set("_rev",String(CLOUD_REVISION||0));}
    const r=await fetch(GVCN_APPS_SCRIPT_URL+"?"+qs.toString(),{method:"GET",redirect:"follow",cache:"no-store"});
    const txt=await r.text();let x;
    try{x=JSON.parse(txt)}
@@ -2790,7 +2790,7 @@ async function loadPublicClassesFromSheets(){
 }
 
 // V36.45: banner public được lưu chuẩn theo ClassID trên sheet BannerLop.
-const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3649";
+const PUBLIC_BANNER_CACHE_KEY="GVCN_PUBLIC_BANNERS_V3650";
 let PUBLIC_BANNER_MAP=new Map();
 function bannerKey_(x){return String(x?.classId||x?.id||x?.className||x?.name||"").trim()}
 function rememberPublicBanners_(list){if(!Array.isArray(list))return;for(const x of list){if(!validBanner(x?.cover))continue;const ids=[x.classId,x.id,x.className,x.name].filter(Boolean).map(String);for(const k of ids)PUBLIC_BANNER_MAP.set(k,{cover:x.cover,coverRatio:x.coverRatio||null});}}
@@ -2803,10 +2803,11 @@ async function loadPublicBannersFromSheets(){
  const cached=readPublicBannerCache();applyPublicBanners(cached,false);
  const c=curClass();if(!c?.id)return false;
  try{
-  const x=await onlineAPI({action:"publicBanner",classId:String(c.id)});
+  const x=await onlineAPI({action:"publicBanner",classId:String(c.id),className:String(c.name||"")});
   if(AUTHENTICATED||gen!==PUBLIC_READ_GEN)return false;
-  const b=x?.banner;
+  let b=x?.banner;
   if(!b||!validBanner(b.cover))return false;
+  b={...b,classId:String(c.id),className:String(c.name||b.className||"")};
   rememberPublicBanners_([b]);
   // Cache theo từng lớp, không xóa banner lớp khác.
   try{
@@ -2992,7 +2993,7 @@ async function mainLogin(){
           new Promise(resolve=>setTimeout(()=>resolve([]),1500))
         ]);
         if(Array.isArray(recovered)&&recovered.length)state=mergeRemoteStateSafely(state,state,recovered);
-        setTimeout(()=>syncOwnedBannersToPublicStore_(),0);
+        await syncOwnedBannersToPublicStore_();
       }catch(_){recovered=[];}
     
       // Giữ đúng lớp người dùng đang xem trước khi đăng nhập nếu lớp đó vẫn tồn tại.
